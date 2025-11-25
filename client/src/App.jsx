@@ -1,10 +1,20 @@
 import React from 'react'
+import {Routes,Route} from 'react-router-dom'
+import { Toaster } from "react-hot-toast";
+import Register from './pages/Register';
 
 const App = () => {
   return (
-    <div>
-      hellow
-    </div>
+    <>
+      <Toaster/>
+      <Routes>
+
+        <Route path='/' element={<Register/>}/>
+      </Routes>
+
+
+
+    </>
   )
 }
 
