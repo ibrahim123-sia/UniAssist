@@ -1,6 +1,6 @@
-// components/Sidebar.jsx
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef} from "react";
 import { useAppContext } from "../context/AppContext";
+import { Link } from "react-router-dom";
 import { 
   MessageSquare, 
   Plus, 
@@ -164,7 +164,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         </button>
 
         {/* Logo Section */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+       <Link to="/chat"><div className="p-6 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-linear-to-r from-blue-600 to-indigo-600 rounded-lg">
               <GraduationCap className="w-6 h-6 text-white" />
@@ -178,10 +178,11 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
               </p>
             </div>
           </div>
-        </div>
+        </div></Link>
+        
 
         {/* User Profile */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-2 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-linear-to-r from-blue-500 to-purple-500 flex items-center justify-center">
               <span className="text-white font-semibold text-sm">
@@ -196,18 +197,12 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 {user?.email || 'student@maju.edu.pk'}
               </p>
             </div>
-            <button 
-              onClick={() => handleNavigation("/notifications")}
-              className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
-              aria-label="Notifications"
-            >
-              <Bell className="w-4 h-4 text-gray-500" />
-            </button>
+            
           </div>
         </div>
 
         {/* New Chat Button */}
-        <div className="p-4">
+        <div className="p-2">
           <button
             onClick={handleNewChat}
             className="w-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 
@@ -219,7 +214,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         </div>
 
         {/* Search Chats */}
-        <div className="px-4 pb-4">
+        <div className="px-3 pb-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
             <input
@@ -237,7 +232,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         </div>
 
         {/* Recent Chats */}
-        <div className="flex-1 overflow-y-auto px-4 pb-4">
+        <div className="flex-1 overflow-y-auto px-3 pb-3">
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             Recent Conversations
           </h3>
@@ -299,9 +294,9 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         </div>
 
         {/* Quick Actions */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+        <div className="p-2 border-t border-gray-200 dark:border-gray-700 space-y-2">
           <button
-            onClick={() => handleNavigation("/chat")}
+            onClick={() => handleNavigation("/emails")}
             className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm ${
               location.pathname === "/chat" 
@@ -312,7 +307,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             }`}
           >
             <MessageSquare className="w-4 h-4 text-blue-500" />
-            <span>Chat Assistant</span>
+            <span>Emails</span>
           </button>
           
           <button
@@ -350,8 +345,8 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         </div>
 
         {/* Settings & Theme */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
-          <div className="flex items-center justify-between p-2.5 rounded-lg bg-gray-100/50 dark:bg-gray-800/50">
+        <div className="p-2 border-t border-gray-200 dark:border-gray-700">
+          <div className="flex items-center justify-between rounded-lg bg-gray-100/50 dark:bg-gray-800/50">
             <div className="flex items-center gap-3">
               {theme === "dark" ? (
                 <Moon className="w-4 h-4 text-purple-400" />
@@ -378,18 +373,11 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             </label>
           </div>
           
-          <button
-            onClick={() => handleNavigation("/settings")}
-            className="w-full flex items-center gap-3 p-2.5 rounded-lg text-gray-700 dark:text-gray-300 
-            hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm"
-          >
-            <Settings className="w-4 h-4 text-gray-500" />
-            <span>Settings</span>
-          </button>
+          
           
           <button
             onClick={logout}
-            className="w-full flex items-center justify-center gap-2 p-2.5 text-gray-700 dark:text-gray-300 
+            className="w-full flex items-center justify-center gap-2 p-1 text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all text-sm"
           >
             <LogOut className="w-4 h-4" />

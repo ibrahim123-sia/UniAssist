@@ -24,21 +24,20 @@ const App = () => {
         }}
       />
       <Routes>
-        {/* Guest Chat is now the homepage */}
+      
         <Route path="/" element={<GuestChat />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/credits" element={<Credits />} />
-        
-        {/* Protected Routes with Layout (for logged-in users) */}
+       
         <Route element={
           <ProtectedRoute>
             <MainLayout />
           </ProtectedRoute>
         }>
-          <Route path="/chat" element={<ChatPage />} />
-          {/* Add more protected routes as needed */}
+        
+        
         </Route>
       </Routes>
     </>
