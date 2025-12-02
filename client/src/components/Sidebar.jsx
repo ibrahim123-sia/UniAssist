@@ -1,11 +1,11 @@
-import React, { useState, useEffect, useRef} from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAppContext } from "../context/AppContext";
 import { Link } from "react-router-dom";
-import { 
-  MessageSquare, 
-  Plus, 
-  Search, 
-  Trash2, 
+import {
+  MessageSquare,
+  Plus,
+  Search,
+  Trash2,
   Mail,
   Calendar,
   User,
@@ -16,7 +16,7 @@ import {
   CreditCard,
   GraduationCap,
   Settings,
-  Bell
+  Bell,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import moment from "moment";
@@ -33,7 +33,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     setChats,
     token,
   } = useAppContext();
-  
+
   const navigate = useNavigate();
   const location = useLocation();
   const [search, setSearch] = useState("");
@@ -43,8 +43,8 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (
-        isMenuOpen && 
-        sidebarRef.current && 
+        isMenuOpen &&
+        sidebarRef.current &&
         !sidebarRef.current.contains(event.target) &&
         window.innerWidth < 768 // Only on mobile
       ) {
@@ -54,7 +54,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
 
     // Add event listener
     document.addEventListener("mousedown", handleClickOutside);
-    
+
     // Remove event listener on cleanup
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
@@ -77,7 +77,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     };
 
     document.addEventListener("keydown", handleEscapeKey);
-    
+
     return () => {
       document.removeEventListener("keydown", handleEscapeKey);
     };
@@ -103,7 +103,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     );
 
     if (!confirm) return;
-    
+
     try {
       // Your API call to delete chat
       // const { data } = await axios.post(
@@ -113,8 +113,8 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
       // );
 
       // if (data.success) {
-        setChats((prev) => prev.filter((chat) => chat._id !== chatId));
-        toast.success("Chat deleted successfully");
+      setChats((prev) => prev.filter((chat) => chat._id !== chatId));
+      toast.success("Chat deleted successfully");
       // }
     } catch (error) {
       toast.error(error.message);
@@ -137,7 +137,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     <>
       {/* Mobile Overlay - Click outside to close */}
       {isMenuOpen && window.innerWidth < 768 && (
-        <div 
+        <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
           onClick={() => setIsMenuOpen(false)}
         ></div>
@@ -147,13 +147,12 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
       <aside
         ref={sidebarRef}
         className={`flex flex-col h-screen w-72 z-50 ${
-          theme === 'dark' 
-            ? 'bg-gray-900/95 border-gray-700 backdrop-blur-lg' 
-            : 'bg-white/95 border-gray-200 backdrop-blur-lg'
+          theme === "dark"
+            ? "bg-gray-900/95 border-gray-700 backdrop-blur-lg"
+            : "bg-white/95 border-gray-200 backdrop-blur-lg"
         } border-r transition-all duration-300 fixed md:relative
         ${isMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
-        
         {/* Close button for mobile */}
         <button
           onClick={() => setIsMenuOpen(false)}
@@ -164,40 +163,41 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         </button>
 
         {/* Logo Section */}
-       <Link to="/chat"><div className="p-6 border-b border-gray-200 dark:border-gray-700">
-          <div className="flex items-center gap-3">
-            <div className="p-2 bg-linear-to-r from-blue-600 to-indigo-600 rounded-lg">
-              <GraduationCap className="w-6 h-6 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                UniAssist<span className="text-blue-600 dark:text-blue-400">.ai</span>
-              </h1>
-              <p className="text-xs text-gray-600 dark:text-gray-400">
-                MAJU University Assistant
-              </p>
+        <Link to="/chat">
+          <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-linear-to-r from-blue-600 to-indigo-600 rounded-lg">
+                <GraduationCap className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                  UniAssist
+                  <span className="text-blue-600 dark:text-blue-400">.ai</span>
+                </h1>
+                <p className="text-xs text-gray-600 dark:text-gray-400">
+                  MAJU University Assistant
+                </p>
+              </div>
             </div>
           </div>
-        </div></Link>
-        
+        </Link>
 
         {/* User Profile */}
         <div className="p-2 border-b border-gray-200 dark:border-gray-700">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-full bg-linear-to-r from-blue-500 to-purple-500 flex items-center justify-center">
               <span className="text-white font-semibold text-sm">
-                {user?.name?.charAt(0) || 'U'}
+                {user?.name?.charAt(0) || "U"}
               </span>
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
-                {user?.name || 'User'}
+                {user?.name || "User"}
               </p>
               <p className="text-xs text-gray-600 dark:text-gray-400 truncate">
-                {user?.email || 'student@maju.edu.pk'}
+                {user?.email || "student@maju.edu.pk"}
               </p>
             </div>
-            
           </div>
         </div>
 
@@ -206,7 +206,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           <button
             onClick={handleNewChat}
             className="w-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 
-            text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm"
+            text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm cursor-pointer"
           >
             <Plus className="w-4 h-4" />
             New Conversation
@@ -236,14 +236,15 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
             Recent Conversations
           </h3>
-          
+
           <div className="space-y-2">
             {chats
-              .filter((chat) =>
-                chat.messages?.[0]?.content
-                  ?.toLowerCase()
-                  .includes(search.toLowerCase()) ||
-                chat.name?.toLowerCase().includes(search.toLowerCase())
+              .filter(
+                (chat) =>
+                  chat.messages?.[0]?.content
+                    ?.toLowerCase()
+                    .includes(search.toLowerCase()) ||
+                  chat.name?.toLowerCase().includes(search.toLowerCase())
               )
               .map((chat) => (
                 <div
@@ -258,17 +259,23 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <MessageSquare className="w-4 h-4 text-gray-400" />
-                      <p className={`text-sm font-medium truncate ${
-                        theme === "dark" ? "text-gray-200" : "text-gray-800"
-                      }`}>
-                        {chat.messages?.[0]?.content?.slice(0, 30) || chat.name || "New Chat"}
+                      <p
+                        className={`text-sm font-medium truncate ${
+                          theme === "dark" ? "text-gray-200" : "text-gray-800"
+                        }`}
+                      >
+                        {chat.messages?.[0]?.content?.slice(0, 30) ||
+                          chat.name ||
+                          "New Chat"}
                       </p>
                     </div>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {chat.updatedAt ? moment(chat.updatedAt).fromNow() : "Just now"}
+                      {chat.updatedAt
+                        ? moment(chat.updatedAt).fromNow()
+                        : "Just now"}
                     </p>
                   </div>
-                  
+
                   <button
                     onClick={(e) => deleteChat(e, chat._id || chat.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-opacity"
@@ -278,7 +285,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                   </button>
                 </div>
               ))}
-            
+
             {chats.length === 0 && (
               <div className="text-center py-8">
                 <MessageSquare className="w-10 h-10 text-gray-300 dark:text-gray-600 mx-auto mb-3" />
@@ -295,43 +302,43 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
 
         {/* Quick Actions */}
         <div className="p-2 border-t border-gray-200 dark:border-gray-700 space-y-2">
-          <button
-            onClick={() => handleNavigation("/emails")}
+          <Link
+            to="/emails"
             className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm ${
-              location.pathname === "/chat" 
-                ? theme === "dark" 
-                  ? "bg-gray-800 text-white" 
+              location.pathname === "/chat"
+                ? theme === "dark"
+                  ? "bg-gray-800 text-white"
                   : "bg-gray-100 text-gray-900"
                 : ""
             }`}
           >
             <MessageSquare className="w-4 h-4 text-blue-500" />
             <span>Emails</span>
-          </button>
-          
-          <button
-            onClick={() => handleNavigation("/deadlines")}
+          </Link>
+
+          <Link
+            to="deadlines"
             className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm ${
-              location.pathname === "/deadlines" 
-                ? theme === "dark" 
-                  ? "bg-gray-800 text-white" 
+              location.pathname === "/deadlines"
+                ? theme === "dark"
+                  ? "bg-gray-800 text-white"
                   : "bg-gray-100 text-gray-900"
                 : ""
             }`}
           >
             <Calendar className="w-4 h-4 text-green-500" />
             <span>Deadline Tracker</span>
-          </button>
-          
-          <button
-            onClick={() => handleNavigation("/credits")}
+          </Link>
+
+          <Link
+            to="/credits"
             className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm ${
-              location.pathname === "/credits" 
-                ? theme === "dark" 
-                  ? "bg-gray-800 text-white" 
+              location.pathname === "/credits"
+                ? theme === "dark"
+                  ? "bg-gray-800 text-white"
                   : "bg-gray-100 text-gray-900"
                 : ""
             }`}
@@ -341,10 +348,9 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             <span className="ml-auto text-sm font-bold text-blue-600 dark:text-blue-400">
               {user?.credits || 0}
             </span>
-          </button>
+          </Link>
         </div>
 
-        {/* Settings & Theme */}
         <div className="p-2 border-t border-gray-200 dark:border-gray-700">
           <div className="flex items-center justify-between rounded-lg bg-gray-100/50 dark:bg-gray-800/50">
             <div className="flex items-center gap-3">
@@ -364,25 +370,27 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 onChange={() => setTheme(theme === "dark" ? "light" : "dark")}
                 className="sr-only peer"
               />
-              <div className={`w-10 h-5 rounded-full peer ${
-                theme === "dark" ? "bg-purple-600" : "bg-gray-300"
-              }`}></div>
-              <div className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
-                theme === "dark" ? "translate-x-5" : ""
-              }`}></div>
+              <div
+                className={`w-10 h-5 rounded-full peer ${
+                  theme === "dark" ? "bg-purple-600" : "bg-gray-300"
+                }`}
+              ></div>
+              <div
+                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                  theme === "dark" ? "translate-x-5" : ""
+                }`}
+              ></div>
             </label>
           </div>
-          
-          
-          
-          <button
-            onClick={logout}
+
+          <Link
+            to="/login"
             className="w-full flex items-center justify-center gap-2 p-1 text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all text-sm"
           >
             <LogOut className="w-4 h-4" />
             <span className="font-medium">Logout</span>
-          </button>
+          </Link>
         </div>
       </aside>
     </>

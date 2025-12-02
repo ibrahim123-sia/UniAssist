@@ -9,6 +9,8 @@ import ProtectedRoute from './components/ProtectedRoute';
 import ChatPage from './pages/ChatPage';
 import GuestChat from './pages/GuestChat';
 import Credits from './pages/Credit';
+import Emails from './pages/Emails';
+import Deadlines from './pages/Deadlines';
 
 const App = () => {
   return (
@@ -30,6 +32,8 @@ const App = () => {
         <Route path="/register" element={<Register />} />
         <Route path="/chat" element={<ChatPage />} />
         <Route path="/credits" element={<Credits />} />
+        <Route path="/emails" element={<Emails />} />
+        <Route path="/deadlines" element={<Deadlines />} />
        
         <Route element={
           <ProtectedRoute>
