@@ -1,12 +1,14 @@
-// App.jsx (Final version)
-import React from 'react'
-import { Routes, Route } from 'react-router-dom'
+// App.jsx
+import React from 'react';
+import { Routes, Route } from 'react-router-dom';
 import { Toaster } from "react-hot-toast";
-import Register from './pages/Register';
+import MainLayout from './pages/MainLayout';
 import Login from './pages/Login';
-import GuestHome from './pages/GuestHome';
-import Dashboard from './pages/Dashboard';
+import Register from './pages/Register';
 import ProtectedRoute from './components/ProtectedRoute';
+import ChatPage from './pages/ChatPage';
+import GuestChat from './pages/GuestChat';
+import Credits from './pages/Credit';
 
 const App = () => {
   return (
@@ -19,27 +21,28 @@ const App = () => {
             background: '#363636',
             color: '#fff',
           },
-          success: {
-            duration: 3000,
-            theme: {
-              primary: 'green',
-              secondary: 'black',
-            },  
-          },
         }}
       />
       <Routes>
-        <Route path='/' element={<GuestHome />}/>
-        <Route path='/login' element={<Login/>}/>
-        <Route path='/register' element={<Register/>}/>
-        <Route path='/dashboard' element={
+        {/* Guest Chat is now the homepage */}
+        <Route path="/" element={<GuestChat />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/chat" element={<ChatPage />} />
+        <Route path="/credits" element={<Credits />} />
+        
+        {/* Protected Routes with Layout (for logged-in users) */}
+        <Route element={
           <ProtectedRoute>
-            <Dashboard />
+            <MainLayout />
           </ProtectedRoute>
-        }/>
+        }>
+          <Route path="/chat" element={<ChatPage />} />
+          {/* Add more protected routes as needed */}
+        </Route>
       </Routes>
     </>
-  )
-}
+  );
+};
 
-export default App
+export default App;
