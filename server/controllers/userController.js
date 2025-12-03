@@ -18,4 +18,30 @@ const transporter = nodemailer.createTransport({
   },
 });
 
+function generateotp() {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
+function generateJWT(id) {
+  return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
+}
+
+export const registerUser=async(req,res)=>{
+    const {name,email,password}=req.body
+
+    try {
+        const userExist=await User.findone({email})
+
+        if(userExist?.isVerified){
+            return res.status(409).json({
+                success:false,
+                message:"User Already Exist, Please Login"
+            })
+
+        }
+
+        const otp=generateotp()
+    } catch (error) {
+        
+    }
+}
