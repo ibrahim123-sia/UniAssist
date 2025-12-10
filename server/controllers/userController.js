@@ -35,6 +35,7 @@ const generateToken = (id) => {
   return jwt.sign({ id }, process.env.JWT_SECRET, { expiresIn: "30d" });
 };
 
+// User Registration
 export const registerUser = async (req, res) => {
   const { name, email, password } = req.body;
 
@@ -51,25 +52,21 @@ export const registerUser = async (req, res) => {
     const otp = generateOtp();
     const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
     
-    // Hash password manually to avoid middleware issues
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-    
     if (userExists) {
       userExists.name = name;
-      userExists.password = hashedPassword;  // Use hashed password
+      userExists.password = password;
       userExists.otp = otp;
       userExists.otpExpires = otpExpires;
       await userExists.save();
     } else {
-      // User.create() already saves, no need for extra user.save()
-      await User.create({
+      const user = await User.create({
         name,
         email,
-        password: hashedPassword,  // Use hashed password
+        password,
         otp,
         otpExpires,
       });
+      await user.save();
     }
 
     try {
@@ -98,7 +95,6 @@ export const registerUser = async (req, res) => {
         message: "OTP sent to your email. Please check your inbox.",
       });
     } catch (emailError) {
-      console.error("Email error:", emailError);
       if (!userExists) {
         await User.deleteOne({ email });
       }
@@ -108,11 +104,7 @@ export const registerUser = async (req, res) => {
       });
     }
   } catch (error) {
-    console.error("Registration error:", error);
-    return res.status(500).json({ 
-      success: false, 
-      message: error.message 
-    });
+    return res.status(500).json({ success: false, message: error.message });
   }
 };
 
