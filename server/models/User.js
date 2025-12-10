@@ -1,4 +1,3 @@
-// models/User.js
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 
@@ -27,7 +26,6 @@ const userSchema = new mongoose.Schema({
     default: 100,
     min: [0, 'Credits cannot be negative']
   },
-  // For email verification
   otp: { 
     type: String, 
     select: false 
@@ -40,7 +38,6 @@ const userSchema = new mongoose.Schema({
     type: Boolean, 
     default: false 
   },
-  // For password reset
   resetPasswordOtp: { 
     type: String, 
     select: false 
@@ -53,16 +50,17 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// Hash password before saving
+// CORRECTED Password hash middleware
 userSchema.pre("save", async function (next) {
+  // Only hash the password if it's modified (or new)
   if (!this.isModified("password")) return next();
   
   try {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
-    next();  // ✅ Call next()
+    next();
   } catch (error) {
-    next(error);  // ✅ Pass error to next
+    next(error);
   }
 });
 
@@ -70,9 +68,6 @@ userSchema.pre("save", async function (next) {
 userSchema.methods.comparePassword = async function (candidatePassword) {
   return await bcrypt.compare(candidatePassword, this.password);
 };
-
-// Indexes for faster queries
-userSchema.index({ email: 1 }, { unique: true });
 
 const User = mongoose.model("User", userSchema);
 export default User;
