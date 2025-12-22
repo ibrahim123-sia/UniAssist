@@ -17,7 +17,7 @@ import {
 } from "lucide-react";
 
 const Login = () => {
-  const { theme, setTheme, setToken } = useAppContext();
+  const { theme, setTheme, setToken,loginUser,forgotPassword,resetPassword } = useAppContext();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [resetEmail, setResetEmail] = useState("");
@@ -29,76 +29,66 @@ const Login = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
 
-  const handleSendOtp = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { data } = await axios.post("/api/user/forgetpassword", {
-        email: resetEmail,
-      });
-      if (data.success) {
-        toast.success("OTP sent to your email");
-        setResetStep(2);
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to send OTP");
-    } finally {
-      setLoading(false);
-    }
-  };
+// Replace the handleSubmit function in Login.jsx:
 
-  const handlePasswordReset = async (e) => {
-    e.preventDefault();
-    if (newPassword !== confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
+// In the handleSubmit function:
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  
+  // Use the loginUser function from context instead of axios
+  const result = await loginUser(email, password);
+  
+  // Navigation is handled inside loginUser
+  if (!result.success) {
+    toast.error(result.message || "Login failed");
+  }
+  
+  setLoading(false);
+};
+// Also update the forgot password handlers:
 
-    setLoading(true);
-    try {
-      const { data } = await axios.post("/api/user/resetpassword", {
-        email: resetEmail,
-        otp: resetOtp,
-        newPassword,
-      });
-      if (data.success) {
-        toast.success("Password reset successfully!");
-        setResetStep(0);
-        setResetEmail("");
-        setResetOtp("");
-        setNewPassword("");
-        setConfirmPassword("");
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Reset failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+const handleSendOtp = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  
+  const result = await forgotPassword(resetEmail);
+  
+  if (result.success) {
+    toast.success("OTP sent to your email");
+    setResetStep(2);
+  } else {
+    toast.error(result.message || "Failed to send OTP");
+  }
+  
+  setLoading(false);
+};
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { data } = await axios.post("/api/user/login", { email, password });
-      if (data.success) {
-        setToken(data.token);
-        localStorage.setItem("token", data.token);
-        toast.success("Login successful!");
-        // Navigation will be handled by AppContext
-      } else {
-        toast.error(data.message);
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Login failed");
-    } finally {
-      setLoading(false);
-    }
-  };
+const handlePasswordReset = async (e) => {
+  e.preventDefault();
+  
+  if (newPassword !== confirmPassword) {
+    toast.error("Passwords do not match");
+    return;
+  }
+  
+  setLoading(true);
+  
+  const result = await resetPassword(resetEmail, resetOtp, newPassword);
+  
+  if (result.success) {
+    toast.success("Password reset successfully!");
+    setResetStep(0);
+    setResetEmail("");
+    setResetOtp("");
+    setNewPassword("");
+    setConfirmPassword("");
+  } else {
+    toast.error(result.message || "Password reset failed");
+  }
+  
+  setLoading(false);
+};
 
   const toggleTheme = () => {
     setTheme(theme === "light" ? "dark" : "light");

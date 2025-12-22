@@ -303,7 +303,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         {/* Quick Actions */}
         <div className="p-2 border-t border-gray-200 dark:border-gray-700 space-y-2">
           <Link
-            to="/emails"
+            to="/jobs"
             className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm ${
               location.pathname === "/chat"
@@ -314,11 +314,11 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             }`}
           >
             <MessageSquare className="w-4 h-4 text-blue-500" />
-            <span>Emails</span>
+            <span>Jobs</span>
           </Link>
 
           <Link
-            to="deadlines"
+            to="events"
             className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm ${
               location.pathname === "/deadlines"
@@ -329,7 +329,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             }`}
           >
             <Calendar className="w-4 h-4 text-green-500" />
-            <span>Deadline Tracker</span>
+            <span>MAJU Events</span>
           </Link>
 
           <Link

@@ -9,16 +9,19 @@ import { protect } from '../middlewares/auth.js'
 
 const messageRouter = express.Router()
 
-// Text messages
-messageRouter.post('/text', protect, textMessageController)
+// Apply protection to all routes
+messageRouter.use(protect)
 
-// Email messages
-messageRouter.post('/email', protect, emailMessageController)
+// Text messages (1 credit)
+messageRouter.post('/text', textMessageController)
 
-// Voice messages (with AssemblyAI transcription)
-messageRouter.post('/voice', protect, voiceMessageController)
+// Email messages (2 credits)
+messageRouter.post('/email', emailMessageController)
 
-// Audio upload endpoint (optional)
-messageRouter.post('/upload-audio', protect, uploadAudio)
+// Voice messages with AssemblyAI transcription (3 credits) - MAIN ENDPOINT
+messageRouter.post('/voice', voiceMessageController)
+
+// Audio upload validation endpoint
+messageRouter.post('/upload-audio', uploadAudio)
 
 export default messageRouter

@@ -12,11 +12,13 @@ import { protect } from '../middlewares/auth.js'
 
 const userRouter = express.Router()
 
+// Apply rate limiter to OTP-related routes
+userRouter.post('/resend-otp', resentOtp)
+userRouter.post('/forgot-password', forgetPassword)
+
 // Public routes
 userRouter.post('/register', registerUser)
 userRouter.post('/verify-otp', verifyOtp)
-userRouter.post('/resend-otp', resentOtp)
-userRouter.post('/forgot-password', forgetPassword)
 userRouter.post('/reset-password', resetPassword)
 userRouter.post('/login', loginUser)
 

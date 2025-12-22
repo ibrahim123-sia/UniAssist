@@ -135,10 +135,7 @@ const Credits = () => {
       />
       
       {/* Sidebar */}
-      <Sidebar 
-        isMenuOpen={isMenuOpen}
-        setIsMenuOpen={setIsMenuOpen}
-      />
+     
       
       {/* Main Content */}
       <div className={`flex-1 overflow-y-auto transition-colors duration-300 ${

@@ -1,6 +1,4 @@
-// models/User.js
 import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
 
 const userSchema = new mongoose.Schema({
   name: { 
@@ -27,7 +25,6 @@ const userSchema = new mongoose.Schema({
     default: 100,
     min: [0, 'Credits cannot be negative']
   },
-  // For email verification
   otp: { 
     type: String, 
     select: false 
@@ -40,7 +37,6 @@ const userSchema = new mongoose.Schema({
     type: Boolean, 
     default: false 
   },
-  // For password reset
   resetPasswordOtp: { 
     type: String, 
     select: false 
@@ -53,24 +49,7 @@ const userSchema = new mongoose.Schema({
   timestamps: true
 });
 
-// userSchema.pre("save", async function (next) {
-//   if (!this.isModified("password")) {
-//     return next();
-//   }
-
-//   const salt = await bcrypt.genSalt(10);
-//   this.password = await bcrypt.hash(this.password, salt);
-//   next();
-// });
-
-
-// // Method to compare password
-// userSchema.methods.comparePassword = async function (candidatePassword) {
-//   return await bcrypt.compare(candidatePassword, this.password);
-// };
-
-// // Indexes for faster queries
-// userSchema.index({ email: 1 }, { unique: true });
-
+// NO PRE-SAVE HOOKS AT ALL - completely remove them
 const User = mongoose.model("User", userSchema);
+
 export default User;

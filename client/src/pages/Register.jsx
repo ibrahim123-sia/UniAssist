@@ -1,6 +1,5 @@
 // pages/Register.jsx
 import React, { useState } from "react";
-import axios from "axios";
 import { toast } from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
 import { useAppContext } from "../context/AppContext";
@@ -20,31 +19,27 @@ import {
   ArrowRight,
   Clock,
   Smartphone,
-  Laptop,
-  CheckCircle
+  Laptop
 } from "lucide-react";
 
 const Register = () => {
-  const { theme, setTheme, setToken } = useAppContext();
+  // Check if these functions exist in your AppContext
+  const { theme, toggleTheme, registerUser, verifyOtp, resendOtp } = useAppContext();
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [otp, setOtp] = useState("");
-  const [resendingOtp, setResendingOtp] = useState(false);
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
-  };
-
   const handleRegister = async (e) => {
     e.preventDefault();
 
+    // Basic validation
     if (password !== confirmPassword) {
       toast.error("Passwords do not match");
       return;
@@ -55,59 +50,71 @@ const Register = () => {
     }
 
     setLoading(true);
+    
     try {
-      const { data } = await axios.post("/api/v1/auth/register", {
-        name,
-        email,
-        password,
-      });
-      if (data?.success) {
-        toast.success("OTP sent to your university email");
+      // Check if registerUser exists in context
+      if (!registerUser || typeof registerUser !== 'function') {
+        throw new Error("registerUser function not available in context");
+      }
+      
+      const result = await registerUser(name, email, password);
+      
+      if (result && result.success) {
+        toast.success("OTP sent to your email");
         setStep(2);
       } else {
-        toast.error(data.message);
+        toast.error(result?.message || "Registration failed");
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || "Registration failed");
+      toast.error(error.message || "Registration failed");
+      console.error("Registration error:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleVerifyOtp = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    try {
-      const { data } = await axios.post("/api/register/verify-otp", {
-        email,
-        otp: otp.replace(/\s/g, ""),
-      });
-      if (data?.success) {
-        setToken(data.token);
-        localStorage.setItem("token", data.token);
-        toast.success("Account created successfully!");
-        navigate("/dashboard");
-      }
-    } catch (error) {
-      toast.error(error.response?.data?.message || "Invalid OTP");
-    } finally {
-      setLoading(false);
+// In the handleVerifyOtp function, update it to handle the promise properly:
+const handleVerifyOtp = async (e) => {
+  e.preventDefault();
+  setLoading(true);
+  
+  try {
+    // Check if verifyOtp exists in context
+    if (!verifyOtp || typeof verifyOtp !== 'function') {
+      throw new Error("verifyOtp function not available in context");
     }
-  };
+    
+    const result = await verifyOtp(email, otp.replace(/\s/g, ""));
+    
+    // Navigation is handled inside verifyOtp, so we don't need to navigate here
+    if (!result.success) {
+      toast.error(result?.message || "Invalid OTP");
+    }
+  } catch (error) {
+    toast.error(error.message || "Verification failed");
+    console.error("OTP verification error:", error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleResendOtp = async () => {
-    setResendingOtp(true);
     try {
-      const { data } = await axios.post("/api/user/resendotp", { email });
-      if (data.success) {
+      // Check if resendOtp exists in context
+      if (!resendOtp || typeof resendOtp !== 'function') {
+        throw new Error("resendOtp function not available in context");
+      }
+      
+      const result = await resendOtp(email);
+      
+      if (result && result.success) {
         toast.success("New OTP sent to your email!");
       } else {
-        toast.error(data.message);
+        toast.error(result?.message || "Failed to resend OTP");
       }
     } catch (error) {
-      toast.error(error.response?.data?.message || "Failed to resend OTP");
-    } finally {
-      setResendingOtp(false);
+      toast.error(error.message || "Failed to resend OTP");
+      console.error("Resend OTP error:", error);
     }
   };
 
@@ -219,11 +226,6 @@ const Register = () => {
                       required
                     />
                   </div>
-                  <p className={`mt-1 text-xs sm:text-sm ${
-                    theme === "dark" ? "text-gray-400" : "text-gray-500"
-                  }`}>
-                    Only @maju.edu.pk emails are accepted
-                  </p>
                 </div>
 
                 {/* Password Input */}
@@ -294,28 +296,6 @@ const Register = () => {
                   </div>
                 </div>
 
-                {/* Terms Checkbox */}
-                <div className="flex items-start">
-                  <input
-                    type="checkbox"
-                    id="terms"
-                    className="mt-1 w-3 h-3 sm:w-4 sm:h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
-                    required
-                  />
-                  <label htmlFor="terms" className={`ml-2 text-xs sm:text-sm ${
-                    theme === "dark" ? "text-gray-300" : "text-gray-600"
-                  }`}>
-                    I agree to the{" "}
-                    <Link to="/terms" className="text-blue-600 dark:text-blue-400 hover:underline">
-                      Terms of Service
-                    </Link>{" "}
-                    and{" "}
-                    <Link to="/privacy" className="text-blue-600 dark:text-blue-400 hover:underline">
-                      Privacy Policy
-                    </Link>
-                  </label>
-                </div>
-
                 {/* Submit Button */}
                 <button
                   type="submit"
@@ -365,7 +345,7 @@ const Register = () => {
                   </p>
                 </div>
 
-                {/* Action Buttons - Stack on mobile */}
+                {/* Action Buttons */}
                 <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                   <button
                     type="button"
@@ -381,14 +361,14 @@ const Register = () => {
                   <button
                     type="button"
                     onClick={handleResendOtp}
-                    disabled={resendingOtp}
+                    disabled={loading}
                     className={`flex-1 py-2 sm:py-3 px-4 border rounded-xl hover:transition-colors text-sm sm:text-base ${
                       theme === "dark"
                         ? "border-blue-600 text-blue-400 hover:bg-blue-900/30"
                         : "border-blue-600 text-blue-600 hover:bg-blue-50"
                     } disabled:opacity-50`}
                   >
-                    {resendingOtp ? "Sending..." : "Resend OTP"}
+                    {loading ? "Sending..." : "Resend OTP"}
                   </button>
                   <button
                     type="submit"
@@ -421,9 +401,8 @@ const Register = () => {
             </div>
           </div>
 
-          {/* Features Sidebar - Hidden on mobile, shown on lg+ */}
+          {/* Features Sidebar */}
           <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-            {/* Main Features Card */}
             <div className="bg-linear-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8 text-white">
               <h3 className="text-lg sm:text-xl lg:text-2xl font-bold mb-4 sm:mb-6">Why Join UniAssist?</h3>
               <div className="space-y-4 sm:space-y-6">
@@ -446,7 +425,6 @@ const Register = () => {
               </div>
             </div>
 
-            {/* Security Card */}
             <div className={`backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 border ${
               theme === "dark" 
                 ? "bg-gray-800/80 border-gray-700/20" 
@@ -461,24 +439,20 @@ const Register = () => {
               <p className={`text-xs sm:text-sm ${
                 theme === "dark" ? "text-gray-300" : "text-gray-600"
               }`}>
-                Your academic data is encrypted and never shared with third parties. 
-                UniAssist complies with university data protection policies.
+                Your academic data is encrypted and never shared with third parties.
               </p>
             </div>
 
-            {/* Early Access Card */}
             <div className="bg-linear-to-br from-purple-500 to-pink-500 rounded-2xl shadow-2xl p-4 sm:p-6 text-white">
               <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
                 <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
                 <h4 className="font-bold text-sm sm:text-base">Exclusive Early Access</h4>
               </div>
               <p className="text-xs sm:text-sm opacity-90">
-                Join now and get early access to upcoming features like AI-powered 
-                study groups and lecture summarization.
+                Join now and get early access to upcoming features.
               </p>
             </div>
 
-            {/* Device Compatibility - Hidden on small screens */}
             <div className={`hidden sm:block backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 border ${
               theme === "dark" 
                 ? "bg-gray-800/80 border-gray-700/20" 
@@ -491,7 +465,7 @@ const Register = () => {
               <p className={`text-xs sm:text-sm ${
                 theme === "dark" ? "text-gray-300" : "text-gray-600"
               }`}>
-                Access UniAssist from any device - desktop, tablet, or mobile
+                Access UniAssist from any device
               </p>
             </div>
           </div>

@@ -1,7 +1,6 @@
-// components/Message.jsx
 import React from 'react';
 import { useAppContext } from '../context/AppContext';
-import { User, Bot, Mail, Calendar, Image as ImageIcon } from 'lucide-react';
+import { User, Bot, Mail, Calendar, Image as ImageIcon, Volume2, Mic } from 'lucide-react';
 import Markdown from 'react-markdown';
 import moment from 'moment';
 
@@ -32,9 +31,16 @@ const Message = ({ message }) => {
       }`}>
         {/* Message Header */}
         <div className="flex items-center gap-2 mb-2">
-          {message.mode === 'email' && <Mail className="w-4 h-4" />}
-          {message.mode === 'deadline' && <Calendar className="w-4 h-4" />}
+          {message.type === 'email' && <Mail className="w-4 h-4" />}
+          {message.type === 'deadline' && <Calendar className="w-4 h-4" />}
           {message.isImage && <ImageIcon className="w-4 h-4" />}
+          {message.type === 'voice' && (
+            <div className="flex items-center gap-1">
+              <Mic className="w-4 h-4" />
+              <span className="text-xs opacity-75">Voice Message</span>
+            </div>
+          )}
+          {message.isVoiceResponse && <Volume2 className="w-4 h-4" />}
           <span className="text-xs font-medium opacity-75">
             {isUser ? 'You' : 'UniAssist'}
           </span>
@@ -42,6 +48,33 @@ const Message = ({ message }) => {
 
         {/* Message Body */}
         <div className="text-sm sm:text-base">
+          {/* Voice message transcription (user) */}
+          {message.type === 'voice' && (
+            <div className="mb-2 p-2 rounded bg-blue-500/10 border border-blue-500/20">
+              <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 mb-1">
+                <Mic className="w-3 h-3" />
+                <span>Voice transcribed:</span>
+              </div>
+              <div className="text-sm">
+                {message.content}
+              </div>
+              {message.voiceMeta && (
+                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                  Duration: {message.voiceMeta.duration}s
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Voice response indicator (assistant) */}
+          {message.isVoiceResponse && (
+            <div className="flex items-center gap-2 text-xs text-purple-600 dark:text-purple-400 mb-2">
+              <Volume2 className="w-3 h-3" />
+              <span>Response to your voice message</span>
+            </div>
+          )}
+
+          {/* Regular message content */}
           {message.isImage ? (
             <img
               src={message.content}
@@ -51,7 +84,6 @@ const Message = ({ message }) => {
             />
           ) : (
             <div className={`wrap-break-words ${theme === 'dark' ? 'text-gray-100' : 'text-gray-800'}`}>
-              {/* Simple Markdown rendering without code highlighting */}
               <Markdown
                 components={{
                   code({node, inline, className, children, ...props}) {
