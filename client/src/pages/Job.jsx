@@ -122,6 +122,280 @@ const Jobs = () => {
     { id: 'all', name: 'All Time' }
   ];
 
+  // Comprehensive list of job site domains to exclude
+  const jobSiteDomains = [
+    // Job portals and aggregators
+    'job.id', 'rozee.pk', 'mustakbil', 'brightspyre', 'apify', 'scraping',
+    'linkedin', 'indeed', 'glassdoor', 'monster', 'careerbuilder', 'ziprecruiter',
+    'dice', 'simplyhired', 'reed', 'totaljobs', 'adzuna', 'cv-library',
+    'naukri', 'timesjobs', 'shine', 'jobstreet', 'jobsdb', 'seek',
+    'upwork', 'fiverr', 'freelancer', 'guru', 'toptal', 'peopleperhour',
+    'remoteok', 'weworkremotely', 'flexjobs', 'angel.co', 'lever',
+    'greenhouse', 'workable', 'breezy', 'smartrecruiters', 'icims',
+    'jobvite', 'taleo', 'hirestream', 'careers', 'hire', 'recruit',
+    'talent', 'staffing', 'employment', 'vacancies', 'positions',
+    'openings', 'opportunities', 'jobs', 'job', 'career', 'applicant',
+    
+    // Navigation and UI elements that might appear as companies
+    'Skip to Main Content', 'Min. Salary', 'City', 'Search', 'Country',
+    'Advanced Search', 'How It Works', 'Create Account', 'Real Stories',
+    'OUR STATISTICS', 'For Jobseekers', 'Browse Opportunities',
+    'Trending Searches', 'Trending Jobs', 'Filters', 'Open Positions',
+    
+    // Pakistani specific job sites
+    'rozee', 'mustakbil', 'brightspyre', 'ilmkidunya', 'ilm', 'kidunya',
+    'pakistanjobs', 'pakjobs', 'pakistanijobs'
+  ];
+
+  // Valid job types
+  const validJobTypes = ['Full-time', 'Part-time', 'Contract', 'Internship', 'Remote', 'Hybrid', 'Temporary'];
+
+  // Noise patterns to remove from text
+  const noisePatterns = [
+    /<[^>]*>/g, // HTML tags
+    /&[a-z]+;/g, // HTML entities
+    /\b(?:javascript|css|html|php|js|jquery|bootstrap|react|angular|vue)\b/gi, // Tech stack noise
+    /\b(?:click|apply|submit|upload|download|register|signup|login)\b/gi, // Action words
+    /\b(?:position|job|opening|vacancy|role|opportunity)\s+\d+\b/gi, // Position numbers
+    /\b(?:sample|test|demo|example|placeholder)\b/gi, // Sample/test data
+    /\b(?:undefined|null|NaN|N\/A|TBA|TBD)\b/gi, // Undefined values
+  ];
+
+  // Check if a string is a job site
+  const isJobSite = (text) => {
+    if (!text || typeof text !== 'string') return false;
+    const lowerText = text.toLowerCase();
+    return jobSiteDomains.some(site => lowerText.includes(site.toLowerCase()));
+  };
+
+  // Clean text using regex patterns
+  const cleanText = (text, maxLength = 200) => {
+    if (!text || typeof text !== 'string') return '';
+    
+    let cleaned = text;
+    
+    // Remove noise patterns
+    noisePatterns.forEach(pattern => {
+      cleaned = cleaned.replace(pattern, ' ');
+    });
+    
+    // Remove special characters but keep basic punctuation
+    cleaned = cleaned.replace(/[^\w\s.,!?@#$%&*()\-+=]/g, ' ');
+    
+    // Remove extra whitespace
+    cleaned = cleaned.replace(/\s+/g, ' ').trim();
+    
+    // Capitalize first letter of each sentence
+    cleaned = cleaned.replace(/(^\w|\.\s+\w)/g, match => match.toUpperCase());
+    
+    // Truncate if needed
+    if (cleaned.length > maxLength) {
+      cleaned = cleaned.substring(0, maxLength).trim() + '...';
+    }
+    
+    return cleaned;
+  };
+
+  // Extract location from text
+  const extractLocation = (locationText) => {
+    if (!locationText) return 'Location Not Specified';
+    
+    const loc = locationText.toString().toLowerCase();
+    
+    // Check for specific cities
+    if (loc.includes('karachi')) return 'Karachi';
+    if (loc.includes('lahore')) return 'Lahore';
+    if (loc.includes('islamabad')) return 'Islamabad';
+    
+    // Check for Pakistan
+    if (loc.includes('pakistan')) return 'Pakistan';
+    
+    // Check for remote/hybrid
+    if (loc.includes('remote')) return 'Remote';
+    if (loc.includes('hybrid')) return 'Hybrid';
+    
+    // Return cleaned location
+    const cleaned = cleanText(locationText, 50);
+    return cleaned || 'Location Not Specified';
+  };
+
+  // Extract job type from text
+  const extractJobType = (typeText) => {
+    if (!typeText) return 'Full-time';
+    
+    const type = typeText.toString().toLowerCase();
+    
+    for (const validType of validJobTypes) {
+      if (type.includes(validType.toLowerCase())) {
+        return validType;
+      }
+    }
+    
+    return 'Full-time';
+  };
+
+  // Extract salary information
+  const extractSalary = (salaryText) => {
+    if (!salaryText) return 'Salary Not Specified';
+    
+    const salary = salaryText.toString();
+    
+    // Check for salary patterns
+    const salaryPatterns = [
+      /(\$?\d+(?:,\d+)*(?:\.\d+)?)\s*[-–]\s*(\$?\d+(?:,\d+)*(?:\.\d+)?)/, // Range: 100,000 - 200,000
+      /(?:PKR|Rs\.?|USD)\s*(\d+(?:,\d+)*(?:\.\d+)?)/, // Currency amount: PKR 100,000
+      /\d+\s*(?:k|K)\b/, // K notation: 100k
+    ];
+    
+    for (const pattern of salaryPatterns) {
+      const match = salary.match(pattern);
+      if (match) {
+        return salary.substring(0, 100).trim(); // Return first 100 chars of salary info
+      }
+    }
+    
+    // Check for "not specified" patterns
+    const notSpecifiedPatterns = [
+      /salary\s*(?:not\s+)?specified/i,
+      /competitive/i,
+      /negotiable/i,
+      /tba/i,
+      /tbd/i,
+      /government\s+scale/i,
+      /market\s+rate/i,
+    ];
+    
+    for (const pattern of notSpecifiedPatterns) {
+      if (pattern.test(salary)) {
+        return 'Salary Not Specified';
+      }
+    }
+    
+    // If salary looks like nonsense, return default
+    if (salary.length < 5 || salary.toLowerCase().includes('undefined')) {
+      return 'Salary Not Specified';
+    }
+    
+    return cleanText(salary, 100);
+  };
+
+  // Extract job title from various patterns
+  const extractJobTitle = (titleText, descriptionText = '') => {
+    if (!titleText || titleText.trim().length < 3) {
+      // Try to extract title from description
+      if (descriptionText) {
+        // Look for common job title patterns in description
+        const titlePatterns = [
+          /(?:looking for|seeking|hiring)\s+an?\s+([A-Z][a-z]+\s+[A-Za-z\s]+?)(?:with|who|to|for|\.)/i,
+          /position:\s*([A-Z][a-z]+\s+[A-Za-z\s]+?)(?:\n|\.|$)/i,
+          /job title:\s*([A-Z][a-z]+\s+[A-Za-z\s]+?)(?:\n|\.|$)/i,
+          /(?:senior|junior|lead|principal)\s+([A-Z][a-z]+\s+[A-Za-z\s]+?)(?:\s+engineer|\s+developer|\s+manager|\s+analyst)/i,
+        ];
+        
+        for (const pattern of titlePatterns) {
+          const match = descriptionText.match(pattern);
+          if (match && match[1]) {
+            return cleanText(match[1].trim(), 100);
+          }
+        }
+      }
+      return 'Job Title Not Available';
+    }
+    
+    const cleanedTitle = cleanText(titleText, 100);
+    
+    // Check if title is noise
+    const noiseTitles = [
+      'Min. Salary', 'City', 'Search', 'Country', 'Skip to Main Content',
+      'Advanced Search', 'How It Works', 'Create Account', 'Job Openings',
+      'Open Positions', 'Browse Opportunities', 'Trending Searches',
+      'Trending Jobs', 'Filters', 'Why Arbisoft', 'Rozee.pk Position',
+      'Folio3 Position', 'Current Openings', 'Call for Proposal',
+      'az-block', 'Suggested Job Titles', 'Suggested Companies',
+      'Suggested Skills', 'Suggested Institutes', 'Position 1', 'Position 2',
+      'Position 3', 'Position 4', 'Position 5', 'Position 6', 'Position 7',
+      'Position 8', 'Position 9', 'Position 10'
+    ];
+    
+    if (noiseTitles.some(noise => cleanedTitle.toLowerCase().includes(noise.toLowerCase()))) {
+      if (descriptionText) {
+        // Try to extract from description
+        return extractJobTitle('', descriptionText);
+      }
+      return 'Job Title Not Available';
+    }
+    
+    return cleanedTitle;
+  };
+
+  // Extract company name
+  const extractCompany = (companyText) => {
+    if (!companyText) return 'Company Not Specified';
+    
+    const cleaned = cleanText(companyText, 50);
+    
+    if (isJobSite(cleaned)) {
+      return 'Company Not Specified';
+    }
+    
+    // Remove common suffixes
+    const suffixes = ['Pvt Ltd', 'Ltd', 'LLC', 'Inc', 'Corp', 'Company', 'Solutions', 'Technologies'];
+    let company = cleaned;
+    suffixes.forEach(suffix => {
+      const regex = new RegExp(`\\s*${suffix}\\s*$`, 'i');
+      company = company.replace(regex, '');
+    });
+    
+    return company.trim() || 'Company Not Specified';
+  };
+
+  // Determine job field based on title and description
+  const determineJobField = (title, description) => {
+    const text = (title + ' ' + description).toLowerCase();
+    
+    for (const fieldConfig of jobFields) {
+      if (fieldConfig.id !== 'all' && fieldConfig.keywords) {
+        if (fieldConfig.keywords.some(keyword => text.includes(keyword.toLowerCase()))) {
+          return fieldConfig.id;
+        }
+      }
+    }
+    
+    return 'other';
+  };
+
+  // Parse date from various formats
+  const parseDate = (dateString) => {
+    if (!dateString) return moment();
+    
+    const dateStr = dateString.toString();
+    
+    // Try various date formats
+    const formats = [
+      'YYYY-MM-DD',
+      'YYYY-MM-DD HH:mm:ss',
+      'DD/MM/YYYY',
+      'MM/DD/YYYY',
+      'MMMM DD, YYYY',
+      'YYYY-MM-DDTHH:mm:ss.SSSZ',
+    ];
+    
+    for (const format of formats) {
+      const parsed = moment(dateStr, format, true);
+      if (parsed.isValid()) {
+        return parsed;
+      }
+    }
+    
+    // Try parsing as ISO string
+    const isoParsed = moment(dateStr);
+    if (isoParsed.isValid()) {
+      return isoParsed;
+    }
+    
+    return moment(); // Default to current date
+  };
+
   useEffect(() => {
     fetchJobs();
     // Detect system theme preference
@@ -151,56 +425,51 @@ const Jobs = () => {
       console.log('Raw API Response:', response.data);
       console.log('Total jobs from API:', response.data.length, 'jobs');
       
-      // Process and clean job data - SIMPLIFIED FILTERING
+      // Process and clean job data
       const processedJobs = response.data
         .map((job, index) => {
           try {
-            // Clean title
-            let title = job.title || '';
-            title = title.replace(/[^\w\s-]/g, ' ').replace(/\s+/g, ' ').trim();
-            
-            // Clean company
-            let company = job.company || '';
-            company = company.replace(/[^\w\s-.,&]/g, ' ').trim();
-            
-            // Clean description
-            let description = job.description || '';
-            description = description.substring(0, 200) + (description.length > 200 ? '...' : '');
-            
-            // Determine job field based on title and description
-            const jobText = (title + ' ' + description).toLowerCase();
-            let field = 'other';
-            
-            for (const fieldConfig of jobFields) {
-              if (fieldConfig.id !== 'all' && fieldConfig.keywords) {
-                if (fieldConfig.keywords.some(keyword => jobText.includes(keyword.toLowerCase()))) {
-                  field = fieldConfig.id;
-                  break;
-                }
-              }
+            // Skip invalid jobs
+            if (!job || typeof job !== 'object') {
+              console.log('Skipping invalid job object');
+              return null;
             }
             
-            // Parse posted date
-            let postedDate = moment();
-            if (job.postedDate) {
-              const dateStr = job.postedDate.toString();
-              // Try to parse the date
-              postedDate = moment(dateStr);
-              if (!postedDate.isValid()) {
-                postedDate = moment();
-              }
+            // Extract and clean data
+            const title = extractJobTitle(job.title, job.description);
+            const company = extractCompany(job.company);
+            const location = extractLocation(job.location);
+            const salary = extractSalary(job.salary);
+            const type = extractJobType(job.type);
+            const postedDate = parseDate(job.postedDate);
+            const description = cleanText(job.description || '', 200);
+            const field = determineJobField(title, description);
+            
+            // Skip if essential data is missing
+            if (title === 'Job Title Not Available' || company === 'Company Not Specified') {
+              console.log('Skipping job with missing essential data:', { title, company });
+              return null;
+            }
+            
+            // Skip if it's clearly a job site or noise
+            if (isJobSite(title) || isJobSite(company) || isJobSite(description)) {
+              console.log('Skipping job site/noise:', { title, company });
+              return null;
             }
             
             // Calculate if job is new (within 7 days)
             const isNew = moment().diff(postedDate, 'days') <= 7;
             
+            // Generate unique ID
+            const jobId = job.id || `job-${index}-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+            
             return {
-              id: job.id || `job-${index}-${Date.now()}`,
+              id: jobId,
               title: title,
-              company: company || 'Company Not Specified',
-              location: job.location || 'Location Not Specified',
-              salary: job.salary || 'Salary Not Specified',
-              type: job.type || 'Full-time',
+              company: company,
+              location: location,
+              salary: salary,
+              type: type,
               postedDate: postedDate,
               formattedDate: postedDate.fromNow(),
               description: description,
@@ -212,38 +481,23 @@ const Jobs = () => {
               originalUrl: job.originalUrl || job.applyLink || '#'
             };
           } catch (err) {
-            console.error('Error processing job:', err);
+            console.error('Error processing job:', err, job);
             return null;
           }
         })
         .filter(job => {
           if (!job) return false;
           
-          // MINIMAL FILTERING - Only remove obvious noise
-          const noiseTitles = [
-            'Filters', 'Trending', 'Advanced Search', 'How It Works',
-            'Create Account', 'Real Stories', 'OUR STATISTICS',
-            'For Jobseekers', 'Skip to Main Content', 'Job Openings',
-            'Open Positions', 'Browse Opportunities', 'Country Pakistan USA UK UAE Me',
-            'Min. Salary', 'Trending Searches', 'Trending Jobs',
-            'Washington DC, USA', 'Chicago, USA', 'Latin America', 'London, UK',
-            'Abu Dhabi, UAE', 'Permanent', 'Software & Web Development',
-            'Information Security', 'Regular', 'Contract', 'City',
-            'Create Account Register with confidence', 'Submitting more applications'
-          ];
+          // Additional filtering
+          const hasValidTitle = job.title && job.title.length > 5 && job.title !== 'Job Title Not Available';
+          const hasValidCompany = job.company && job.company.length > 2 && job.company !== 'Company Not Specified';
+          const isNotJobSite = !isJobSite(job.title) && !isJobSite(job.company) && !isJobSite(job.description);
           
-          const isNoise = noiseTitles.some(noise => 
-            job.title && job.title.toLowerCase() === noise.toLowerCase()
-          );
-          
-          // Keep jobs with reasonable titles
-          const hasTitle = job.title && job.title.length > 3;
-          
-          return !isNoise && hasTitle;
+          return hasValidTitle && hasValidCompany && isNotJobSite;
         });
       
       console.log('Processed jobs:', processedJobs.length);
-      console.log('Sample jobs:', processedJobs.slice(0, 3));
+      console.log('Sample processed jobs:', processedJobs.slice(0, 5));
       
       // Filter only last 30 days data
       const last30DaysJobs = processedJobs.filter(job => {
@@ -292,11 +546,22 @@ const Jobs = () => {
       result = result.filter(job => job.company === activeCompany);
     }
     
-    // Apply location filter
+    // Apply location filter - match specific cities
     if (activeLocation !== 'all') {
-      result = result.filter(job => 
-        job.location.toLowerCase().includes(activeLocation.toLowerCase())
-      );
+      result = result.filter(job => {
+        const jobLocation = job.location.toLowerCase();
+        const filterLocation = activeLocation.toLowerCase();
+        
+        // Special handling for Pakistan cities
+        if (filterLocation === 'pakistan') {
+          return jobLocation.includes('pakistan') || 
+                 jobLocation.includes('karachi') ||
+                 jobLocation.includes('lahore') ||
+                 jobLocation.includes('islamabad');
+        }
+        
+        return jobLocation.includes(filterLocation);
+      });
     }
     
     console.log('Filtered jobs count:', result.length);
@@ -305,13 +570,68 @@ const Jobs = () => {
 
   // Get unique companies and locations for filters
   const { uniqueCompanies, uniqueLocations, topCompanies } = useMemo(() => {
-    const companies = [...new Set(jobs.map(job => job.company))].filter(c => c && c !== 'Company Not Specified').sort();
-    const locations = [...new Set(jobs.map(job => job.location))].filter(l => l && l !== 'Location Not Specified').sort();
+    // Filter out job sites and invalid companies
+    const validCompanies = jobs
+      .map(job => job.company)
+      .filter(c => c && c !== 'Company Not Specified' && !isJobSite(c) && c.length > 2);
+    
+    const companies = [...new Set(validCompanies)].sort();
+    
+    // Location filtering - prioritize Pakistan cities
+    const allLocations = jobs.map(job => job.location);
+    
+    // Extract and categorize locations
+    const locationCategories = {
+      'Karachi': [],
+      'Lahore': [],
+      'Islamabad': [],
+      'Pakistan': [], // For other Pakistan locations
+      'Remote': [],
+      'Hybrid': [],
+      'Other': []
+    };
+    
+    allLocations.forEach(location => {
+      const loc = location.toLowerCase();
+      if (loc.includes('karachi')) {
+        locationCategories['Karachi'].push(location);
+      } else if (loc.includes('lahore')) {
+        locationCategories['Lahore'].push(location);
+      } else if (loc.includes('islamabad')) {
+        locationCategories['Islamabad'].push(location);
+      } else if (loc.includes('pakistan')) {
+        locationCategories['Pakistan'].push(location);
+      } else if (loc.includes('remote')) {
+        locationCategories['Remote'].push(location);
+      } else if (loc.includes('hybrid')) {
+        locationCategories['Hybrid'].push(location);
+      } else if (location && location !== 'Location Not Specified') {
+        locationCategories['Other'].push(location);
+      }
+    });
+    
+    // Create location list with counts
+    const locationsWithCounts = Object.entries(locationCategories)
+      .filter(([_, locations]) => locations.length > 0)
+      .map(([category, locs]) => {
+        const uniqueLocs = [...new Set(locs)];
+        return {
+          category,
+          count: locs.length,
+          displayName: `${category} (${locs.length})`,
+          value: category.toLowerCase()
+        };
+      })
+      .sort((a, b) => b.count - a.count);
+    
+    const locations = locationsWithCounts.map(item => item.category);
     
     // Count jobs per company for top companies
     const companyCounts = {};
     jobs.forEach(job => {
-      companyCounts[job.company] = (companyCounts[job.company] || 0) + 1;
+      if (!isJobSite(job.company)) {
+        companyCounts[job.company] = (companyCounts[job.company] || 0) + 1;
+      }
     });
     
     const topCompaniesList = Object.entries(companyCounts)
@@ -322,6 +642,7 @@ const Jobs = () => {
     return {
       uniqueCompanies: companies,
       uniqueLocations: locations,
+      locationCategories: locationsWithCounts,
       topCompanies: topCompaniesList
     };
   }, [jobs]);
@@ -420,7 +741,7 @@ const Jobs = () => {
 
   return (
     <div className={`flex flex-col h-screen ${theme === 'dark' ? 'bg-gray-900' : 'bg-gray-50'}`}>
-      {/* Fixed Header - NO SEARCH BAR */}
+      {/* Fixed Header */}
       <div className="shrink-0 sticky top-0 z-10 bg-inherit border-b border-gray-200 dark:border-gray-700 px-4 py-4">
         <div className="container mx-auto">
           <div className="flex items-center justify-between">
@@ -447,7 +768,7 @@ const Jobs = () => {
             </button>
           </div>
           
-          {/* Top Companies Bar - Only show if we have companies */}
+          {/* Top Companies Bar */}
           {topCompanies.length > 0 && (
             <div className="mt-4 flex items-center gap-2">
               <CompaniesIcon className={`w-5 h-5 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`} />
@@ -517,7 +838,7 @@ const Jobs = () => {
         `}</style>
         
         <div className="container mx-auto px-4 py-6">
-          {/* Filters Section - NO SEARCH BAR */}
+          {/* Filters Section */}
           {jobs.length > 0 && (
             <div className="mb-8">
               <div className="flex items-center gap-2 mb-4">
@@ -624,14 +945,15 @@ const Jobs = () => {
                 {/* Company & Location Filters */}
                 <div>
                   <div className="grid grid-cols-2 gap-4">
+                    {/* Company Filter */}
                     <div>
                       <h4 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                         By Company
                       </h4>
-                      <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-2">
+                      <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                         <button
                           onClick={() => setActiveCompany('all')}
-                          className={`px-3 py-2 rounded-lg text-sm transition-colors text-left ${
+                          className={`px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${
                             activeCompany === 'all'
                               ? 'bg-blue-600 text-white'
                               : theme === 'dark'
@@ -641,7 +963,7 @@ const Jobs = () => {
                         >
                           All Companies
                         </button>
-                        {uniqueCompanies.slice(0, 8).map(company => {
+                        {uniqueCompanies.slice(0, 15).map(company => {
                           const count = jobs.filter(j => j.company === company).length;
                           if (count === 0) return null;
                           
@@ -649,7 +971,7 @@ const Jobs = () => {
                             <button
                               key={company}
                               onClick={() => setActiveCompany(company)}
-                              className={`px-3 py-2 rounded-lg text-sm transition-colors text-left truncate ${
+                              className={`px-3 py-2.5 rounded-lg text-sm transition-colors text-left group ${
                                 activeCompany === company
                                   ? 'bg-blue-600 text-white'
                                   : theme === 'dark'
@@ -658,28 +980,33 @@ const Jobs = () => {
                               }`}
                               title={company}
                             >
-                              <span className="truncate">{company}</span>
-                              <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
-                                activeCompany === company
-                                  ? 'bg-white/30'
-                                  : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
-                              }`}>
-                                {count}
-                              </span>
+                              <div className="flex justify-between items-center">
+                                <span className="truncate pr-2 group-hover:whitespace-normal group-hover:overflow-visible group-hover:text-clip">
+                                  {company}
+                                </span>
+                                <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full ${
+                                  activeCompany === company
+                                    ? 'bg-white/30'
+                                    : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+                                }`}>
+                                  {count}
+                                </span>
+                              </div>
                             </button>
                           );
                         })}
                       </div>
                     </div>
                     
+                    {/* Location Filter */}
                     <div>
                       <h4 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
                         By Location
                       </h4>
-                      <div className="flex flex-col gap-2 max-h-40 overflow-y-auto pr-2">
+                      <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                         <button
                           onClick={() => setActiveLocation('all')}
-                          className={`px-3 py-2 rounded-lg text-sm transition-colors text-left ${
+                          className={`px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${
                             activeLocation === 'all'
                               ? 'bg-blue-600 text-white'
                               : theme === 'dark'
@@ -689,15 +1016,17 @@ const Jobs = () => {
                         >
                           All Locations
                         </button>
-                        {uniqueLocations.slice(0, 8).map(location => {
-                          const count = jobs.filter(j => j.location === location).length;
+                        {uniqueLocations.slice(0, 15).map(location => {
+                          const count = jobs.filter(j => j.location.includes(location)).length;
                           if (count === 0) return null;
+                          
+                          const displayLocation = location === 'Pakistan' ? 'Pakistan (Other)' : location;
                           
                           return (
                             <button
                               key={location}
                               onClick={() => setActiveLocation(location)}
-                              className={`px-3 py-2 rounded-lg text-sm transition-colors text-left truncate ${
+                              className={`px-3 py-2.5 rounded-lg text-sm transition-colors text-left group ${
                                 activeLocation === location
                                   ? 'bg-blue-600 text-white'
                                   : theme === 'dark'
@@ -706,14 +1035,18 @@ const Jobs = () => {
                               }`}
                               title={location}
                             >
-                              <span className="truncate">{location}</span>
-                              <span className={`ml-2 text-xs px-1.5 py-0.5 rounded-full ${
-                                activeLocation === location
-                                  ? 'bg-white/30'
-                                  : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
-                              }`}>
-                                {count}
-                              </span>
+                              <div className="flex justify-between items-center">
+                                <span className="truncate pr-2 group-hover:whitespace-normal group-hover:overflow-visible group-hover:text-clip">
+                                  {displayLocation}
+                                </span>
+                                <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full ${
+                                  activeLocation === location
+                                    ? 'bg-white/30'
+                                    : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+                                }`}>
+                                  {count}
+                                </span>
+                              </div>
                             </button>
                           );
                         })}
@@ -786,7 +1119,7 @@ const Jobs = () => {
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 auto-rows-fr">
                 {filteredJobs.map((job) => {
                   const fieldConfig = jobFields.find(f => f.id === job.field) || jobFields[0];
                   const Icon = fieldConfig.icon;
@@ -794,14 +1127,14 @@ const Jobs = () => {
                   return (
                     <div
                       key={job.id}
-                      className={`rounded-xl overflow-hidden border transition-all hover:shadow-lg ${
+                      className={`rounded-xl overflow-hidden border transition-all hover:shadow-lg flex flex-col h-full ${
                         theme === 'dark'
                           ? 'bg-gray-800 border-gray-700 hover:border-gray-600'
                           : 'bg-white border-gray-200 hover:border-gray-300'
                       }`}
                     >
                       {/* Job Header */}
-                      <div className={`p-5 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'}`}>
+                      <div className={`p-5 border-b ${theme === 'dark' ? 'border-gray-700' : 'border-gray-100'} flex-shrink-0`}>
                         <div className="flex justify-between items-start mb-3">
                           <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm ${fieldConfig.color} ${fieldConfig.textColor}`}>
                             <Icon className="w-3 h-3" />
@@ -823,63 +1156,67 @@ const Jobs = () => {
                                 ? theme === 'dark' ? 'bg-blue-900/30 text-blue-400' : 'bg-blue-100 text-blue-600'
                                 : job.type === 'Part-time' 
                                 ? theme === 'dark' ? 'bg-yellow-900/30 text-yellow-400' : 'bg-yellow-100 text-yellow-600'
-                                : theme === 'dark' ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-600'
+                                : job.type === 'Contract'
+                                ? theme === 'dark' ? 'bg-purple-900/30 text-purple-400' : 'bg-purple-100 text-purple-600'
+                                : job.type === 'Remote'
+                                ? theme === 'dark' ? 'bg-teal-900/30 text-teal-400' : 'bg-teal-100 text-teal-600'
+                                : theme === 'dark' ? 'bg-gray-900/30 text-gray-400' : 'bg-gray-100 text-gray-600'
                             }`}>
                               {job.type}
                             </span>
                           </div>
                         </div>
                         
-                        <h3 className={`font-bold text-lg mb-2 line-clamp-2 ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`}>
+                        <h3 className={`font-bold text-lg mb-2 line-clamp-2 min-h-[3.5rem] ${theme === 'dark' ? 'text-white' : 'text-gray-900'}`} title={job.title}>
                           {job.title}
                         </h3>
                         
                         <div className="flex items-center gap-2 mb-3">
-                          <BuildingIcon className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                          <BuildingIcon className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
                           <span className={`font-medium truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`} title={job.company}>
                             {job.company}
                           </span>
                         </div>
                         
-                        <p className={`text-sm mb-4 line-clamp-3 ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
+                        <p className={`text-sm mb-4 line-clamp-3 min-h-[4.5rem] ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`} title={job.description}>
                           {job.description}
                         </p>
                       </div>
 
                       {/* Job Details */}
-                      <div className="p-5">
-                        <div className="space-y-3">
+                      <div className="p-5 grow flex flex-col">
+                        <div className="space-y-3 grow">
                           <div className="flex items-center gap-3">
-                            <MapPinIcon className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
-                            <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <MapPinIcon className={`w-4 h-4 shrink-0 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                            <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`} title={job.location}>
                               {job.location}
                             </span>
                           </div>
                           
                           <div className="flex items-center gap-3">
-                            <DollarIcon className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
-                            <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <DollarIcon className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                            <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`} title={job.salary}>
                               {job.salary}
                             </span>
                           </div>
                           
                           <div className="flex items-center gap-3">
-                            <CalendarIcon className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                            <CalendarIcon className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
                             <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
                               Posted {job.formattedDate}
                             </span>
                           </div>
                           
                           <div className="flex items-center gap-3">
-                            <ClockIcon className={`w-4 h-4 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
-                            <span className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`}>
+                            <ClockIcon className={`w-4 h-4 flex-shrink-0 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`} />
+                            <span className={`text-sm truncate ${theme === 'dark' ? 'text-gray-300' : 'text-gray-700'}`} title={`Source: ${job.source}`}>
                               Source: {job.source}
                             </span>
                           </div>
                         </div>
 
                         {/* Action Button */}
-                        <div className="mt-6">
+                        <div className="mt-6 flex-shrink-0">
                           <a
                             href={job.applyLink}
                             target="_blank"
@@ -946,6 +1283,27 @@ const Jobs = () => {
           )}
         </div>
       </div>
+
+      {/* Custom scrollbar styles */}
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: ${theme === 'dark' ? '#374151' : '#f3f4f6'};
+          border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: ${theme === 'dark' ? '#6b7280' : '#d1d5db'};
+          border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: ${theme === 'dark' ? '#9ca3af' : '#9ca3af'};
+        }
+      `}</style>
     </div>
   );
 };
