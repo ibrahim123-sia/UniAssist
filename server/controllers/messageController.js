@@ -18,7 +18,7 @@ const groq = new Groq({
 let assemblyClient = null;
 try {
   // Use your actual API key directly for now
-  const assemblyApiKey=process.env.ASSEMBLYAI_API_KEY;
+  const assemblyApiKey = process.env.ASSEMBLYAI_API_KEY;
   
   if (assemblyApiKey && assemblyApiKey.length === 32) {
     assemblyClient = new AssemblyAI({
