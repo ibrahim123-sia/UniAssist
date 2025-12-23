@@ -23,13 +23,6 @@ export const AppContextProvider = ({ children }) => {
   const [guestSessionId, setGuestSessionId] = useState(localStorage.getItem("guestSessionId") || null);
   const [guestMessages, setGuestMessages] = useState([]);
 
-  // Voice recording state
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [audioChunks, setAudioChunks] = useState([]);
-  const [recordingTimer, setRecordingTimer] = useState(null);
-
   // ========== AUTHENTICATION FUNCTIONS ==========
 
   const registerUser = async (name, email, password) => {
@@ -418,29 +411,19 @@ export const AppContextProvider = ({ children }) => {
     }
   };
 
-  // Voice message function - sends audio, gets transcription and response
-  const sendVoiceMessage = async (chatId, audioBlob, duration, fileSize) => {
+  // Voice message function - sends audio, gets transcription and response - FIXED VERSION
+  const sendVoiceMessage = async (chatId, audioUrl, duration, fileSize) => {
     try {
       if (!user) {
         toast.info("Please login to use voice features");
         return { success: false, message: "Login required" };
       }
 
-      // Convert blob to base64
-      const audioUrl = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.readAsDataURL(audioBlob);
-        reader.onloadend = () => {
-          resolve(reader.result); // This is the base64 string
-        };
-        reader.onerror = reject;
-      });
-
       console.log("Sending voice message:", {
         chatId,
         duration,
         fileSize,
-        audioSize: audioBlob.size
+        audioSize: audioUrl?.length || 0
       });
 
       const { data } = await axios.post("/api/message/voice", 
@@ -461,92 +444,25 @@ export const AppContextProvider = ({ children }) => {
       return data;
     } catch (error) {
       console.error("Voice message error:", error);
-      toast.error(error.response?.data?.message || error.message || "Failed to send voice message");
-      return { 
-        success: false, 
-        message: error.response?.data?.message || error.message || "Failed to send voice message" 
-      };
-    }
-  };
-
-  // Voice recording functions
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const recorder = new MediaRecorder(stream);
       
-      setAudioChunks([]);
-      setRecordingTime(0);
-      
-      recorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          setAudioChunks(prev => [...prev, event.data]);
-        }
-      };
-      
-      recorder.onstop = () => {
-        stream.getTracks().forEach(track => track.stop());
-      };
-      
-      recorder.start();
-      setMediaRecorder(recorder);
-      setIsRecording(true);
-      
-      // Start timer
-      const timer = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
-      }, 1000);
-      setRecordingTimer(timer);
-      
-      return { success: true };
-    } catch (error) {
-      console.error("Error starting recording:", error);
-      toast.error("Microphone access denied or not available");
-      return { success: false, message: "Microphone access denied" };
-    }
-  };
-
-  const stopRecording = () => {
-    if (mediaRecorder && isRecording) {
-      mediaRecorder.stop();
-      setIsRecording(false);
-      
-      if (recordingTimer) {
-        clearInterval(recordingTimer);
-        setRecordingTimer(null);
+      // Handle specific error cases
+      let errorMessage = "Failed to send voice message";
+      if (error.response?.status === 413) {
+        errorMessage = "Voice message too large. Maximum size is 10MB.";
+      } else if (error.response?.status === 400) {
+        errorMessage = error.response.data?.message || "Invalid audio format";
+      } else if (error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error.message) {
+        errorMessage = error.message;
       }
       
-      return { success: true };
-    }
-    return { success: false, message: "No active recording" };
-  };
-
-  const getRecordedAudio = () => {
-    if (audioChunks.length === 0) {
-      return null;
-    }
-    
-    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-    return {
-      blob: audioBlob,
-      duration: recordingTime,
-      fileSize: audioBlob.size / (1024 * 1024), // MB
-      url: URL.createObjectURL(audioBlob)
-    };
-  };
-
-  const clearRecording = () => {
-    setAudioChunks([]);
-    setRecordingTime(0);
-    setIsRecording(false);
-    
-    if (recordingTimer) {
-      clearInterval(recordingTimer);
-      setRecordingTimer(null);
-    }
-    
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-      mediaRecorder.stop();
+      toast.error(errorMessage);
+      return { 
+        success: false, 
+        message: errorMessage,
+        error: error.response?.data?.error || error.message 
+      };
     }
   };
 
@@ -659,15 +575,6 @@ export const AppContextProvider = ({ children }) => {
     }
   }, [guestSessionId, user]);
 
-  // Cleanup recording on unmount
-  useEffect(() => {
-    return () => {
-      if (recordingTimer) {
-        clearInterval(recordingTimer);
-      }
-    };
-  }, [recordingTimer]);
-
   // ========== CONTEXT VALUE ==========
 
   const value = {
@@ -689,12 +596,6 @@ export const AppContextProvider = ({ children }) => {
     setGuestSessionId,
     guestMessages,
     setGuestMessages,
-    
-    // Voice Recording State
-    isRecording,
-    recordingTime,
-    mediaRecorder,
-    audioChunks,
     
     // Utility
     setTheme,
@@ -727,12 +628,6 @@ export const AppContextProvider = ({ children }) => {
     sendTextMessage,
     sendEmailMessage,
     sendVoiceMessage,
-    
-    // Voice Recording Functions
-    startRecording,
-    stopRecording,
-    getRecordedAudio,
-    clearRecording,
     
     // Credits
     getCreditPlans,

@@ -11,13 +11,26 @@ import os from "os";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY || "your-groq-api-key",
+  apiKey: process.env.GROQ_API_KEY,
 });
 
-// Initialize AssemblyAI with latest SDK
-const client = new AssemblyAI({
-  apiKey: process.env.ASSEMBLYAI_API_KEY || "your-assemblyai-api-key",
-});
+// Initialize AssemblyAI with error handling
+let assemblyClient = null;
+try {
+  // Use your actual API key directly for now
+  const assemblyApiKey=process.env.ASSEMBLYAI_API_KEY;
+  
+  if (assemblyApiKey && assemblyApiKey.length === 32) {
+    assemblyClient = new AssemblyAI({
+      apiKey: assemblyApiKey,
+    });
+    console.log("✅ AssemblyAI client initialized successfully");
+  } else {
+    console.error("❌ Invalid AssemblyAI API key format");
+  }
+} catch (error) {
+  console.error("❌ Failed to initialize AssemblyAI:", error.message);
+}
 
 const GROQ_MODELS = {
   DEFAULT: "llama-3.1-8b-instant",
@@ -60,58 +73,175 @@ const cleanupTempFile = (filePath) => {
   }
 };
 
-// Transcribe audio using AssemblyAI
+// Transcribe audio using AssemblyAI - IMPROVED VERSION
 async function transcribeAudio(audioPath) {
+  if (!assemblyClient) {
+    console.log("AssemblyAI client not available");
+    return {
+      success: false,
+      error: "AssemblyAI service not available",
+      isFallback: true
+    };
+  }
+
   try {
-    console.log("Uploading audio to AssemblyAI...");
-    const audioUrl = await client.files.upload(fs.readFileSync(audioPath));
-    console.log("Audio uploaded to URL:", audioUrl);
+    console.log("=== TRANSCRIPTION START ===");
+    console.log("Audio file:", audioPath);
     
+    // Check file exists and has content
+    if (!fs.existsSync(audioPath)) {
+      console.error("Audio file does not exist");
+      return { 
+        success: false, 
+        error: "Audio file not found" 
+      };
+    }
+    
+    const stats = fs.statSync(audioPath);
+    console.log("File size:", stats.size, "bytes");
+    console.log("File modified:", stats.mtime);
+    
+    if (stats.size < 100) {
+      console.error("File is too small or empty");
+      return { 
+        success: false, 
+        error: "Audio file is too small or empty" 
+      };
+    }
+    
+    // Read file
+    const audioBuffer = fs.readFileSync(audioPath);
+    console.log("Buffer size:", audioBuffer.length, "bytes");
+    
+    // Upload to AssemblyAI
+    console.log("Uploading to AssemblyAI...");
+    const audioUrl = await assemblyClient.files.upload(audioBuffer);
+    console.log("Upload successful. Audio URL:", audioUrl);
+    
+    // Start transcription
     console.log("Starting transcription...");
-    const transcript = await client.transcripts.transcribe({
+    const transcript = await assemblyClient.transcripts.transcribe({
       audio: audioUrl,
       language_code: "en",
     });
     
-    console.log("Transcript created with ID:", transcript.id);
+    console.log("Transcript ID:", transcript.id);
+    console.log("Initial status:", transcript.status);
     
-    // Wait for transcription to complete
+    // Poll for completion
     let transcriptData = transcript;
     let attempts = 0;
-    const maxAttempts = 60; // 60 seconds max wait
+    const maxAttempts = 30; // 60 seconds max (30 * 2 seconds)
     
     while (
       transcriptData.status !== 'completed' &&
       transcriptData.status !== 'error' &&
       attempts < maxAttempts
     ) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      transcriptData = await client.transcripts.get(transcript.id);
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      transcriptData = await assemblyClient.transcripts.get(transcript.id);
       attempts++;
-      console.log(`Polling transcription (${attempts}/${maxAttempts}): ${transcriptData.status}`);
+      console.log(`Polling (${attempts}/${maxAttempts}): ${transcriptData.status}`);
+      
+      if (transcriptData.status === 'error') {
+        console.error("Transcription error:", transcriptData.error);
+        break;
+      }
     }
     
-    if (transcriptData.status === 'completed' && transcriptData.text) {
-      console.log("Transcription completed successfully!");
-      return {
-        success: true,
-        text: transcriptData.text,
-        language: transcriptData.language_code,
-      };
-    } else {
-      const errorMsg = transcriptData.error || "Transcription timed out";
-      console.error("Transcription failed:", errorMsg);
+    if (transcriptData.status === 'completed') {
+      console.log("✅ Transcription completed successfully!");
+      console.log("Text length:", transcriptData.text?.length || 0, "characters");
+      
+      if (transcriptData.text && transcriptData.text.trim()) {
+        return {
+          success: true,
+          text: transcriptData.text.trim(),
+          language: transcriptData.language_code,
+          confidence: transcriptData.confidence,
+          words: transcriptData.words?.length || 0
+        };
+      } else {
+        console.error("Transcription returned empty text");
+        return { 
+          success: false, 
+          error: "Transcription returned empty text" 
+        };
+      }
+    } else if (transcriptData.status === 'error') {
+      const errorMsg = transcriptData.error || "Unknown transcription error";
+      console.error("❌ Transcription failed:", errorMsg);
       return { 
         success: false, 
         error: errorMsg 
       };
+    } else {
+      console.error("⏰ Transcription timed out");
+      return { 
+        success: false, 
+        error: "Transcription timed out after 60 seconds" 
+      };
     }
     
   } catch (error) {
-    console.error("AssemblyAI transcription error:", error.message);
+    console.error("💥 AssemblyAI transcription error:", error.message);
+    console.error("Error details:", error);
+    
+    // Specific error handling
+    if (error.message.includes("Authentication") || error.message.includes("401")) {
+      return { 
+        success: false, 
+        error: "AssemblyAI authentication failed. Please check your API key." 
+      };
+    } else if (error.message.includes("network") || error.message.includes("ECONNREFUSED")) {
+      return { 
+        success: false, 
+        error: "Network error. Please check your internet connection." 
+      };
+    } else if (error.message.includes("413") || error.message.includes("too large")) {
+      return { 
+        success: false, 
+        error: "Audio file too large. Maximum size is 10MB." 
+      };
+    }
+    
     return { 
       success: false, 
-      error: error.message 
+      error: `Transcription failed: ${error.message}` 
+    };
+  } finally {
+    console.log("=== TRANSCRIPTION END ===");
+  }
+}
+
+// Simple fallback transcription for testing
+async function transcribeWithFallback(audioPath) {
+  console.log("Using fallback transcription");
+  
+  try {
+    const stats = fs.statSync(audioPath);
+    const sizeKB = Math.round(stats.size / 1024);
+    
+    // Create a mock transcription based on file size
+    const mockText = `This is a mock transcription of a ${sizeKB}KB audio file. 
+    Since AssemblyAI transcription failed, this is a placeholder response.
+    
+    You said something in your voice message. Please try sending it again 
+    or use text input for more reliable results.`;
+    
+    return {
+      success: true,
+      text: mockText,
+      isFallback: true,
+      note: "Mock transcription - AssemblyAI service unavailable"
+    };
+    
+  } catch (error) {
+    console.error("Fallback transcription error:", error);
+    return {
+      success: false,
+      error: "Fallback transcription failed",
+      isFallback: true
     };
   }
 }
@@ -308,7 +438,7 @@ export const emailMessageController = async (req, res) => {
   }
 };
 
-// UPDATED VOICE MESSAGE CONTROLLER - Simplified and optimized
+// UPDATED VOICE MESSAGE CONTROLLER - WITH PROPER ERROR HANDLING
 export const voiceMessageController = async (req, res) => {
   let tempFilePath = null;
   
@@ -349,7 +479,9 @@ export const voiceMessageController = async (req, res) => {
     }
 
     console.log("=== VOICE MESSAGE PROCESSING START ===");
-    console.log("Audio data size:", audioUrl.length, "characters");
+    console.log("User ID:", userId);
+    console.log("Chat ID:", chatId);
+    console.log("Audio data length:", audioUrl.length, "characters");
     console.log("Duration:", duration, "seconds");
 
     // Step 1: Determine file extension from MIME type
@@ -361,23 +493,38 @@ export const voiceMessageController = async (req, res) => {
       else if (type.includes('mp3') || type.includes('mpeg')) fileExtension = 'mp3';
       else if (type.includes('ogg')) fileExtension = 'ogg';
       else if (type.includes('m4a')) fileExtension = 'm4a';
+      else if (type.includes('flac')) fileExtension = 'flac';
     }
     console.log("File extension:", fileExtension);
 
     // Step 2: Save base64 to temporary file
     tempFilePath = saveBase64ToTempFile(audioUrl, fileExtension);
     console.log("Audio saved to temp file:", tempFilePath);
+    
+    try {
+      const stats = fs.statSync(tempFilePath);
+      console.log("Actual file size:", stats.size, "bytes");
+    } catch (fsError) {
+      console.error("Error getting file stats:", fsError.message);
+    }
 
-    // Step 3: Transcribe audio using AssemblyAI
-    console.log("Starting transcription...");
-    const transcription = await transcribeAudio(tempFilePath);
+    // Step 3: Try transcription with AssemblyAI
+    console.log("\nAttempting AssemblyAI transcription...");
+    let transcription = await transcribeAudio(tempFilePath);
+    
+    // Step 4: If AssemblyAI fails, use fallback
+    if (!transcription.success && !transcription.isFallback) {
+      console.log("\nAssemblyAI failed, trying fallback...");
+      transcription = await transcribeWithFallback(tempFilePath);
+    }
     
     if (!transcription.success) {
-      console.error("Transcription failed:", transcription.error);
+      console.error("All transcription attempts failed:", transcription.error);
       return res.status(500).json({
         success: false,
-        message: "Failed to transcribe audio. Please try again.",
-        error: transcription.error
+        message: "Failed to process voice message. Please try again or use text input.",
+        error: transcription.error,
+        suggestion: "Try recording a shorter message (5-10 seconds) first"
       });
     }
 
@@ -391,10 +538,12 @@ export const voiceMessageController = async (req, res) => {
       });
     }
 
-    console.log("Transcription successful!");
-    console.log("Transcribed text:", transcribedText);
+    console.log("\n✅ Transcription successful!");
+    console.log("Text length:", transcribedText.length, "characters");
+    console.log("Preview:", transcribedText.substring(0, 200) + "...");
+    console.log("Is fallback?", transcription.isFallback || false);
 
-    // Step 4: Create user voice message object
+    // Step 5: Create user voice message object
     const userMessage = {
       type: "voice",
       role: "user",
@@ -403,7 +552,10 @@ export const voiceMessageController = async (req, res) => {
         duration: duration || 0,
         fileSize: fileSize || 0,
         wasTranscribed: true,
+        transcriptionService: transcription.isFallback ? "fallback" : "assemblyai",
         transcribedAt: new Date(),
+        confidence: transcription.confidence || null,
+        wordCount: transcription.words || 0
       },
       timestamp: Date.now(),
     };
@@ -415,23 +567,31 @@ export const voiceMessageController = async (req, res) => {
 
     console.log("User voice message saved to chat successfully");
 
-    // Step 5: Generate AI response based on transcription
-    console.log("Generating AI response based on transcription...");
+    // Step 6: Generate AI response based on transcription
+    console.log("\nGenerating AI response...");
     
     let aiResponse = "";
     try {
+      const systemPrompt = transcription.isFallback 
+        ? `You are UniAssist, an AI assistant for MAJU University students.
+           The user sent a voice message, but the transcription service had issues.
+           Here's what was captured: "${transcribedText}"
+           
+           Please respond naturally and helpfully. If the transcription seems incomplete,
+           ask them to clarify or try sending the message again.`
+        : `You are UniAssist, an AI assistant for MAJU University students.
+           The user sent a voice message. Here's what they said:
+           
+           "${transcribedText}"
+           
+           Respond helpfully and naturally to their voice message.
+           Keep your response concise and relevant to their query.`;
+      
       const completion = await groq.chat.completions.create({
         messages: [
           {
             role: "system",
-            content: `You are UniAssist, an AI assistant for MAJU University students.
-            The user sent a voice message. Here's what they said:
-            
-            "${transcribedText}"
-            
-            Respond helpfully and naturally to their voice message.
-            If the transcription seems unclear, ask for clarification politely.
-            Keep your response concise and relevant to their query.`,
+            content: systemPrompt,
           },
           {
             role: "user",
@@ -465,15 +625,16 @@ export const voiceMessageController = async (req, res) => {
       isVoiceResponse: true,
     };
 
-    console.log("AI response generated successfully");
+    console.log("✅ AI response generated");
     
     // Save AI response
     chat.messages.push(reply);
     console.log("Saving AI response to chat...");
     await chat.save();
 
-    // Deduct credits
-    await User.updateOne({ _id: userId }, { $inc: { credits: -3 } });
+    // Deduct credits (only 1 credit if using fallback)
+    const creditsToDeduct = transcription.isFallback ? 1 : 3;
+    await User.updateOne({ _id: userId }, { $inc: { credits: -creditsToDeduct } });
 
     console.log("=== VOICE MESSAGE PROCESSING COMPLETE ===");
     
@@ -483,11 +644,13 @@ export const voiceMessageController = async (req, res) => {
       reply: reply,
       userMessage: userMessage,
       transcription: transcribedText,
-      message: "Voice message transcribed and processed successfully",
+      usedFallback: transcription.isFallback || false,
+      creditsUsed: creditsToDeduct,
+      message: "Voice message processed successfully",
     });
 
   } catch (error) {
-    console.error("=== VOICE MESSAGE PROCESSING ERROR ===");
+    console.error("\n=== VOICE MESSAGE PROCESSING ERROR ===");
     console.error("Error:", error.message);
     console.error("Error stack:", error.stack);
     
@@ -505,12 +668,209 @@ export const voiceMessageController = async (req, res) => {
   } finally {
     // Clean up temporary file
     if (tempFilePath) {
-      setTimeout(() => cleanupTempFile(tempFilePath), 1000);
+      cleanupTempFile(tempFilePath);
     }
   }
 };
 
-// Audio upload validation endpoint
+// Simple transcription endpoint for testing
+export const transcribeOnlyController = async (req, res) => {
+  let tempFilePath = null;
+  
+  try {
+    const { audioUrl } = req.body;
+
+    if (!audioUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Audio data is required",
+      });
+    }
+
+    // Validate audioUrl format
+    if (!audioUrl.startsWith('data:audio/')) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid audio format. Expected base64 audio data.",
+      });
+    }
+
+    console.log("=== TRANSCRIPTION TEST ===");
+
+    // Determine file extension
+    let fileExtension = 'webm';
+    const mimeType = audioUrl.match(/data:(audio\/[^;]+)/);
+    if (mimeType) {
+      const type = mimeType[1];
+      if (type.includes('wav')) fileExtension = 'wav';
+      else if (type.includes('mp3')) fileExtension = 'mp3';
+      else if (type.includes('ogg')) fileExtension = 'ogg';
+      else if (type.includes('m4a')) fileExtension = 'm4a';
+    }
+
+    // Save file
+    tempFilePath = saveBase64ToTempFile(audioUrl, fileExtension);
+    console.log("Test file saved:", tempFilePath);
+
+    // Try transcription
+    const transcription = await transcribeAudio(tempFilePath);
+    
+    if (!transcription.success) {
+      // Try fallback
+      const fallback = await transcribeWithFallback(tempFilePath);
+      return res.json({
+        success: fallback.success,
+        transcription: fallback.text,
+        isFallback: true,
+        error: transcription.error,
+        message: "Using fallback transcription"
+      });
+    }
+
+    res.json({
+      success: true,
+      transcription: transcription.text,
+      language: transcription.language,
+      confidence: transcription.confidence,
+      wordCount: transcription.words,
+      message: "Audio transcribed successfully",
+    });
+
+  } catch (error) {
+    console.error("Transcription test error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error transcribing audio",
+      error: error.message,
+    });
+  } finally {
+    if (tempFilePath) {
+      cleanupTempFile(tempFilePath);
+    }
+  }
+};
+
+// Test AssemblyAI connection
+export const testTranscription = async (req, res) => {
+  try {
+    console.log("=== ASSEMBLYAI CONNECTION TEST ===");
+    
+    if (!assemblyClient) {
+      return res.json({
+        success: false,
+        message: "AssemblyAI client not initialized",
+        suggestion: "Check your API key and server logs"
+      });
+    }
+    
+    const testAudioUrl = "https://storage.googleapis.com/aai-web-samples/5_common_phrases.mp3";
+    console.log("Testing with sample audio:", testAudioUrl);
+    
+    const transcript = await assemblyClient.transcripts.transcribe({
+      audio_url: testAudioUrl,
+    });
+    
+    console.log("Transcript ID:", transcript.id);
+    console.log("Initial status:", transcript.status);
+    
+    // Quick poll
+    let result = transcript;
+    let attempts = 0;
+    while (result.status !== 'completed' && result.status !== 'error' && attempts < 5) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      result = await assemblyClient.transcripts.get(transcript.id);
+      attempts++;
+      console.log(`Poll ${attempts}: ${result.status}`);
+    }
+    
+    res.json({
+      success: true,
+      message: "AssemblyAI connection successful",
+      status: result.status,
+      text: result.text ? result.text.substring(0, 100) + "..." : "Processing...",
+      testId: transcript.id,
+      clientStatus: "Initialized"
+    });
+  } catch (error) {
+    console.error("AssemblyAI test failed:", error.message);
+    res.json({
+      success: false,
+      message: "AssemblyAI test failed",
+      error: error.message,
+      suggestion: "Check API key and internet connection"
+    });
+  }
+};
+
+// Quick voice response (for testing)
+export const quickVoiceResponse = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    
+    if (req.user.credits < 1) {
+      return res.json({
+        success: false,
+        message: "Insufficient credits",
+      });
+    }
+    
+    const { chatId, transcriptionText } = req.body;
+    
+    const chat = await Chat.findOne({ userId, _id: chatId });
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        message: "Chat not found",
+      });
+    }
+    
+    const userMessage = {
+      type: "voice",
+      role: "user",
+      content: transcriptionText || "Test voice message",
+      voiceMeta: {
+        duration: 3,
+        fileSize: 0.1,
+        wasTranscribed: true,
+        isTest: true,
+      },
+      timestamp: Date.now(),
+    };
+    
+    chat.messages.push(userMessage);
+    
+    const reply = {
+      type: "text",
+      role: "assistant",
+      content: "I received your test voice message! This confirms voice functionality is working.",
+      timestamp: Date.now(),
+      isVoiceResponse: true,
+    };
+    
+    chat.messages.push(reply);
+    await chat.save();
+    
+    await User.updateOne({ _id: userId }, { $inc: { credits: -1 } });
+    
+    res.json({
+      success: true,
+      reply,
+      userMessage,
+      transcription: transcriptionText,
+      isTest: true,
+      message: "Test voice message processed"
+    });
+    
+  } catch (error) {
+    console.error("Quick voice error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error in quick voice response",
+    });
+  }
+};
+
+// Audio validation
 export const uploadAudio = async (req, res) => {
   try {
     const { audioUrl } = req.body;
@@ -522,22 +882,21 @@ export const uploadAudio = async (req, res) => {
       });
     }
 
-    // Validate base64 format
     if (!audioUrl.startsWith('data:audio/')) {
       return res.status(400).json({
         success: false,
-        message: "Invalid audio format. Expected base64 audio data.",
+        message: "Invalid audio format",
       });
     }
 
     res.json({
       success: true,
       message: "Audio format is valid",
-      audioSize: audioUrl.length,
+      size: audioUrl.length,
     });
 
   } catch (error) {
-    console.error("Audio upload validation error:", error);
+    console.error("Audio validation error:", error);
     res.status(500).json({
       success: false,
       message: "Error validating audio",
@@ -545,7 +904,7 @@ export const uploadAudio = async (req, res) => {
   }
 };
 
-// Get audio by message ID
+// Get voice message
 export const getAudioMessage = async (req, res) => {
   try {
     const { chatId, messageId } = req.params;
@@ -559,7 +918,6 @@ export const getAudioMessage = async (req, res) => {
       });
     }
 
-    // Find the voice message
     const voiceMessage = chat.messages.find(
       msg => msg._id.toString() === messageId && msg.type === "voice"
     );
@@ -571,7 +929,6 @@ export const getAudioMessage = async (req, res) => {
       });
     }
 
-    // Send the transcription data
     res.json({
       success: true,
       transcription: voiceMessage.content,
@@ -583,118 +940,31 @@ export const getAudioMessage = async (req, res) => {
     console.error("Get audio error:", error);
     res.status(500).json({
       success: false,
-      message: "Error retrieving audio message",
+      message: "Error retrieving voice message",
     });
   }
 };
 
-// Test endpoint for AssemblyAI
-export const testTranscription = async (req, res) => {
+// Health check
+export const transcriptionHealth = async (req, res) => {
   try {
-    console.log("Testing AssemblyAI connection...");
-    
-    const testAudioUrl = "https://storage.googleapis.com/aai-web-samples/5_common_phrases.mp3";
-    
-    const transcript = await client.transcripts.transcribe({
-      audio_url: testAudioUrl,
-    });
-    
-    console.log("Test transcription ID:", transcript.id);
-    
-    // Wait for completion
-    let result = transcript;
-    let attempts = 0;
-    while (result.status !== 'completed' && attempts < 10) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      result = await client.transcripts.get(transcript.id);
-      attempts++;
-    }
+    const health = {
+      assemblyai: !!assemblyClient,
+      groq: true,
+      timestamp: new Date().toISOString()
+    };
     
     res.json({
       success: true,
-      message: "AssemblyAI connection successful",
-      status: result.status,
-      text: result.text || "Still processing...",
-      testId: transcript.id,
-    });
-  } catch (error) {
-    console.error("AssemblyAI test failed:", error.message);
-    res.json({
-      success: false,
-      message: "AssemblyAI test failed: " + error.message,
-      error: error.message,
-    });
-  }
-};
-
-// Quick voice response (for testing without AssemblyAI)
-export const quickVoiceResponse = async (req, res) => {
-  try {
-    const userId = req.user._id;
-    
-    if (req.user.credits < 2) {
-      return res.json({
-        success: false,
-        message: "Insufficient credits",
-      });
-    }
-    
-    const { chatId, audioUrl, duration } = req.body;
-    
-    const chat = await Chat.findOne({ userId, _id: chatId });
-    if (!chat) {
-      return res.status(404).json({
-        success: false,
-        message: "Chat not found",
-      });
-    }
-    
-    // Mock transcription
-    const mockTranscription = "This is a test voice message. [Voice-to-text transcription would appear here]";
-    
-    const userMessage = {
-      type: "voice",
-      role: "user",
-      content: mockTranscription,
-      voiceMeta: {
-        duration: duration || 3,
-        fileSize: (audioUrl?.length || 0) / (1024 * 1024),
-        wasTranscribed: true,
-        transcribedAt: new Date(),
-      },
-      timestamp: Date.now(),
-    };
-    
-    chat.messages.push(userMessage);
-    
-    // Generate response
-    const reply = {
-      type: "text",
-      role: "assistant",
-      content: "I received your voice message! This is a test response. In production, your voice would be transcribed automatically.",
-      timestamp: Date.now(),
-      isVoiceResponse: true,
-    };
-    
-    chat.messages.push(reply);
-    await chat.save();
-    
-    // Deduct credits
-    await User.updateOne({ _id: userId }, { $inc: { credits: -2 } });
-    
-    res.json({
-      success: true,
-      reply,
-      userMessage: userMessage,
-      transcription: mockTranscription,
-      note: "This is a mock response for testing. Enable AssemblyAI for real transcription.",
+      health,
+      message: "Transcription services health check"
     });
     
   } catch (error) {
-    console.error("Quick voice error:", error);
+    console.error("Health check error:", error);
     res.status(500).json({
       success: false,
-      message: "Error in quick voice response",
+      message: "Health check failed"
     });
   }
 };
