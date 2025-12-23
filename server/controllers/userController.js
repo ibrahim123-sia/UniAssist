@@ -14,7 +14,7 @@ const hashPassword = async (password) => {
 // OTP rate limiter - EXPORT THIS
 export const otpLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5, 
+  max: 5,
   message: "Too many OTP requests from this IP, please try again later",
   skipSuccessfulRequests: true,
 });
@@ -25,12 +25,12 @@ const transporter = nodemailer.createTransport({
   secure: false,
   auth: {
     user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS 
+    pass: process.env.EMAIL_PASS,
   },
 
   tls: {
-    rejectUnauthorized: false 
-  }
+    rejectUnauthorized: false,
+  },
 });
 
 function generateOtp() {
@@ -40,9 +40,9 @@ function generateOtp() {
 const generateToken = (id) => {
   // Convert ObjectId to string
   const userId = id.toString ? id.toString() : id;
-  
-  return jwt.sign({ id: userId }, process.env.JWT_SECRET, { 
-    expiresIn: "30d" 
+
+  return jwt.sign({ id: userId }, process.env.JWT_SECRET, {
+    expiresIn: "30d",
   });
 };
 
@@ -61,10 +61,10 @@ export const registerUser = async (req, res) => {
 
     const otp = generateOtp();
     const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-    
+
     // Hash the password before saving
     const hashedPassword = await hashPassword(password);
-    
+
     if (userExists) {
       userExists.name = name;
       userExists.password = hashedPassword;
@@ -119,9 +119,9 @@ export const registerUser = async (req, res) => {
     }
   } catch (error) {
     console.error("Registration error:", error);
-    return res.status(500).json({ 
-      success: false, 
-      message: error.message 
+    return res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 };
@@ -172,7 +172,7 @@ export const verifyOtp = async (req, res) => {
     user.otp = undefined;
     user.otpExpires = undefined;
     await user.save();
-    
+
     const token = generateToken(user._id);
 
     res.json({
@@ -193,18 +193,18 @@ export const resentOtp = async (req, res) => {
   const { email } = req.body;
 
   if (!email) {
-    return res.status(400).json({ 
+    return res.status(400).json({
       success: false,
-      message: "Email is required" 
+      message: "Email is required",
     });
   }
 
   try {
     const user = await User.findOne({ email });
     if (!user) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: "User not found" 
+        message: "User not found",
       });
     }
 
@@ -339,29 +339,29 @@ export const resetPassword = async (req, res) => {
     );
 
     if (!user) {
-      return res.status(404).json({ 
+      return res.status(404).json({
         success: false,
-        message: "User not found" 
+        message: "User not found",
       });
     }
 
     if (user.resetPasswordOtp !== otp) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: "Invalid OTP" 
+        message: "Invalid OTP",
       });
     }
 
     if (user.resetPasswordExpires < new Date()) {
-      return res.status(400).json({ 
+      return res.status(400).json({
         success: false,
-        message: "OTP expired" 
+        message: "OTP expired",
       });
     }
 
     // Hash the new password before saving
     const hashedPassword = await hashPassword(newPassword);
-    
+
     user.password = hashedPassword;
     user.resetPasswordOtp = undefined;
     user.resetPasswordExpires = undefined;
@@ -373,9 +373,9 @@ export const resetPassword = async (req, res) => {
     });
   } catch (error) {
     console.error("Reset password error:", error);
-    res.status(500).json({ 
+    res.status(500).json({
       success: false,
-      message: "Server error" 
+      message: "Server error",
     });
   }
 };
@@ -390,31 +390,32 @@ export const loginUser = async (req, res) => {
 
       if (isMatch) {
         const token = generateToken(user._id);
-       // In login controller
-res.json({
-  success: true,
-  token: token,
-  message: "Login successful",
-  user: {
-    _id: user._id,
-    name: user.name,
-    email: user.email,
-    credits: user.credits,
-    isVerified: user.isVerified
-  }
-});
+        // Add return here so the function stops after sending successful response
+        return res.json({
+          success: true,
+          token: token,
+          message: "Login successful",
+          user: {
+            _id: user._id,
+            name: user.name,
+            email: user.email,
+            credits: user.credits,
+            isVerified: user.isVerified,
+          },
+        });
       }
     }
 
-    return res.status(401).json({ 
-      success: false, 
-      message: "Invalid email or password" 
+    // If we reach here, login failed
+    return res.status(401).json({
+      success: false,
+      message: "Invalid email or password",
     });
   } catch (error) {
     console.error("Login error:", error);
-    return res.status(500).json({ 
-      success: false, 
-      message: error.message 
+    return res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 };
@@ -422,15 +423,15 @@ res.json({
 export const getUser = async (req, res) => {
   try {
     const user = req.user;
-    return res.json({ 
-      success: true, 
-      user 
+    return res.json({
+      success: true,
+      user,
     });
   } catch (error) {
     console.error("Get user error:", error);
-    return res.status(500).json({ 
-      success: false, 
-      message: error.message 
+    return res.status(500).json({
+      success: false,
+      message: error.message,
     });
   }
 };
