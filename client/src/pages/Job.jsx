@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import moment from 'moment';
+import { useAppContext } from '../context/AppContext';
 
 // Correct SVG Icon Components
 const BriefcaseIcon = ({ className = "w-5 h-5" }) => (
@@ -83,6 +84,8 @@ const CompaniesIcon = ({ className = "w-5 h-5" }) => (
 );
 
 const Jobs = () => {
+  const { theme } = useAppContext(); // Get theme from context
+  
   const [jobs, setJobs] = useState([]);
   const [filteredJobs, setFilteredJobs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -91,7 +94,8 @@ const Jobs = () => {
   const [activeCompany, setActiveCompany] = useState('all');
   const [activeLocation, setActiveLocation] = useState('all');
   const [dateFilter, setDateFilter] = useState('30days');
-  const [theme, setTheme] = useState('light');
+  const [showMoreCompanies, setShowMoreCompanies] = useState(false);
+  const [showMoreLocations, setShowMoreLocations] = useState(false);
   const scrollContainerRef = useRef(null);
   
   // Your Apify Jobs API
@@ -124,7 +128,6 @@ const Jobs = () => {
 
   // Comprehensive list of job site domains to exclude
   const jobSiteDomains = [
-    // Job portals and aggregators
     'job.id', 'rozee.pk', 'mustakbil', 'brightspyre', 'apify', 'scraping',
     'linkedin', 'indeed', 'glassdoor', 'monster', 'careerbuilder', 'ziprecruiter',
     'dice', 'simplyhired', 'reed', 'totaljobs', 'adzuna', 'cv-library',
@@ -135,12 +138,6 @@ const Jobs = () => {
     'jobvite', 'taleo', 'hirestream', 'careers', 'hire', 'recruit',
     'talent', 'staffing', 'employment', 'vacancies', 'positions',
     'openings', 'opportunities', 'jobs', 'job', 'career', 'applicant',
-    
-    // Navigation and UI elements that might appear as companies
-    'Skip to Main Content', 'Min. Salary', 'City', 'Search', 'Country',
-    'Advanced Search', 'How It Works', 'Create Account', 'Real Stories',
-    'OUR STATISTICS', 'For Jobseekers', 'Browse Opportunities',
-    'Trending Searches', 'Trending Jobs', 'Filters', 'Open Positions',
     
     // Pakistani specific job sites
     'rozee', 'mustakbil', 'brightspyre', 'ilmkidunya', 'ilm', 'kidunya',
@@ -398,16 +395,6 @@ const Jobs = () => {
 
   useEffect(() => {
     fetchJobs();
-    // Detect system theme preference
-    const darkModeMediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
-    setTheme(darkModeMediaQuery.matches ? 'dark' : 'light');
-    
-    const handleThemeChange = (e) => {
-      setTheme(e.matches ? 'dark' : 'light');
-    };
-    
-    darkModeMediaQuery.addEventListener('change', handleThemeChange);
-    return () => darkModeMediaQuery.removeEventListener('change', handleThemeChange);
   }, []);
 
   useEffect(() => {
@@ -848,211 +835,230 @@ const Jobs = () => {
                 </h3>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                {/* Date Filter */}
-                <div>
-                  <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                    <CalendarRangeIcon className="w-4 h-4" />
-                    Date Posted
+              {/* Date Filter - Horizontal */}
+              <div className="mb-6">
+                <h4 className={`text-sm font-medium mb-3 flex items-center gap-2 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                  <CalendarRangeIcon className="w-4 h-4" />
+                  Date Posted
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {dateFilterOptions.map((option) => {
+                    const count = option.id === 'all' 
+                      ? jobs.length 
+                      : jobs.filter(job => {
+                        const now = moment();
+                        switch(option.id) {
+                          case '24h':
+                            return now.diff(job.postedDate, 'hours') <= 24;
+                          case '7days':
+                            return now.diff(job.postedDate, 'days') <= 7;
+                          case '30days':
+                            return now.diff(job.postedDate, 'days') <= 30;
+                          default:
+                            return true;
+                        }
+                      }).length;
+                    
+                    return (
+                      <button
+                        key={option.id}
+                        onClick={() => setDateFilter(option.id)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
+                          dateFilter === option.id
+                            ? 'bg-blue-600 text-white'
+                            : theme === 'dark'
+                            ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
+                            : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
+                        }`}
+                      >
+                        <span>{option.name}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                          dateFilter === option.id
+                            ? 'bg-white/30'
+                            : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              
+              {/* Field Filter - Horizontal */}
+              <div className="mb-6">
+                <h4 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                  By Field / Category
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {jobFields.map((field) => {
+                    const Icon = field.icon;
+                    const count = field.id === 'all' 
+                      ? jobs.length 
+                      : jobs.filter(j => j.field === field.id).length;
+                    
+                    if (count === 0 && field.id !== 'all') return null;
+                    
+                    return (
+                      <button
+                        key={field.id}
+                        onClick={() => setActiveField(field.id)}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
+                          activeField === field.id
+                            ? field.id === 'all'
+                              ? 'bg-blue-600 text-white'
+                              : `${field.color} ${field.textColor} border border-current`
+                            : theme === 'dark'
+                            ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
+                            : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
+                        }`}
+                      >
+                        <Icon className="w-4 h-4" />
+                        <span>{field.name}</span>
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                          activeField === field.id && field.id !== 'all'
+                            ? theme === 'dark' ? 'bg-black/30' : 'bg-white/30'
+                            : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+                        }`}>
+                          {count}
+                        </span>
+                      </button>
+                    );
+                  }).filter(Boolean)}
+                </div>
+              </div>
+              
+              {/* Company Filter - Horizontal with Show More */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                    By Company
                   </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {dateFilterOptions.map((option) => {
-                      const count = option.id === 'all' 
-                        ? jobs.length 
-                        : jobs.filter(job => {
-                          const now = moment();
-                          switch(option.id) {
-                            case '24h':
-                              return now.diff(job.postedDate, 'hours') <= 24;
-                            case '7days':
-                              return now.diff(job.postedDate, 'days') <= 7;
-                            case '30days':
-                              return now.diff(job.postedDate, 'days') <= 30;
-                            default:
-                              return true;
-                          }
-                        }).length;
+                  <button
+                    onClick={() => setShowMoreCompanies(!showMoreCompanies)}
+                    className={`text-xs ${theme === 'dark' ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} transition-colors`}
+                  >
+                    {showMoreCompanies ? 'Show Less' : 'Show More'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {/* All Companies button */}
+                  <button
+                    onClick={() => setActiveCompany('all')}
+                    className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                      activeCompany === 'all'
+                        ? 'bg-blue-600 text-white'
+                        : theme === 'dark'
+                        ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
+                        : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
+                    }`}
+                  >
+                    All Companies
+                  </button>
+                  
+                  {/* Company buttons */}
+                  {uniqueCompanies
+                    .slice(0, showMoreCompanies ? uniqueCompanies.length : 15)
+                    .map(company => {
+                      const count = jobs.filter(j => j.company === company).length;
+                      if (count === 0) return null;
                       
                       return (
                         <button
-                          key={option.id}
-                          onClick={() => setDateFilter(option.id)}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
-                            dateFilter === option.id
+                          key={company}
+                          onClick={() => setActiveCompany(company)}
+                          className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                            activeCompany === company
                               ? 'bg-blue-600 text-white'
                               : theme === 'dark'
                               ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
                               : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
                           }`}
+                          title={`${company} (${count} jobs)`}
                         >
-                          <span>{option.name}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                            dateFilter === option.id
-                              ? 'bg-white/30'
-                              : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
-                          }`}>
-                            {count}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="truncate max-w-[120px]">
+                              {company.length > 20 ? company.substring(0, 20) + '...' : company}
+                            </span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                              activeCompany === company
+                                ? 'bg-white/30'
+                                : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+                            }`}>
+                              {count}
+                            </span>
+                          </div>
                         </button>
                       );
                     })}
-                  </div>
                 </div>
-                
-                {/* Field Filter */}
-                <div className="md:col-span-2">
-                  <h4 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                    By Field / Category
+              </div>
+              
+              {/* Location Filter - Horizontal with Show More */}
+              <div className="mb-6">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className={`text-sm font-medium ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                    By Location
                   </h4>
-                  <div className="flex flex-wrap gap-2">
-                    {jobFields.map((field) => {
-                      const Icon = field.icon;
-                      const count = field.id === 'all' 
-                        ? jobs.length 
-                        : jobs.filter(j => j.field === field.id).length;
+                  <button
+                    onClick={() => setShowMoreLocations(!showMoreLocations)}
+                    className={`text-xs ${theme === 'dark' ? 'text-blue-400 hover:text-blue-300' : 'text-blue-600 hover:text-blue-800'} transition-colors`}
+                  >
+                    {showMoreLocations ? 'Show Less' : 'Show More'}
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {/* All Locations button */}
+                  <button
+                    onClick={() => setActiveLocation('all')}
+                    className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                      activeLocation === 'all'
+                        ? 'bg-blue-600 text-white'
+                        : theme === 'dark'
+                        ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
+                        : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
+                    }`}
+                  >
+                    All Locations
+                  </button>
+                  
+                  {/* Location buttons */}
+                  {uniqueLocations
+                    .slice(0, showMoreLocations ? uniqueLocations.length : 15)
+                    .map(location => {
+                      const count = jobs.filter(j => j.location.includes(location)).length;
+                      if (count === 0) return null;
                       
-                      if (count === 0 && field.id !== 'all') return null;
+                      const displayLocation = location === 'Pakistan' ? 'Pakistan (Other)' : location;
                       
                       return (
                         <button
-                          key={field.id}
-                          onClick={() => setActiveField(field.id)}
-                          className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-all ${
-                            activeField === field.id
-                              ? field.id === 'all'
-                                ? 'bg-blue-600 text-white'
-                                : `${field.color} ${field.textColor} border border-current`
+                          key={location}
+                          onClick={() => setActiveLocation(location)}
+                          className={`px-3 py-2 rounded-lg text-sm transition-colors ${
+                            activeLocation === location
+                              ? 'bg-blue-600 text-white'
                               : theme === 'dark'
                               ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
                               : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
                           }`}
+                          title={`${displayLocation} (${count} jobs)`}
                         >
-                          <Icon className="w-4 h-4" />
-                          <span>{field.name}</span>
-                          <span className={`text-xs px-1.5 py-0.5 rounded-full ${
-                            activeField === field.id && field.id !== 'all'
-                              ? theme === 'dark' ? 'bg-black/30' : 'bg-white/30'
-                              : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
-                          }`}>
-                            {count}
-                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="truncate max-w-[120px]">
+                              {displayLocation.length > 20 ? displayLocation.substring(0, 20) + '...' : displayLocation}
+                            </span>
+                            <span className={`text-xs px-1.5 py-0.5 rounded-full ${
+                              activeLocation === location
+                                ? 'bg-white/30'
+                                : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
+                            }`}>
+                              {count}
+                            </span>
+                          </div>
                         </button>
                       );
-                    }).filter(Boolean)}
-                  </div>
-                </div>
-                
-                {/* Company & Location Filters */}
-                <div>
-                  <div className="grid grid-cols-2 gap-4">
-                    {/* Company Filter */}
-                    <div>
-                      <h4 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                        By Company
-                      </h4>
-                      <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                        <button
-                          onClick={() => setActiveCompany('all')}
-                          className={`px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${
-                            activeCompany === 'all'
-                              ? 'bg-blue-600 text-white'
-                              : theme === 'dark'
-                              ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
-                              : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
-                          }`}
-                        >
-                          All Companies
-                        </button>
-                        {uniqueCompanies.slice(0, 15).map(company => {
-                          const count = jobs.filter(j => j.company === company).length;
-                          if (count === 0) return null;
-                          
-                          return (
-                            <button
-                              key={company}
-                              onClick={() => setActiveCompany(company)}
-                              className={`px-3 py-2.5 rounded-lg text-sm transition-colors text-left group ${
-                                activeCompany === company
-                                  ? 'bg-blue-600 text-white'
-                                  : theme === 'dark'
-                                  ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
-                                  : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
-                              }`}
-                              title={company}
-                            >
-                              <div className="flex justify-between items-center">
-                                <span className="truncate pr-2 group-hover:whitespace-normal group-hover:overflow-visible group-hover:text-clip">
-                                  {company}
-                                </span>
-                                <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full ${
-                                  activeCompany === company
-                                    ? 'bg-white/30'
-                                    : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
-                                }`}>
-                                  {count}
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    
-                    {/* Location Filter */}
-                    <div>
-                      <h4 className={`text-sm font-medium mb-3 ${theme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
-                        By Location
-                      </h4>
-                      <div className="flex flex-col gap-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                        <button
-                          onClick={() => setActiveLocation('all')}
-                          className={`px-3 py-2.5 rounded-lg text-sm transition-colors text-left ${
-                            activeLocation === 'all'
-                              ? 'bg-blue-600 text-white'
-                              : theme === 'dark'
-                              ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
-                              : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
-                          }`}
-                        >
-                          All Locations
-                        </button>
-                        {uniqueLocations.slice(0, 15).map(location => {
-                          const count = jobs.filter(j => j.location.includes(location)).length;
-                          if (count === 0) return null;
-                          
-                          const displayLocation = location === 'Pakistan' ? 'Pakistan (Other)' : location;
-                          
-                          return (
-                            <button
-                              key={location}
-                              onClick={() => setActiveLocation(location)}
-                              className={`px-3 py-2.5 rounded-lg text-sm transition-colors text-left group ${
-                                activeLocation === location
-                                  ? 'bg-blue-600 text-white'
-                                  : theme === 'dark'
-                                  ? 'bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700'
-                                  : 'bg-white hover:bg-gray-100 text-gray-700 border border-gray-300'
-                              }`}
-                              title={location}
-                            >
-                              <div className="flex justify-between items-center">
-                                <span className="truncate pr-2 group-hover:whitespace-normal group-hover:overflow-visible group-hover:text-clip">
-                                  {displayLocation}
-                                </span>
-                                <span className={`flex-shrink-0 text-xs px-2 py-1 rounded-full ${
-                                  activeLocation === location
-                                    ? 'bg-white/30'
-                                    : theme === 'dark' ? 'bg-gray-700' : 'bg-gray-200'
-                                }`}>
-                                  {count}
-                                </span>
-                              </div>
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
+                    })}
                 </div>
               </div>
               
@@ -1284,26 +1290,6 @@ const Jobs = () => {
         </div>
       </div>
 
-      {/* Custom scrollbar styles */}
-      <style jsx global>{`
-        .custom-scrollbar::-webkit-scrollbar {
-          width: 6px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-track {
-          background: ${theme === 'dark' ? '#374151' : '#f3f4f6'};
-          border-radius: 3px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-thumb {
-          background: ${theme === 'dark' ? '#6b7280' : '#d1d5db'};
-          border-radius: 3px;
-        }
-        
-        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-          background: ${theme === 'dark' ? '#9ca3af' : '#9ca3af'};
-        }
-      `}</style>
     </div>
   );
 };
