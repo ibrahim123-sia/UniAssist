@@ -48,21 +48,11 @@ const Message = ({ message }) => {
 
         {/* Message Body */}
         <div className="text-sm sm:text-base">
-          {/* Voice message transcription (user) */}
-          {message.type === 'voice' && (
-            <div className="mb-2 p-2 rounded bg-blue-500/10 border border-blue-500/20">
-              <div className="flex items-center gap-2 text-xs text-blue-600 dark:text-blue-400 mb-1">
-                <Mic className="w-3 h-3" />
-                <span>Voice transcribed:</span>
-              </div>
-              <div className="text-sm">
-                {message.content}
-              </div>
-              {message.voiceMeta && (
-                <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                  Duration: {message.voiceMeta.duration}s
-                </div>
-              )}
+          {/* Voice message processing indicator */}
+          {message.type === 'voice' && message.isProcessing && (
+            <div className="flex items-center gap-2 text-sm text-blue-500 dark:text-blue-400">
+              <Mic className="w-4 h-4 animate-pulse" />
+              <span>Processing voice message...</span>
             </div>
           )}
 
@@ -110,6 +100,18 @@ const Message = ({ message }) => {
               >
                 {message.content}
               </Markdown>
+            </div>
+          )}
+
+          {/* Voice message metadata (only show duration, not transcription) */}
+          {message.type === 'voice' && message.voiceMeta && (
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              Duration: {message.voiceMeta.duration}s
+              {message.voiceMeta.transcriptionService && (
+                <span className="ml-2">
+                  • Service: {message.voiceMeta.transcriptionService}
+                </span>
+              )}
             </div>
           )}
         </div>

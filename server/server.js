@@ -20,7 +20,9 @@ app.post(
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+// Increase payload limit for voice messages
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 
 // Routes
 app.get("/", (req, res) => res.send("UniAssist Server is Live"));

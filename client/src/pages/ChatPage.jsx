@@ -2,11 +2,11 @@ import React, { useEffect, useRef, useState } from "react";
 import { useAppContext } from "../context/AppContext";
 import Message from "../components/Message";
 import toast from "react-hot-toast";
-import { Send, Mail, Calendar, Book, Users, Building, CreditCard, MessageSquare, Sparkles, Mic, Volume2, Disc, Loader2 } from "lucide-react";
+import { Send, Mail, Calendar, Book, Users, Building, CreditCard, MessageSquare, Sparkles, Mic } from "lucide-react";
 
 const ChatPage = () => {
   const containRef = useRef(null);
-  const { selectedChat, theme, user, axios, token, setUser, sendVoiceMessage } = useAppContext();
+  const { selectedChat, theme, user, axios, token, setUser } = useAppContext();
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -15,10 +15,42 @@ const ChatPage = () => {
   // Voice recording states
   const [isRecording, setIsRecording] = useState(false);
   const [mediaRecorder, setMediaRecorder] = useState(null);
-  const [audioChunks, setAudioChunks] = useState([]);
   const [recordingTime, setRecordingTime] = useState(0);
   const timerRef = useRef(null);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  
+  // Refs for audio management
+  const recordingTimeRef = useRef(0);
+  const audioChunksRef = useRef([]);
+
+  // Clean up audio resources on unmount
+  useEffect(() => {
+    return () => {
+      cleanupAudioResources();
+    };
+  }, []);
+
+  // Clean up audio resources
+  const cleanupAudioResources = () => {
+    // Clear timer
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    
+    // Reset audio chunks
+    audioChunksRef.current = [];
+  };
+
+  // Convert blob to base64
+  const blobToBase64 = (blob) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result);
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  };
 
   // Start recording audio
   const startRecording = async () => {
@@ -34,82 +66,140 @@ const ChatPage = () => {
         return;
       }
 
+      // Clean up any existing audio resources first
+      cleanupAudioResources();
+
+      // Request microphone access
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          sampleRate: 16000
+          autoGainControl: true,
+          sampleRate: 16000,
+          channelCount: 1,
         }
+      }).catch(error => {
+        console.error("Microphone access error:", error);
+        
+        if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+          toast.error("Microphone access denied. Please check browser permissions.");
+        } else if (error.name === 'NotFoundError') {
+          toast.error("No microphone found on your device.");
+        } else {
+          toast.error(`Microphone error: ${error.message}`);
+        }
+        throw error;
       });
+
+      // Get supported MIME type
+      let mimeType = '';
+      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
+        mimeType = 'audio/webm;codecs=opus';
+      } else if (MediaRecorder.isTypeSupported('audio/webm')) {
+        mimeType = 'audio/webm';
+      }
       
-      const options = { mimeType: 'audio/webm;codecs=opus' };
+      const options = mimeType ? { mimeType } : {};
       const recorder = new MediaRecorder(stream, options);
       
-      const chunks = [];
+      audioChunksRef.current = [];
       
       recorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
-          chunks.push(event.data);
+          audioChunksRef.current.push(event.data);
         }
       };
       
       recorder.onstop = async () => {
-        const audioBlob = new Blob(chunks, { type: 'audio/webm' });
-        const sizeMB = audioBlob.size / (1024 * 1024);
-        
         // Stop timer
         if (timerRef.current) {
           clearInterval(timerRef.current);
           timerRef.current = null;
         }
         
+        const audioBlob = new Blob(audioChunksRef.current, { 
+          type: mimeType || 'audio/webm' 
+        });
+        const sizeMB = audioBlob.size / (1024 * 1024);
+        
         // Stop all audio tracks
         stream.getTracks().forEach(track => track.stop());
         
         // Check file size
-        if (sizeMB > 4) {
-          toast.error(`Voice message is ${sizeMB.toFixed(2)}MB. Maximum size is 4MB.`);
+        if (sizeMB > 2) {
+          toast.error(`Voice message is ${sizeMB.toFixed(2)}MB. Maximum size is 2MB. Record a shorter message.`);
           setRecordingTime(0);
+          recordingTimeRef.current = 0;
           return;
         }
         
         // Process the voice message
-        await processVoiceMessage(audioBlob, recordingTime);
+        await processVoiceMessage(audioBlob, recordingTimeRef.current);
         
         // Reset
         setRecordingTime(0);
+        recordingTimeRef.current = 0;
       };
       
-      recorder.start(100); // Collect data every 100ms
+      // Handle recorder errors
+      recorder.onerror = (event) => {
+        console.error("Recorder error:", event);
+        toast.error("Recording error. Please try again.");
+        
+        // Clean up on error
+        stream.getTracks().forEach(track => track.stop());
+        cleanupAudioResources();
+        setIsRecording(false);
+        setRecordingTime(0);
+        recordingTimeRef.current = 0;
+      };
+      
+      // Start recording
+      recorder.start(100);
       setMediaRecorder(recorder);
       setIsRecording(true);
-      setAudioChunks(chunks);
       
-      // Reset and start timer
+      // Reset recording time
       setRecordingTime(0);
+      recordingTimeRef.current = 0;
+      
+      // Start timer
       timerRef.current = setInterval(() => {
-        setRecordingTime(prev => prev + 1);
+        recordingTimeRef.current += 1;
+        setRecordingTime(recordingTimeRef.current);
+        
+        // Stop recording at 30 seconds
+        if (recordingTimeRef.current >= 30) {
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          
+          if (recorder && recorder.state === 'recording') {
+            recorder.stop();
+            toast.info("Recording stopped automatically after 30 seconds.");
+          }
+        }
       }, 1000);
       
     } catch (error) {
-      console.error("Error accessing microphone:", error);
-      toast.error("Microphone access denied. Please allow microphone permissions.");
+      console.error("Error starting recording:", error);
+      setIsRecording(false);
+      setRecordingTime(0);
+      recordingTimeRef.current = 0;
+      cleanupAudioResources();
     }
   };
 
   // Stop recording and send
   const stopRecording = () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      setIsRecording(false);
-    }
-  };
-
-  // Cancel recording
-  const cancelRecording = () => {
-    if (mediaRecorder && mediaRecorder.state === 'recording') {
-      mediaRecorder.stop();
-      setIsRecording(false);
+    if (mediaRecorder && isRecording && mediaRecorder.state === 'recording') {
+      try {
+        mediaRecorder.stop();
+        setIsRecording(false);
+      } catch (error) {
+        console.error("Error stopping recording:", error);
+      }
     }
     
     // Stop timer
@@ -117,13 +207,29 @@ const ChatPage = () => {
       clearInterval(timerRef.current);
       timerRef.current = null;
     }
+  };
+
+  // Cancel recording
+  const cancelRecording = () => {
+    if (mediaRecorder && isRecording && mediaRecorder.state === 'recording') {
+      try {
+        mediaRecorder.stop();
+        setIsRecording(false);
+      } catch (error) {
+        console.error("Error canceling recording:", error);
+      }
+    }
+    
+    // Clean up all resources
+    cleanupAudioResources();
     
     // Reset
     setRecordingTime(0);
+    recordingTimeRef.current = 0;
     toast.info("Recording cancelled");
   };
 
-  // Process voice message (upload and send)
+  // Process voice message
   const processVoiceMessage = async (audioBlob, duration) => {
     if (!user || !selectedChat) {
       toast.error("Please login and select a chat to send voice messages");
@@ -132,32 +238,40 @@ const ChatPage = () => {
 
     const sizeMB = audioBlob.size / (1024 * 1024);
     
-    // Check size again
-    if (sizeMB > 4) {
-      toast.error(`Voice message is ${sizeMB.toFixed(2)}MB. Maximum size is 4MB.`);
+    // Enhanced validation
+    if (sizeMB > 2) {
+      toast.error(`Voice message is ${sizeMB.toFixed(2)}MB. Maximum size is 2MB.`);
+      return;
+    }
+
+    if (sizeMB < 0.001 || duration < 1) {
+      toast.error("Recording is too short. Please speak for at least 2 seconds.");
+      return;
+    }
+
+    if (duration < 2 && sizeMB < 0.01) {
+      toast.error("No speech detected. Please speak clearly.");
       return;
     }
 
     setIsProcessingVoice(true);
     setLoading(true);
 
+    let tempMessageId = Date.now();
+
     try {
-      // Step 1: Create URL for immediate playback
-      const audioUrl = URL.createObjectURL(audioBlob);
-      
-      // Step 2: Show temporary message with loading state
-      const tempMessageId = Date.now();
+      // Step 1: Create temporary message with loading state
       const tempVoiceMessage = {
         id: tempMessageId,
         role: "user",
         content: "[Processing voice message...]",
         timestamp: Date.now(),
-        isVoice: true,
-        audioUrl: audioUrl,
-        voiceDuration: duration,
-        fileSize: sizeMB.toFixed(2),
-        isProcessing: true,
-        transcription: "" // Will be filled after API response
+        type: "voice",
+        voiceMeta: {
+          duration: duration,
+          fileSize: sizeMB.toFixed(2),
+        },
+        isProcessing: true
       };
       
       setMessages(prev => [...prev, tempVoiceMessage]);
@@ -172,86 +286,117 @@ const ChatPage = () => {
         }
       }, 100);
 
-      // Step 3: Convert blob to base64 for API
-      const reader = new FileReader();
-      reader.readAsDataURL(audioBlob);
+      // Step 2: Convert blob to base64 for API
+      const base64Audio = await blobToBase64(audioBlob);
       
-      reader.onloadend = async () => {
-        try {
-          const base64Audio = reader.result;
-          
-          // Step 4: Call your backend API
-          const response = await sendVoiceMessage(
-  selectedChat._id,
-  audioBlob, // Send the blob directly
-  duration,
-  sizeMB.toFixed(2)
-);
+      // Step 3: Call your backend API with timeout
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-          if (response.data.success) {
-            // Step 5: Update the temporary message with transcribed text
-            setMessages(prev => prev.map(msg => 
-              msg.id === tempMessageId 
-                ? {
-                    ...msg,
-                    content: response.data.transcription || "Voice message transcribed",
-                    isProcessing: false,
-                    transcription: response.data.transcription,
-                    type: "voice"
-                  }
-                : msg
-            ));
-
-            // Step 6: Add AI response
-            setTimeout(() => {
-              if (response.data.reply) {
-                const aiMessage = {
-                  role: "assistant",
-                  content: response.data.reply.content,
-                  timestamp: Date.now(),
-                  type: "text"
-                };
-                setMessages(prev => [...prev, aiMessage]);
-              }
-              
-              // Update user credits
-              if (setUser && user) {
-                setUser(prev => ({ 
-                  ...prev, 
-                  credits: Math.max(0, prev.credits - 3) 
-                }));
-              }
-              
-              toast.success("Voice message sent!");
-            }, 500);
-
-          } else {
-            // Remove temporary message on error
-            setMessages(prev => prev.filter(msg => msg.id !== tempMessageId));
-            toast.error(response.data.message || "Failed to process voice message");
-          }
-          
-        } catch (error) {
-          console.error("Error processing voice:", error);
-          // Remove temporary message on error
-          setMessages(prev => prev.filter(msg => msg.id !== tempMessageId));
-          toast.error("Failed to process voice message. Please try again.");
-        } finally {
-          setIsProcessingVoice(false);
-          setLoading(false);
+      const response = await axios.post(
+        '/api/message/voice',
+        {
+          chatId: selectedChat._id,
+          audioUrl: base64Audio,
+          duration: duration,
+          fileSize: sizeMB.toFixed(2)
+        },
+        { 
+          headers: { 
+            Authorization: token,
+            'Content-Type': 'application/json'
+          },
+          signal: controller.signal
         }
-      };
+      );
 
-      reader.onerror = () => {
-        toast.error("Failed to read audio file");
+      clearTimeout(timeoutId);
+
+      if (response.data.success) {
+        // Step 4: Update the temporary message with transcription
+        setMessages(prev => prev.map(msg => 
+          msg.id === tempMessageId 
+            ? {
+                ...msg,
+                content: response.data.transcription || "Voice message transcribed",
+                isProcessing: false,
+                voiceMeta: {
+                  ...msg.voiceMeta,
+                  wasTranscribed: true,
+                  transcriptionService: response.data.transcriptionDetails?.service || "unknown",
+                  isFallback: response.data.transcriptionDetails?.isFallback || false,
+                }
+              }
+            : msg
+        ));
+
+        // Step 5: Add AI response
+        if (response.data.reply) {
+          const aiMessage = {
+            role: "assistant",
+            content: response.data.reply.content,
+            timestamp: Date.now(),
+            type: "text",
+            isVoiceResponse: true
+          };
+          setMessages(prev => [...prev, aiMessage]);
+        }
+        
+        // Update user credits
+        if (setUser && user) {
+          const creditsUsed = response.data.creditsUsed || 3;
+          setUser(prev => ({ 
+            ...prev, 
+            credits: Math.max(0, prev.credits - creditsUsed) 
+          }));
+        }
+        
+        // Show success message
+        toast.success("Voice message processed successfully!");
+        
+        // Show warning for fallback transcription
+        if (response.data.transcriptionDetails?.isFallback) {
+          toast("Voice transcribed with basic fallback. Text may be less accurate.", {
+            icon: '⚠️',
+            duration: 4000
+          });
+        }
+        
+      } else {
+        // Remove temporary message on error
         setMessages(prev => prev.filter(msg => msg.id !== tempMessageId));
-        setIsProcessingVoice(false);
-        setLoading(false);
-      };
-
+        
+        if (response.data.message?.includes("No speech detected") || 
+            response.data.message?.includes("too short")) {
+          toast.error("No speech detected. Please speak clearly and try again.");
+        } else if (response.data.message?.includes("Insufficient credits")) {
+          toast.error(response.data.message);
+        } else {
+          toast.error(response.data.message || "Failed to process voice message");
+        }
+      }
+      
     } catch (error) {
-      console.error("Voice processing error:", error);
-      toast.error("Error processing voice message");
+      console.error("Error processing voice:", error);
+      setMessages(prev => prev.filter(msg => msg.id !== tempMessageId));
+      
+      if (error.name === 'AbortError') {
+        toast.error("Request timeout. Please try again.");
+      } else if (error.response?.status === 413) {
+        toast.error("Voice message too large. Please record a shorter message (max 2MB).");
+      } else if (error.response?.status === 400) {
+        const errorMsg = error.response.data.message || "Invalid audio format.";
+        if (errorMsg.includes("too small") || errorMsg.includes("speak longer")) {
+          toast.error("Recording too short. Please speak for at least 2-3 seconds.");
+        } else {
+          toast.error(errorMsg);
+        }
+      } else if (error.response?.status === 500) {
+        toast.error("Server error processing voice. Please try again.");
+      } else {
+        toast.error("Failed to process voice message. Please try again.");
+      }
+    } finally {
       setIsProcessingVoice(false);
       setLoading(false);
     }
@@ -263,14 +408,6 @@ const ChatPage = () => {
     const secs = seconds % 60;
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
-
-  // Clean up
-  useEffect(() => {
-    return () => {
-      if (mediaRecorder && mediaRecorder.state === 'recording') mediaRecorder.stop();
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, []);
 
   useEffect(() => {
     if (selectedChat) {
@@ -298,6 +435,61 @@ const ChatPage = () => {
     { icon: <Mail className="w-4 h-4" />, text: "Write an email to faculty" }
   ];
 
+  const handleTextSubmit = async (e) => {
+    e.preventDefault();
+    if (!prompt.trim() || !selectedChat) return;
+    
+    try {
+      setLoading(true);
+      const promptCopy = prompt;
+      setPrompt("");
+      
+      // Add user message
+      setMessages(prev => [
+        ...prev,
+        {
+          role: "user",
+          content: prompt,
+          timestamp: Date.now(),
+          type: mode,
+        },
+      ]);
+      
+      // Call API
+      const { data } = await axios.post(
+        `/api/message/${mode}`,
+        { 
+          chatId: selectedChat._id, 
+          prompt
+        },
+        { headers: { Authorization: token } }
+      );
+
+      if (data.success) {
+        // Add AI response
+        const reply = {
+          ...data.reply,
+          timestamp: Date.now(),
+        };
+        setMessages(prev => [...prev, reply]);
+        
+        // Update user credits
+        const creditDeduction = mode === "email" ? 2 : 1;
+        setUser(prev => ({ 
+          ...prev, 
+          credits: Math.max(0, prev.credits - creditDeduction) 
+        }));
+      } else {
+        toast.error(data.message);
+        setPrompt(promptCopy);
+      }
+    } catch (error) {
+      toast.error(error.response?.data?.message || error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className={`flex-1 flex flex-col h-full overflow-hidden ${
       theme === 'dark' ? 'bg-gray-900' : 'bg-linear-to-b from-blue-50 via-white to-gray-50'
@@ -322,7 +514,7 @@ const ChatPage = () => {
                   Welcome to UniAssist!
                 </h2>
                 <p className={`text-sm ${theme === 'dark' ? 'text-gray-300' : 'text-gray-600'}`}>
-                  Your intelligent assistant for MAJU University. Ask questions, draft emails, track deadlines, and get personalized help.
+                  Your intelligent assistant for MAJU University. Ask questions, draft emails, and get personalized help.
                 </p>
               </div>
             </div>
@@ -333,9 +525,6 @@ const ChatPage = () => {
         <div
           ref={containRef}
           className="flex-1 mb-3 overflow-y-auto overscroll-contain scroll-smooth px-1"
-          style={{
-            WebkitOverflowScrolling: "touch",
-          }}
         >
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center min-h-[60vh]">
@@ -352,68 +541,12 @@ const ChatPage = () => {
               </div>
             </div>
           ) : (
-            <>
-              {messages.map((message, index) => (
-                <div key={index}>
-                  <Message message={message} />
-                  
-                  {/* Voice Message with Audio Player and Transcription */}
-                  {message.isVoice && (
-                    <div className={`ml-4 mb-4 ${message.role === 'user' ? 'mr-4 text-right' : 'ml-4'}`}>
-                      {message.isProcessing ? (
-                        <div className="flex items-center gap-2 mb-2">
-                          <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                          <span className="text-xs text-gray-500">
-                            Transcribing voice message...
-                          </span>
-                        </div>
-                      ) : (
-                        <>
-                          {/* Transcription Text */}
-                          {message.transcription && (
-                            <div className={`mb-2 p-3 rounded-lg ${
-                              theme === 'dark' 
-                                ? 'bg-gray-800/50 border border-gray-700' 
-                                : 'bg-gray-50 border border-gray-200'
-                            }`}>
-                              <div className="flex items-center gap-2 mb-1">
-                                <Volume2 className="w-4 h-4 text-blue-500" />
-                                <span className="text-xs font-medium text-gray-700 dark:text-gray-300">
-                                  Transcription:
-                                </span>
-                              </div>
-                              <p className={`text-sm ${
-                                theme === 'dark' ? 'text-gray-300' : 'text-gray-700'
-                              }`}>
-                                {message.transcription}
-                              </p>
-                            </div>
-                          )}
-                          
-                          {/* Audio Player */}
-                          <div className="flex items-center gap-3">
-                            <div className="flex-1">
-                              <audio 
-                                src={message.audioUrl} 
-                                controls 
-                                className="w-full max-w-md"
-                                controlsList="nodownload"
-                              />
-                            </div>
-                            <div className="text-xs text-gray-500">
-                              {formatTime(message.voiceDuration || 0)}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </>
+            messages.map((message, index) => (
+              <Message key={index} message={message} />
+            ))
           )}
 
-          {/* Loading Animation for text/email messages */}
+          {/* Loading Animation */}
           {loading && !isProcessingVoice && (
             <div className="flex justify-center py-4">
               <div className="flex flex-col items-center gap-2">
@@ -456,35 +589,33 @@ const ChatPage = () => {
           </div>
         )}
 
-        {/* Simple Voice Recording UI */}
+        {/* Voice Recording UI */}
         {isRecording ? (
-          <div className={`p-3 rounded-xl border ${
+          <div className={`p-4 rounded-xl border ${
             theme === 'dark'
               ? 'bg-linear-to-r from-blue-900/20 to-indigo-900/20 border-blue-700/30'
               : 'bg-linear-to-r from-blue-50 to-indigo-50 border-blue-200'
           } shadow-sm`}>
             <div className="flex items-center justify-between">
-              {/* Recording info */}
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-full bg-linear-to-r from-blue-500 to-indigo-500 flex items-center justify-center">
-                  <Disc className="w-4 h-4 text-white animate-spin" />
+                <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
+                  <Mic className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <div className="text-lg font-semibold text-blue-600 dark:text-blue-400">
+                  <div className="text-xl font-bold text-red-600 dark:text-red-400">
                     {formatTime(recordingTime)}
                   </div>
-                  <div className="text-xs text-blue-500 dark:text-blue-400">
-                    Recording voice...
+                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                    Recording voice message...
                   </div>
                 </div>
               </div>
 
-              {/* Action buttons */}
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={cancelRecording}
-                  className="px-3 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                  className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
                 >
                   Cancel
                 </button>
@@ -492,75 +623,17 @@ const ChatPage = () => {
                 <button
                   type="button"
                   onClick={stopRecording}
-                  className="px-4 py-1.5 bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg text-sm"
+                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium"
                 >
-                  Done
+                  Send
                 </button>
               </div>
-            </div>
-
-            {/* Simple size indicator */}
-            <div className="mt-2 text-xs text-gray-500 dark:text-gray-400 text-center">
-              Maximum file size: 4MB • Click "Done" to send
             </div>
           </div>
         ) : (
           /* Normal Input Form */
           <form
-            onSubmit={async (e) => {
-              e.preventDefault();
-              if (!prompt.trim() || !selectedChat) return;
-              
-              try {
-                setLoading(true);
-                const promptCopy = prompt;
-                setPrompt("");
-                
-                // Add user message
-                setMessages(prev => [
-                  ...prev,
-                  {
-                    role: "user",
-                    content: prompt,
-                    timestamp: Date.now(),
-                    type: mode,
-                  },
-                ]);
-                
-                // Call API
-                const { data } = await axios.post(
-                  `/api/message/${mode}`,
-                  { 
-                    chatId: selectedChat._id, 
-                    prompt
-                  },
-                  { headers: { Authorization: token } }
-                );
-
-                if (data.success) {
-                  // Add AI response
-                  const reply = {
-                    ...data.reply,
-                    timestamp: Date.now(),
-                  };
-                  setMessages(prev => [...prev, reply]);
-                  
-                  // Update user credits
-                  const creditDeduction = mode === "email" ? 2 : 1;
-                  setUser(prev => ({ 
-                    ...prev, 
-                    credits: Math.max(0, prev.credits - creditDeduction) 
-                  }));
-                } else {
-                  toast.error(data.message);
-                  setPrompt(promptCopy);
-                }
-              } catch (error) {
-                toast.error(error.response?.data?.message || error.message);
-              } finally {
-                setLoading(false);
-              }
-            }}
+            onSubmit={handleTextSubmit}
             className={`p-2 rounded-xl border ${
               theme === 'dark'
                 ? 'bg-gray-800 border-gray-700'
@@ -591,23 +664,27 @@ const ChatPage = () => {
                   placeholder={
                     mode === "email" 
                       ? "Write email content..." 
-                      : "Type your query..."
+                      : "Type your query or record voice..."
                   }
                   required
                   className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm rounded-lg border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
                   disabled={isRecording || isProcessingVoice}
                 />
                 
-                {/* Voice Button - Only show when not recording and not processing */}
+                {/* Voice Button */}
                 {!isRecording && !isProcessingVoice && (
                   <button
                     type="button"
                     onClick={startRecording}
                     disabled={!selectedChat || user?.credits < 3}
-                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1 rounded-md text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    title="Record voice message (3 credits)"
+                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={
+                      user?.credits < 3
+                        ? `Insufficient credits. Voice messages require 3 credits (You have ${user?.credits})`
+                        : "Record voice message (3 credits)"
+                    }
                   >
-                    <Mic className="w-3.5 h-3.5" />
+                    <Mic className="w-4 h-4" />
                   </button>
                 )}
               </div>
@@ -658,7 +735,7 @@ const ChatPage = () => {
             <p className="text-[10px] text-gray-500 dark:text-gray-400 text-center">
               <span className="flex items-center justify-center gap-1">
                 <Mic className="w-2.5 h-2.5" />
-                Voice messages require 3 credits • Maximum 4MB
+                Voice messages: 3 credits • Max 30s • 2MB
               </span>
             </p>
           </div>
