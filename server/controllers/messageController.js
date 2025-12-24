@@ -326,6 +326,7 @@ export const emailMessageController = async (req, res) => {
 };
 
 // Voice Message Controller using AssemblyAI
+// Voice Message Controller using AssemblyAI - FIXED VERSION
 export const voiceMessageController = async (req, res) => {
   let tempFilePath = null;
   
@@ -405,6 +406,7 @@ export const voiceMessageController = async (req, res) => {
 
     const transcribedText = transcription.text.trim();
     
+    // Enhanced validation for transcribed text
     if (!transcribedText || transcribedText === "") {
       return res.status(400).json({
         success: false,
@@ -412,13 +414,22 @@ export const voiceMessageController = async (req, res) => {
       });
     }
 
+    // Check if transcription is just fallback placeholder
+    if (transcription.isFallback && transcribedText.includes('[Voice message received')) {
+      return res.status(400).json({
+        success: false,
+        message: "Could not transcribe voice message. Please speak more clearly or try text input.",
+        suggestion: "Speak louder and more clearly, or reduce background noise."
+      });
+    }
+
     console.log("✅ Transcription completed:", transcribedText);
 
-    // Create user voice message
+    // Create user voice message (ACTUAL TRANSCRIPTION, not placeholder)
     const userMessage = {
       type: "voice",
       role: "user",
-      content: transcribedText,
+      content: transcribedText, // Real transcription
       voiceMeta: {
         duration: duration || 0,
         fileSize: fileSize || 0,
@@ -432,8 +443,7 @@ export const voiceMessageController = async (req, res) => {
     
     // Add user voice message to chat
     chat.messages.push(userMessage);
-    await chat.save();
-
+    
     // Generate AI response
     let aiResponse = "";
     try {
@@ -477,7 +487,44 @@ export const voiceMessageController = async (req, res) => {
 
     // Save AI response
     chat.messages.push(reply);
+    
+    // Save chat once with both messages
     await chat.save();
+
+    // Update chat title if this is the first real message
+    if (chat.messages.filter(m => m.role === "user" && !m.content.includes("[Processing")).length === 1) {
+      // Generate a title from the transcription
+      try {
+        const titleCompletion = await groq.chat.completions.create({
+          messages: [
+            {
+              role: "system",
+              content: `Create a very short title (max 5 words) for a chat about: "${transcribedText}". 
+              Return only the title, nothing else. Make it relevant to university/student topics.`,
+            },
+            {
+              role: "user",
+              content: `Create title for: ${transcribedText}`,
+            },
+          ],
+          model: GROQ_MODELS.DEFAULT,
+          temperature: 0.3,
+          max_tokens: 30,
+          stream: false,
+        });
+        
+        const title = titleCompletion.choices[0]?.message?.content?.trim() || 
+                     transcribedText.split(' ').slice(0, 5).join(' ');
+        
+        chat.title = title;
+        await chat.save();
+      } catch (titleError) {
+        console.error("Title generation error:", titleError);
+        // Use first few words as fallback
+        chat.title = transcribedText.split(' ').slice(0, 5).join(' ') + '...';
+        await chat.save();
+      }
+    }
 
     // Deduct credits
     const creditsToDeduct = transcription.isFallback ? 1 : 3;
@@ -512,7 +559,6 @@ export const voiceMessageController = async (req, res) => {
     }
   }
 };
-
 // Health check
 export const transcriptionHealth = async (req, res) => {
   try {

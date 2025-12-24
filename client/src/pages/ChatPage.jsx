@@ -230,177 +230,198 @@ const ChatPage = () => {
   };
 
   // Process voice message
-  const processVoiceMessage = async (audioBlob, duration) => {
-    if (!user || !selectedChat) {
-      toast.error("Please login and select a chat to send voice messages");
-      return;
-    }
+  // Process voice message - FIXED VERSION
+const processVoiceMessage = async (audioBlob, duration) => {
+  if (!user || !selectedChat) {
+    toast.error("Please login and select a chat to send voice messages");
+    return;
+  }
 
-    const sizeMB = audioBlob.size / (1024 * 1024);
+  const sizeMB = audioBlob.size / (1024 * 1024);
+  
+  // Enhanced validation
+  if (sizeMB > 2) {
+    toast.error(`Voice message is ${sizeMB.toFixed(2)}MB. Maximum size is 2MB.`);
+    return;
+  }
+
+  if (sizeMB < 0.001 || duration < 1) {
+    toast.error("Recording is too short. Please speak for at least 2 seconds.");
+    return;
+  }
+
+  if (duration < 2 && sizeMB < 0.01) {
+    toast.error("No speech detected. Please speak clearly.");
+    return;
+  }
+
+  setIsProcessingVoice(true);
+  setLoading(true);
+
+  let tempMessageId = Date.now();
+
+  try {
+    // Step 1: Show temporary message ONLY IN FRONTEND (not sent to backend)
+    const tempVoiceMessage = {
+      id: tempMessageId,
+      role: "user",
+      content: "[Processing voice message...]",
+      timestamp: Date.now(),
+      type: "voice",
+      voiceMeta: {
+        duration: duration,
+        fileSize: sizeMB.toFixed(2),
+      },
+      isProcessing: true
+    };
     
-    // Enhanced validation
-    if (sizeMB > 2) {
-      toast.error(`Voice message is ${sizeMB.toFixed(2)}MB. Maximum size is 2MB.`);
-      return;
-    }
+    // Add temporary message to local state only
+    setMessages(prev => [...prev, tempVoiceMessage]);
+    
+    // Scroll to bottom
+    setTimeout(() => {
+      if (containRef.current) {
+        containRef.current.scrollTo({
+          top: containRef.current.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    }, 100);
 
-    if (sizeMB < 0.001 || duration < 1) {
-      toast.error("Recording is too short. Please speak for at least 2 seconds.");
-      return;
-    }
+    // Step 2: Convert blob to base64 for API
+    const base64Audio = await blobToBase64(audioBlob);
+    
+    // Step 3: Call your backend API with timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 90000);
 
-    if (duration < 2 && sizeMB < 0.01) {
-      toast.error("No speech detected. Please speak clearly.");
-      return;
-    }
-
-    setIsProcessingVoice(true);
-    setLoading(true);
-
-    let tempMessageId = Date.now();
-
-    try {
-      // Step 1: Create temporary message with loading state
-      const tempVoiceMessage = {
-        id: tempMessageId,
-        role: "user",
-        content: "[Processing voice message...]",
-        timestamp: Date.now(),
-        type: "voice",
-        voiceMeta: {
-          duration: duration,
-          fileSize: sizeMB.toFixed(2),
+    const response = await axios.post(
+      '/api/message/voice',
+      {
+        chatId: selectedChat._id,
+        audioUrl: base64Audio,
+        duration: duration,
+        fileSize: sizeMB.toFixed(2)
+      },
+      { 
+        headers: { 
+          Authorization: token,
+          'Content-Type': 'application/json'
         },
-        isProcessing: true
-      };
-      
-      setMessages(prev => [...prev, tempVoiceMessage]);
-      
-      // Scroll to bottom
-      setTimeout(() => {
-        if (containRef.current) {
-          containRef.current.scrollTo({
-            top: containRef.current.scrollHeight,
-            behavior: "smooth",
-          });
-        }
-      }, 100);
+        signal: controller.signal
+      }
+    );
 
-      // Step 2: Convert blob to base64 for API
-      const base64Audio = await blobToBase64(audioBlob);
-      
-      // Step 3: Call your backend API with timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 90000);
+    clearTimeout(timeoutId);
 
-      const response = await axios.post(
-        '/api/message/voice',
-        {
-          chatId: selectedChat._id,
-          audioUrl: base64Audio,
-          duration: duration,
-          fileSize: sizeMB.toFixed(2)
-        },
-        { 
-          headers: { 
-            Authorization: token,
-            'Content-Type': 'application/json'
-          },
-          signal: controller.signal
-        }
-      );
-
-      clearTimeout(timeoutId);
-
-      if (response.data.success) {
-        // Step 4: Update the temporary message with transcription
-        setMessages(prev => prev.map(msg => 
-          msg.id === tempMessageId 
-            ? {
-                ...msg,
-                content: response.data.transcription || "Voice message transcribed",
-                isProcessing: false,
-                voiceMeta: {
-                  ...msg.voiceMeta,
-                  wasTranscribed: true,
-                  transcriptionService: response.data.transcriptionDetails?.service || "unknown",
-                  isFallback: response.data.transcriptionDetails?.isFallback || false,
-                }
+    if (response.data.success) {
+      // Step 4: Replace temporary message with actual transcription from backend
+      setMessages(prev => prev.map(msg => 
+        msg.id === tempMessageId 
+          ? {
+              ...msg,
+              content: response.data.transcription || "Voice message transcribed",
+              isProcessing: false,
+              voiceMeta: {
+                ...msg.voiceMeta,
+                wasTranscribed: true,
+                transcriptionService: response.data.transcriptionDetails?.service || "unknown",
+                isFallback: response.data.transcriptionDetails?.isFallback || false,
               }
-            : msg
-        ));
+            }
+          : msg
+      ));
 
-        // Step 5: Add AI response
-        if (response.data.reply) {
-          const aiMessage = {
-            role: "assistant",
-            content: response.data.reply.content,
-            timestamp: Date.now(),
-            type: "text",
-            isVoiceResponse: true
-          };
-          setMessages(prev => [...prev, aiMessage]);
-        }
-        
-        // Update user credits
-        if (setUser && user) {
-          const creditsUsed = response.data.creditsUsed || 3;
-          setUser(prev => ({ 
-            ...prev, 
-            credits: Math.max(0, prev.credits - creditsUsed) 
-          }));
-        }
-        
-        // Show success message
-        toast.success("Voice message processed successfully!");
-        
-        // Show warning for fallback transcription
-        if (response.data.transcriptionDetails?.isFallback) {
-          toast("Voice transcribed with basic fallback. Text may be less accurate.", {
-            icon: '⚠️',
-            duration: 4000
+      // Step 5: Add AI response from backend
+      if (response.data.reply) {
+        const aiMessage = {
+          role: "assistant",
+          content: response.data.reply.content,
+          timestamp: Date.now(),
+          type: "text",
+          isVoiceResponse: true
+        };
+        setMessages(prev => [...prev, aiMessage]);
+      }
+      
+      // Update user credits
+      if (setUser && user) {
+        const creditsUsed = response.data.creditsUsed || 3;
+        setUser(prev => ({ 
+          ...prev, 
+          credits: Math.max(0, prev.credits - creditsUsed) 
+        }));
+      }
+      
+      // Show success message
+      toast.success("Voice message processed successfully!");
+      
+      // Show warning for fallback transcription
+      if (response.data.transcriptionDetails?.isFallback) {
+        toast("Voice transcribed with basic fallback. Text may be less accurate.", {
+          icon: '⚠️',
+          duration: 4000
+        });
+      }
+      
+      // Refresh chats to get updated title
+      if (setChats && setSelectedChat) {
+        try {
+          const { data } = await axios.get("/api/chat/all", {
+            headers: { Authorization: token },
           });
-        }
-        
-      } else {
-        // Remove temporary message on error
-        setMessages(prev => prev.filter(msg => msg.id !== tempMessageId));
-        
-        if (response.data.message?.includes("No speech detected") || 
-            response.data.message?.includes("too short")) {
-          toast.error("No speech detected. Please speak clearly and try again.");
-        } else if (response.data.message?.includes("Insufficient credits")) {
-          toast.error(response.data.message);
-        } else {
-          toast.error(response.data.message || "Failed to process voice message");
+          if (data.success) {
+            setChats(data.chats);
+            // Update selected chat
+            const updatedChat = data.chats.find(c => c._id === selectedChat._id);
+            if (updatedChat) {
+              setSelectedChat(updatedChat);
+            }
+          }
+        } catch (refreshError) {
+          console.error("Failed to refresh chats:", refreshError);
         }
       }
       
-    } catch (error) {
-      console.error("Error processing voice:", error);
+    } else {
+      // Remove temporary message on error
       setMessages(prev => prev.filter(msg => msg.id !== tempMessageId));
       
-      if (error.name === 'AbortError') {
-        toast.error("Request timeout. Please try again.");
-      } else if (error.response?.status === 413) {
-        toast.error("Voice message too large. Please record a shorter message (max 2MB).");
-      } else if (error.response?.status === 400) {
-        const errorMsg = error.response.data.message || "Invalid audio format.";
-        if (errorMsg.includes("too small") || errorMsg.includes("speak longer")) {
-          toast.error("Recording too short. Please speak for at least 2-3 seconds.");
-        } else {
-          toast.error(errorMsg);
-        }
-      } else if (error.response?.status === 500) {
-        toast.error("Server error processing voice. Please try again.");
+      if (response.data.message?.includes("No speech detected") || 
+          response.data.message?.includes("too short")) {
+        toast.error("No speech detected. Please speak clearly and try again.");
+      } else if (response.data.message?.includes("Insufficient credits")) {
+        toast.error(response.data.message);
       } else {
-        toast.error("Failed to process voice message. Please try again.");
+        toast.error(response.data.message || "Failed to process voice message");
       }
-    } finally {
-      setIsProcessingVoice(false);
-      setLoading(false);
     }
-  };
+    
+  } catch (error) {
+    console.error("Error processing voice:", error);
+    setMessages(prev => prev.filter(msg => msg.id !== tempMessageId));
+    
+    if (error.name === 'AbortError') {
+      toast.error("Request timeout. Please try again.");
+    } else if (error.response?.status === 413) {
+      toast.error("Voice message too large. Please record a shorter message (max 2MB).");
+    } else if (error.response?.status === 400) {
+      const errorMsg = error.response.data.message || "Invalid audio format.";
+      if (errorMsg.includes("too small") || errorMsg.includes("speak longer")) {
+        toast.error("Recording too short. Please speak for at least 2-3 seconds.");
+      } else {
+        toast.error(errorMsg);
+      }
+    } else if (error.response?.status === 500) {
+      toast.error("Server error processing voice. Please try again.");
+    } else {
+      toast.error("Failed to process voice message. Please try again.");
+    }
+  } finally {
+    setIsProcessingVoice(false);
+    setLoading(false);
+  }
+};
 
   // Format time (MM:SS)
   const formatTime = (seconds) => {

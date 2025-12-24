@@ -241,7 +241,6 @@ export const AppContextProvider = ({ children }) => {
       });
       
       if (data.success) {
-        toast.success("Chat deleted");
         await fetchUsersChats();
         return { success: true };
       } else {

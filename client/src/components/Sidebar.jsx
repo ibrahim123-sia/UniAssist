@@ -26,11 +26,12 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   const {
     chats,
     setSelectedChat,
+    selectedChat,
     theme,
     setTheme,
     user,
     createNewChat,
-    setChats,
+    deleteChat, // Use the actual deleteChat from context
     token,
   } = useAppContext();
 
@@ -83,7 +84,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     };
   }, [isMenuOpen, setIsMenuOpen]);
 
-  const logout = () => {
+  const handleLogout = () => {
     localStorage.removeItem("token");
     toast.success("Logged out successfully");
     navigate("/login");
@@ -96,7 +97,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     }
   };
 
-  const deleteChat = async (e, chatId) => {
+  const handleDeleteChat = async (e, chatId) => {
     e.stopPropagation();
     const confirm = window.confirm(
       "Are you sure you want to delete this chat?"
@@ -105,25 +106,34 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     if (!confirm) return;
 
     try {
-      // Your API call to delete chat
-      // const { data } = await axios.post(
-      //   "/api/chat/delete",
-      //   { chatId },
-      //   { headers: { Authorization: token } }
-      // );
-
-      // if (data.success) {
-      setChats((prev) => prev.filter((chat) => chat._id !== chatId));
-      toast.success("Chat deleted successfully");
-      // }
+      // Call the actual deleteChat function from context (which calls the API)
+      const result = await deleteChat(chatId);
+      
+      if (result.success) {
+        toast.success("Chat deleted successfully");
+        
+        // Clear selected chat if it was the deleted one
+        if (selectedChat && selectedChat._id === chatId) {
+          setSelectedChat(null);
+        }
+        
+        // Close sidebar on mobile after deletion
+        if (window.innerWidth < 768) {
+          setIsMenuOpen(false);
+        }
+      } else {
+        toast.error(result.message || "Failed to delete chat");
+      }
     } catch (error) {
-      toast.error(error.message);
+      toast.error(error.message || "Failed to delete chat");
     }
   };
 
-  const handleNewChat = () => {
-    createNewChat();
-    navigate("/chat");
+  const handleNewChat = async () => {
+    const result = await createNewChat();
+    if (result.success) {
+      navigate("/chat");
+    }
   };
 
   const handleNavigation = (path) => {
@@ -254,6 +264,8 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                     theme === "dark"
                       ? "hover:bg-gray-800/50"
                       : "hover:bg-gray-100"
+                  } ${selectedChat?._id === chat._id ? 
+                    (theme === "dark" ? "bg-gray-800" : "bg-blue-50 border border-blue-200") : ""
                   }`}
                 >
                   <div className="flex-1 min-w-0">
@@ -277,7 +289,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                   </div>
 
                   <button
-                    onClick={(e) => deleteChat(e, chat._id || chat.id)}
+                    onClick={(e) => handleDeleteChat(e, chat._id || chat.id)}
                     className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-opacity"
                     aria-label="Delete chat"
                   >
@@ -383,14 +395,14 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             </label>
           </div>
 
-          <Link
-            to="/login"
+          <button
+            onClick={handleLogout}
             className="w-full flex items-center justify-center gap-2 p-1 text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-all text-sm"
           >
             <LogOut className="w-4 h-4" />
             <span className="font-medium">Logout</span>
-          </Link>
+          </button>
         </div>
       </aside>
     </>
