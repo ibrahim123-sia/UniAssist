@@ -29,8 +29,89 @@ transporter.verify(function(error, success) {
   }
 });
 
+// CORRECTED Regex patterns for email validation
+// Format: sp/fa + (20-26) + (bscs|bsai|bsse|bsbc) + (0000-9999) + @maju.edu.pk
+// Examples: sp23bscs0178@maju.edu.pk, fa24bsai1234@maju.edu.pk
+const MAJU_EMAIL_REGEX = /^(sp|fa)(2[0-6])(bscs|bsai|bsse|bsbc)([0-9]{4})@maju\.edu\.pk$/i;
+
+// Program codes mapping - Updated to only include specified programs
+const PROGRAM_CODES = {
+  'bscs': 'BS Computer Science',
+  'bsai': 'BS Artificial Intelligence',
+  'bsse': 'BS Software Engineering',
+  'bsbc': 'BS Business Computing'
+};
+
+// Helper function to validate MAJU email
+const validateMajuEmail = (email) => {
+  const trimmedEmail = email.trim().toLowerCase();
+  const match = trimmedEmail.match(MAJU_EMAIL_REGEX);
+  
+  if (!match) {
+    return {
+      isValid: false,
+      error: "Invalid email format"
+    };
+  }
+  
+  // Extract parts from regex groups
+  const sessionType = match[1]?.toLowerCase(); // sp or fa
+  const year = match[2]; // 20-26
+  const programCode = match[3]?.toLowerCase(); // bscs, bsai, bsse, bsbc
+  const rollNumber = match[4]; // 0178, 1234, etc. (0000-9999)
+  
+  // Validate session (sp or fa) - regex already ensures this
+  if (!['sp', 'fa'].includes(sessionType)) {
+    return {
+      isValid: false,
+      error: "Invalid session. Must be 'sp' (Spring) or 'fa' (Fall)"
+    };
+  }
+  
+  // Validate year (20-26) - regex already ensures this but double-check
+  const yearNum = parseInt(year);
+  if (yearNum < 20 || yearNum > 26) {
+    return {
+      isValid: false,
+      error: "Invalid year. Must be between 20 and 26 (2020-2026)"
+    };
+  }
+  
+  // Validate program code - regex already ensures this but double-check
+  if (!PROGRAM_CODES[programCode]) {
+    const validPrograms = Object.keys(PROGRAM_CODES).join(', ');
+    return {
+      isValid: false,
+      error: `Invalid program code. Valid codes: ${validPrograms}`
+    };
+  }
+  
+  // Validate roll number (0000-9999) - regex already ensures 4 digits
+  const rollNum = parseInt(rollNumber);
+  if (rollNum < 0 || rollNum > 9999) {
+    return {
+      isValid: false,
+      error: "Invalid roll number. Must be between 0000 and 9999"
+    };
+  }
+  
+  return {
+    isValid: true,
+    email: trimmedEmail,
+    sessionType,
+    year: yearNum,
+    programCode,
+    rollNumber: rollNumber, // Keep as string with leading zeros
+    programName: PROGRAM_CODES[programCode],
+    fullFormat: `${sessionType}${year}${programCode}${rollNumber}@maju.edu.pk`
+  };
+};
+
 // Helper function to hash password
 const hashPassword = async (password) => {
+  if (!password || password.length < 6) {
+    throw new Error("Password must be at least 6 characters long");
+  }
   const salt = await bcrypt.genSalt(10);
   return await bcrypt.hash(password, salt);
 };
@@ -104,14 +185,59 @@ const sendOtpEmail = async (toEmail, name, otp, subject = 'OTP Verification') =>
 export const registerUser = async (req, res) => {
   const { name, email, password } = req.body;
 
-  try {
-    const userExists = await User.findOne({ email });
+  // Input validation
+  if (!name || !email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "All fields (name, email, password) are required"
+    });
+  }
 
+  if (name.length < 2) {
+    return res.status(400).json({
+      success: false,
+      message: "Name must be at least 2 characters long"
+    });
+  }
+
+  if (password.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: "Password must be at least 6 characters long"
+    });
+  }
+
+  // Validate MAJU email format
+  const emailValidation = validateMajuEmail(email);
+  if (!emailValidation.isValid) {
+    return res.status(400).json({
+      success: false,
+      message: emailValidation.error
+    });
+  }
+
+  try {
+    const userExists = await User.findOne({ email: emailValidation.email });
+
+    // Check if user is already verified
     if (userExists?.isVerified) {
       return res.status(409).json({
         success: false,
-        message: "User already exists. Please login",
+        message: "User already exists and is verified. Please login",
+        email: userExists.email
       });
+    }
+
+    // Check if user exists but not verified
+    if (userExists && !userExists.isVerified) {
+      // Check if OTP was recently sent (cooldown period)
+      if (userExists.otpExpires && userExists.otpExpires > Date.now() - 60000) {
+        return res.status(429).json({
+          success: false,
+          message: "OTP was recently sent. Please wait 1 minute before requesting a new one",
+          retryAfter: Math.ceil((userExists.otpExpires - Date.now() + 60000) / 1000)
+        });
+      }
     }
 
     const otp = generateOtp();
@@ -120,65 +246,112 @@ export const registerUser = async (req, res) => {
     const hashedPassword = await hashPassword(password);
 
     if (userExists) {
+      // Update existing unverified user
       userExists.name = name;
       userExists.password = hashedPassword;
       userExists.otp = otp;
       userExists.otpExpires = otpExpires;
+      userExists.program = emailValidation.programName;
+      userExists.rollNumber = emailValidation.rollNumber;
+      userExists.session = emailValidation.sessionType;
+      userExists.year = emailValidation.year;
       await userExists.save();
     } else {
+      // Create new user
       await User.create({
         name,
-        email,
+        email: emailValidation.email,
         password: hashedPassword,
         otp,
         otpExpires,
+        program: emailValidation.programName,
+        rollNumber: emailValidation.rollNumber,
+        session: emailValidation.sessionType,
+        year: emailValidation.year,
+        admissionYear: 2000 + emailValidation.year, // Convert 23 to 2023
+        isMajuStudent: true
       });
     }
 
     // Send OTP via Gmail
-    const emailSent = await sendOtpEmail(email, name, otp, 'Your OTP Verification Code');
+    const emailSent = await sendOtpEmail(emailValidation.email, name, otp, 'Your OTP Verification Code');
 
     if (!emailSent) {
+      // Cleanup if email failed and user was newly created
       if (!userExists) {
-        await User.deleteOne({ email });
+        await User.deleteOne({ email: emailValidation.email });
       }
       return res.status(500).json({
         success: false,
-        message: "Failed to send OTP. Check App Password (16 chars, no spaces).",
+        message: "Failed to send OTP. Please try again later.",
       });
     }
 
     res.status(200).json({
       success: true,
-      message: "OTP sent! Check inbox AND spam folder.",
+      message: "OTP sent! Check your inbox AND spam folder.",
+      email: emailValidation.email,
+      program: emailValidation.programName,
+      session: emailValidation.sessionType.toUpperCase(),
+      year: `20${emailValidation.year}`,
+      rollNumber: emailValidation.rollNumber
     });
   } catch (error) {
     console.error("Registration error:", error);
-    return res.status(500).json({
+    
+    let errorMessage = "Registration failed. Please try again.";
+    let statusCode = 500;
+
+    if (error.code === 11000) {
+      errorMessage = "Email already exists";
+      statusCode = 409;
+    } else if (error.message.includes("password")) {
+      errorMessage = error.message;
+      statusCode = 400;
+    }
+
+    return res.status(statusCode).json({
       success: false,
-      message: error.message,
+      message: errorMessage,
     });
   }
 };
 
 export const verifyOtp = async (req, res) => {
   const { email, otp } = req.body;
-  const cleanOtp = otp?.toString().replace(/\s/g, "");
 
-  if (!email || !cleanOtp) {
+  if (!email || !otp) {
     return res.status(400).json({
       success: false,
-      message: "Email and OTP are required",
+      message: "Email and OTP are required"
+    });
+  }
+
+  // Validate MAJU email format
+  const emailValidation = validateMajuEmail(email);
+  if (!emailValidation.isValid) {
+    return res.status(400).json({
+      success: false,
+      message: emailValidation.error
+    });
+  }
+
+  const cleanOtp = otp.toString().replace(/\s/g, "");
+
+  if (cleanOtp.length !== 6 || !/^\d{6}$/.test(cleanOtp)) {
+    return res.status(400).json({
+      success: false,
+      message: "OTP must be a 6-digit number"
     });
   }
 
   try {
-    const user = await User.findOne({ email }).select("+otp +otpExpires");
+    const user = await User.findOne({ email: emailValidation.email }).select("+otp +otpExpires");
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: "User not found. Please register first."
       });
     }
 
@@ -186,13 +359,27 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "Account already verified. Please login.",
+        email: user.email
       });
     }
 
     if (!user.otp || user.otp !== cleanOtp) {
+      // Increment failed attempts
+      user.otpAttempts = (user.otpAttempts || 0) + 1;
+      await user.save();
+
+      if (user.otpAttempts >= 5) {
+        return res.status(429).json({
+          success: false,
+          message: "Too many failed OTP attempts. Please request a new OTP.",
+          requiresNewOtp: true
+        });
+      }
+
       return res.status(400).json({
         success: false,
         message: "Invalid OTP code",
+        attemptsRemaining: 5 - user.otpAttempts
       });
     }
 
@@ -200,12 +387,15 @@ export const verifyOtp = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new one.",
+        requiresNewOtp: true
       });
     }
 
+    // Clear OTP attempts on successful verification
     user.isVerified = true;
     user.otp = undefined;
     user.otpExpires = undefined;
+    user.otpAttempts = 0;
     await user.save();
 
     const token = generateToken(user._id);
@@ -218,14 +408,19 @@ export const verifyOtp = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        program: user.program,
+        rollNumber: user.rollNumber,
+        session: user.session,
+        admissionYear: user.admissionYear,
         isVerified: user.isVerified,
+        isMajuStudent: user.isMajuStudent
       }
     });
   } catch (error) {
     console.error("OTP verification error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error",
+      message: "Server error during OTP verification"
     });
   }
 };
@@ -236,23 +431,42 @@ export const resentOtp = async (req, res) => {
   if (!email) {
     return res.status(400).json({
       success: false,
-      message: "Email is required",
+      message: "Email is required"
+    });
+  }
+
+  // Validate MAJU email format
+  const emailValidation = validateMajuEmail(email);
+  if (!emailValidation.isValid) {
+    return res.status(400).json({
+      success: false,
+      message: emailValidation.error
     });
   }
 
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: emailValidation.email });
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: "User not found. Please register first."
       });
     }
 
     if (user.isVerified) {
       return res.status(400).json({
         success: false,
-        message: "Account already verified. Please login.",
+        message: "Account already verified. Please login."
+      });
+    }
+
+    // Check cooldown period (1 minute)
+    if (user.otpExpires && user.otpExpires > Date.now() - 60000) {
+      const waitTime = Math.ceil((user.otpExpires - Date.now() + 60000) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: `Please wait ${waitTime} seconds before requesting a new OTP`,
+        retryAfter: waitTime
       });
     }
 
@@ -261,27 +475,29 @@ export const resentOtp = async (req, res) => {
 
     user.otp = otp;
     user.otpExpires = otpExpires;
+    user.otpAttempts = 0; // Reset attempts
     await user.save();
 
     // Resend via Gmail
-    const emailSent = await sendOtpEmail(email, user.name, otp, 'Your New OTP Verification Code');
+    const emailSent = await sendOtpEmail(emailValidation.email, user.name, otp, 'Your New OTP Verification Code');
 
     if (!emailSent) {
       return res.status(500).json({
         success: false,
-        message: "Failed to resend OTP. Please try again.",
+        message: "Failed to resend OTP. Please try again."
       });
     }
 
     res.status(200).json({
       success: true,
       message: "New OTP sent! Check inbox AND spam folder.",
+      email: emailValidation.email
     });
   } catch (err) {
     console.error("Resend OTP error:", err);
     res.status(500).json({
       success: false,
-      message: "Server error while resending OTP",
+      message: "Server error while resending OTP"
     });
   }
 };
@@ -292,16 +508,35 @@ export const forgetPassword = async (req, res) => {
   if (!email) {
     return res.status(400).json({
       success: false,
-      message: "Email is required",
+      message: "Email is required"
+    });
+  }
+
+  // Validate MAJU email format
+  const emailValidation = validateMajuEmail(email);
+  if (!emailValidation.isValid) {
+    return res.status(400).json({
+      success: false,
+      message: emailValidation.error
     });
   }
 
   try {
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: emailValidation.email });
+    
+    // Always return success for security (don't reveal if user exists)
     if (!user) {
       return res.json({
         success: true,
-        message: "If an account exists, an OTP has been sent to your email",
+        message: "If an account exists with this email, a reset OTP has been sent."
+      });
+    }
+
+    // Check if password reset was recently requested
+    if (user.resetPasswordExpires && user.resetPasswordExpires > Date.now() - 60000) {
+      return res.status(429).json({
+        success: false,
+        message: "Reset OTP was recently sent. Please wait 1 minute before requesting a new one."
       });
     }
 
@@ -314,7 +549,7 @@ export const forgetPassword = async (req, res) => {
 
     // Send password reset via Gmail
     const emailSent = await sendOtpEmail(
-      email, 
+      emailValidation.email, 
       user.name, 
       otp, 
       'Password Reset OTP'
@@ -323,19 +558,19 @@ export const forgetPassword = async (req, res) => {
     if (!emailSent) {
       return res.status(500).json({
         success: false,
-        message: "Failed to send reset email. Please try again.",
+        message: "Failed to send reset email. Please try again."
       });
     }
 
     res.json({
       success: true,
-      message: "Reset OTP sent! Check inbox AND spam folder.",
+      message: "Reset OTP sent! Check inbox AND spam folder."
     });
   } catch (error) {
     console.error("Forgot password error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error",
+      message: "Server error processing password reset"
     });
   }
 };
@@ -346,33 +581,63 @@ export const resetPassword = async (req, res) => {
   if (!email || !otp || !newPassword) {
     return res.status(400).json({
       success: false,
-      message: "All fields are required",
+      message: "All fields (email, OTP, new password) are required"
     });
   }
 
+  if (newPassword.length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: "Password must be at least 6 characters long"
+    });
+  }
+
+  // Validate MAJU email format
+  const emailValidation = validateMajuEmail(email);
+  if (!emailValidation.isValid) {
+    return res.status(400).json({
+      success: false,
+      message: emailValidation.error
+    });
+  }
+
+  const cleanOtp = otp.toString().replace(/\s/g, "");
+
   try {
-    const user = await User.findOne({ email }).select(
+    const user = await User.findOne({ email: emailValidation.email }).select(
       "+resetPasswordOtp +resetPasswordExpires"
     );
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: "User not found",
+        message: "User not found"
       });
     }
 
-    if (user.resetPasswordOtp !== otp) {
+    if (user.resetPasswordOtp !== cleanOtp) {
+      // Increment failed attempts
+      user.resetPasswordAttempts = (user.resetPasswordAttempts || 0) + 1;
+      await user.save();
+
+      if (user.resetPasswordAttempts >= 5) {
+        return res.status(429).json({
+          success: false,
+          message: "Too many failed attempts. Please request a new reset OTP."
+        });
+      }
+
       return res.status(400).json({
         success: false,
         message: "Invalid OTP",
+        attemptsRemaining: 5 - user.resetPasswordAttempts
       });
     }
 
     if (user.resetPasswordExpires < new Date()) {
       return res.status(400).json({
         success: false,
-        message: "OTP expired",
+        message: "OTP expired. Please request a new one."
       });
     }
 
@@ -381,17 +646,18 @@ export const resetPassword = async (req, res) => {
     user.password = hashedPassword;
     user.resetPasswordOtp = undefined;
     user.resetPasswordExpires = undefined;
+    user.resetPasswordAttempts = 0;
     await user.save();
 
     res.json({
       success: true,
-      message: "Password reset successfully",
+      message: "Password reset successfully. You can now login with your new password."
     });
   } catch (error) {
     console.error("Reset password error:", error);
     res.status(500).json({
       success: false,
-      message: "Server error",
+      message: "Server error resetting password"
     });
   }
 };
@@ -399,24 +665,71 @@ export const resetPassword = async (req, res) => {
 export const loginUser = async (req, res) => {
   const { email, password } = req.body;
 
+  if (!email || !password) {
+    return res.status(400).json({
+      success: false,
+      message: "Email and password are required"
+    });
+  }
+
+  // Validate MAJU email format
+  const emailValidation = validateMajuEmail(email);
+  if (!emailValidation.isValid) {
+    return res.status(400).json({
+      success: false,
+      message: emailValidation.error
+    });
+  }
+
   try {
-    const user = await User.findOne({ email }).select("+password");
+    const user = await User.findOne({ email: emailValidation.email }).select("+password");
     
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password",
+        message: "Invalid email or password"
       });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
+      // Increment failed login attempts
+      user.loginAttempts = (user.loginAttempts || 0) + 1;
+      user.lastLoginAttempt = new Date();
+      await user.save();
+
+      if (user.loginAttempts >= 5) {
+        // Lock account for 15 minutes
+        user.accountLockedUntil = new Date(Date.now() + 15 * 60 * 1000);
+        await user.save();
+
+        return res.status(429).json({
+          success: false,
+          message: "Account temporarily locked due to too many failed attempts. Try again in 15 minutes."
+        });
+      }
+
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
+        attemptsRemaining: 5 - user.loginAttempts
       });
     }
+
+    // Check if account is locked
+    if (user.accountLockedUntil && user.accountLockedUntil > new Date()) {
+      const minutesLeft = Math.ceil((user.accountLockedUntil - new Date()) / (60 * 1000));
+      return res.status(429).json({
+        success: false,
+        message: `Account is locked. Try again in ${minutesLeft} minute(s).`
+      });
+    }
+
+    // Reset login attempts on successful login
+    user.loginAttempts = 0;
+    user.accountLockedUntil = undefined;
+    await user.save();
 
     // Check if user is verified
     if (!user.isVerified) {
@@ -438,15 +751,20 @@ export const loginUser = async (req, res) => {
         _id: user._id,
         name: user.name,
         email: user.email,
+        program: user.program,
+        rollNumber: user.rollNumber,
+        session: user.session,
+        admissionYear: user.admissionYear,
         credits: user.credits,
         isVerified: user.isVerified,
+        isMajuStudent: user.isMajuStudent
       },
     });
   } catch (error) {
     console.error("Login error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Server error during login"
     });
   }
 };
@@ -462,7 +780,7 @@ export const getUser = async (req, res) => {
     console.error("Get user error:", error);
     return res.status(500).json({
       success: false,
-      message: error.message,
+      message: "Server error fetching user data"
     });
   }
 };
@@ -478,7 +796,7 @@ export const testGmail = async (req, res) => {
     await transporter.verify();
     console.log('✅ SMTP connection verified');
     
-    // Send test email
+    // Send test email with a valid format
     const testEmail = 'sp23bscs0178@maju.edu.pk';
     const mailOptions = {
       from: `"UniAssist" <${process.env.EMAIL_USER}>`,
@@ -495,7 +813,9 @@ export const testGmail = async (req, res) => {
     res.json({
       success: true,
       message: 'Test email sent. Check university email AND spam folder.',
-      messageId: info.messageId
+      messageId: info.messageId,
+      testEmail: testEmail,
+      emailFormat: 'Valid format: sp23bscs0178@maju.edu.pk'
     });
     
   } catch (error) {
@@ -532,7 +852,9 @@ export const checkEmailStatus = async (req, res) => {
       status: 'Email queued for delivery',
       messageId: info.messageId,
       time: new Date().toLocaleString(),
-      note: 'University emails may take 2-5 minutes. Check spam folder.'
+      note: 'University emails may take 2-5 minutes. Check spam folder.',
+      validFormat: 'sp23bscs0178@maju.edu.pk',
+      regexPattern: '^(sp|fa)(2[0-6])(bscs|bsai|bsse|bsbc)([0-9]{4})@maju\\.edu\\.pk$'
     });
     
   } catch (error) {
@@ -542,4 +864,47 @@ export const checkEmailStatus = async (req, res) => {
       status: 'Failed to send'
     });
   }
+};
+
+// Export email validator for use in other files
+export const validateEmailFormat = (email) => {
+  return validateMajuEmail(email);
+};
+
+// Test email validation function
+export const testEmailValidation = async (req, res) => {
+  const { email } = req.query;
+  
+  if (!email) {
+    return res.status(400).json({
+      success: false,
+      message: "Please provide an email parameter",
+      example: "/api/auth/test-email?email=sp23bscs0178@maju.edu.pk"
+    });
+  }
+  
+  const validation = validateMajuEmail(email);
+  
+  // Test with sample valid emails
+  const sampleEmails = [
+    'sp23bscs0178@maju.edu.pk',
+    'fa24bsai1234@maju.edu.pk',
+    'sp20bsse5678@maju.edu.pk',
+    'fa26bsbc9999@maju.edu.pk'
+  ];
+  
+  const sampleResults = sampleEmails.map(sample => ({
+    email: sample,
+    isValid: validateMajuEmail(sample).isValid
+  }));
+  
+  return res.json({
+    success: true,
+    validationResult: validation,
+    sampleTests: sampleResults,
+    regexPattern: MAJU_EMAIL_REGEX.toString(),
+    validFormat: "[sp/fa][20-26][bscs|bsai|bsse|bsbc][0000-9999]@maju.edu.pk",
+    validPrograms: Object.keys(PROGRAM_CODES),
+    yearsRange: "20-26 (represents 2020-2026)"
+  });
 };
