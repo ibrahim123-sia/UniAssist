@@ -326,7 +326,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             }`}
           >
             <MessageSquare className="w-4 h-4 text-blue-500" />
-            <span>Jobs</span>
+            <span>Job Opportunities</span>
           </Link>
 
           <Link
@@ -341,7 +341,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             }`}
           >
             <Calendar className="w-4 h-4 text-green-500" />
-            <span>MAJU Events</span>
+            <span>University Events</span>
           </Link>
 
           <Link
