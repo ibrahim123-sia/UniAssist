@@ -746,7 +746,7 @@ const ChatPage = () => {
           >
             <div className="flex gap-1.5">
               {/* Mode Selector */}
-              <select
+              {/* <select
                 onChange={(e) => setMode(e.target.value)}
                 value={mode}
                 className={`px-2.5 py-1.5 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
@@ -757,7 +757,7 @@ const ChatPage = () => {
               >
                 <option value="text">Text (1 credit)</option>
                 <option value="email">Email (2 credits)</option>
-              </select>
+              </select> */}
 
               {/* Input Field with Voice Button */}
               <div className="flex-1 relative">
@@ -859,7 +859,7 @@ const ChatPage = () => {
         )}
 
         {/* Simple Instructions */}
-        {!isRecording && !isProcessingVoice && (
+        {/* {!isRecording && !isProcessingVoice && (
           <div className="mt-2">
             <p className="text-[10px] text-gray-500 dark:text-gray-400 text-center">
               <span className="flex items-center justify-center gap-1">
@@ -868,7 +868,7 @@ const ChatPage = () => {
               </span>
             </p>
           </div>
-        )}
+        )} */}
       </div>
     </div>
   );

@@ -448,13 +448,13 @@ const Register = () => {
                   },
                   {
                     icon: Mail,
-                    title: "Email Automation",
-                    desc: "Draft and send emails to professors with AI",
+                    title: "Job Search",
+                    desc: "See related job opportunities for students",
                   },
                   {
                     icon: Calendar,
-                    title: "Deadline Manager",
-                    desc: "Track assignments, quizzes, and projects",
+                    title: "University Events",
+                    desc: "Track and Apply for campus events seamlessly",
                   },
                   {
                     icon: BookOpen,
