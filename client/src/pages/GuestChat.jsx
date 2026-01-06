@@ -35,6 +35,7 @@ const GuestChat = () => {
 
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
+  const messagesContainerRef = useRef(null);
 
   const [inputMessage, setInputMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -44,19 +45,29 @@ const GuestChat = () => {
     setTheme(theme === "light" ? "dark" : "light");
   };
 
-  // Update the scrollToBottom function:
+  // Improved scrollToBottom function
   const scrollToBottom = () => {
-    setTimeout(() => {
-      messagesEndRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "end",
+    if (messagesContainerRef.current) {
+      const { scrollHeight, clientHeight } = messagesContainerRef.current;
+      messagesContainerRef.current.scrollTo({
+        top: scrollHeight,
+        behavior: "smooth"
       });
-    }, 100);
+    }
   };
 
+  // Scroll to bottom when messages change
   useEffect(() => {
     scrollToBottom();
   }, [guestMessages]);
+
+  // Also scroll when loading state changes (when response starts coming)
+  useEffect(() => {
+    if (!isLoading) {
+      // Small delay to ensure DOM is updated
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [isLoading]);
 
   const handleSendMessage = async (e) => {
     e.preventDefault();
@@ -65,15 +76,19 @@ const GuestChat = () => {
     const userMessage = inputMessage.trim();
     setInputMessage("");
     setIsLoading(true);
-    scrollToBottom();
+    
+    // Scroll immediately when user sends message
+    setTimeout(scrollToBottom, 50);
 
     try {
       const result = await sendGuestMessage(userMessage);
-       scrollToBottom();
-
+      
       if (!result.success) {
         toast.error(result.message || "Failed to send message");
       }
+      
+      // Scroll after response is processed
+      setTimeout(scrollToBottom, 100);
     } catch (error) {
       console.error("Chat error:", error);
       toast.error("Failed to get response. Please try again.");
@@ -415,9 +430,9 @@ const GuestChat = () => {
             </div>
           )}
 
-          {/* Chat Messages Area */}
+          {/* Chat Messages Area - Fixed with proper ref */}
           <div
-            ref={messagesEndRef}
+            ref={messagesContainerRef}
             className="flex-1 mb-3 overflow-y-auto overscroll-contain scroll-smooth"
             style={{
               WebkitOverflowScrolling: "touch",
@@ -464,7 +479,6 @@ const GuestChat = () => {
                     })}
                   </p>
                 </div>
-                <div ref={messagesEndRef} />
               </div>
             ))}
 
@@ -501,6 +515,9 @@ const GuestChat = () => {
                 </div>
               </div>
             )}
+            
+            {/* Invisible element at the end for scrolling reference */}
+            <div ref={messagesEndRef} />
           </div>
 
           {/* Input Area */}
@@ -565,9 +582,6 @@ const GuestChat = () => {
               </div>
             </div>
           </form>
-
-         
-          
         </div>
       </div>
     </div>
