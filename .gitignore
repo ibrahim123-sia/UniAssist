@@ -3,7 +3,7 @@
 **/.env.local
 **/.env.*.local
 !.env.example
-
+python/.env
 # Dependencies
 node_modules/
 package-lock.json
@@ -30,5 +30,39 @@ logs/
 *.swo
 
 # OS
+.DS_Store
+Thumbs.db
+
+
+venv/
+.env/
+.venv/
+Lib/
+Scripts/
+Include/
+
+# Python cache
+__pycache__/
+*.pyc
+
+# ML / torch large files
+*.dll
+*.pt
+*.pth
+
+
+# Node
+node_modules/
+dist/
+build/
+
+# Python
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Logs / OS
+*.log
 .DS_Store
 Thumbs.db

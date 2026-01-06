@@ -364,13 +364,13 @@ const GuestChat = () => {
                   theme === "dark" ? "text-yellow-300" : "text-yellow-700"
                 }`}
               >
-                Guest Mode: Unlimited text chat • No voice/email features • Chat
+                Guest Mode: Unlimited text chat • No voice/job/event features • Chat
                 not saved
               </p>
             </div>
             <button
               onClick={() => navigate("/register")}
-              className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+              className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
             >
               Upgrade →
             </button>
@@ -566,16 +566,8 @@ const GuestChat = () => {
             </div>
           </form>
 
-          {/* Guest Instructions */}
-          <div className="mt-2">
-            <p className="text-[10px] text-gray-500 dark:text-gray-400 text-center">
-              <span className="flex items-center justify-center gap-1">
-                <Info className="w-2.5 h-2.5" />
-                Guest access: Text chat only • Unlimited messages • No chat
-                history saved
-              </span>
-            </p>
-          </div>
+         
+          
         </div>
       </div>
     </div>

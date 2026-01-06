@@ -89,7 +89,7 @@ const Credits = () => {
         "100 AI Credits",
         "Text Q&A (1 credit/query)",
         "Voice Query (2 credits/query)",
-        "Email Automation (1 credit/email)",
+        "Job opportunities ",
         "Basic Support"
       ],
       popular: false
@@ -102,9 +102,9 @@ const Credits = () => {
       features: [
         "250 AI Credits",
         "Everything in Basic",
-        "Priority Email Support",
-        "Advanced Email Templates",
-        "Deadline Management"
+        "Job opportunities",
+        "University Events Access",
+        ""
       ],
       popular: true
     },
@@ -117,8 +117,8 @@ const Credits = () => {
         "600 AI Credits",
         "Everything in Pro",
         "24/7 Priority Support",
-        "Custom Email Workflows",
-        "Bulk Email Processing"
+        "Job opportunities",
+        "University Events Access"
       ],
       popular: false
     }
@@ -392,8 +392,8 @@ const Credits = () => {
                   <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
                     <Mail className="w-6 h-6 text-purple-600 dark:text-purple-400" />
                   </div>
-                  <h4 className="font-medium text-gray-900 dark:text-white mb-1">Email Automation</h4>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">1 credit per email drafted/sent</p>
+                  <h4 className="font-medium text-gray-900 dark:text-white mb-1">Job opportunities</h4>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">see relevant job opportunities</p>
                 </div>
               </div>
             </div>

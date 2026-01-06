@@ -37,7 +37,6 @@ const plans = [
       "500 image generations",
       "24/7 VIP support",
       "Access to premium models",
-      "Dedicated account manager",
     ],
   },
 ];

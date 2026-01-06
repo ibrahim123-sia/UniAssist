@@ -1,29 +1,48 @@
 import Chat from "../models/Chat.js";
 import User from "../models/User.js";
-import Groq from "groq-sdk";
 import { AssemblyAI } from 'assemblyai';
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import os from "os";
+import fetch from "node-fetch"; // You might need to install this: npm install node-fetch
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Initialize APIs
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
-
+// Initialize APIs - Remove Groq, add Python backend URL
 const assemblyClient = new AssemblyAI({
   apiKey: process.env.ASSEMBLYAI_API_KEY,
 });
 
-// Constants
-const GROQ_MODELS = {
-  DEFAULT: "llama-3.1-8b-instant",
-  SMART: "mixtral-8x7b-32768",
-};
+// Python FastAPI backend URL
+const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
+
+// Helper function to call Python backend
+async function getPythonBackendResponse(question) {
+  try {
+    console.log(`📡 Calling Python backend at: ${PYTHON_BACKEND_URL}/ask`);
+    
+    const response = await fetch(`${PYTHON_BACKEND_URL}/ask`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ question }),
+      timeout: 30000, // 30 second timeout
+    });
+
+    if (!response.ok) {
+      throw new Error(`Python backend responded with status: ${response.status}`);
+    }
+
+    const data = await response.json();
+    return data.answer || "No response from Python backend";
+  } catch (error) {
+    console.error("❌ Error calling Python backend:", error.message);
+    throw new Error(`Failed to get response from Python backend: ${error.message}`);
+  }
+}
 
 // Helper function to save base64 audio to temporary file
 const saveBase64ToTempFile = (base64Data, fileExtension = "webm") => {
@@ -149,7 +168,7 @@ async function transcribeWithBasicFallback(audioPath) {
   }
 }
 
-// Text Message Controller
+// Text Message Controller - UPDATED TO USE PYTHON BACKEND
 export const textMessageController = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -181,30 +200,20 @@ export const textMessageController = async (req, res) => {
     chat.messages.push(userMessage);
     await chat.save();
 
-    // Get AI response
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: `You are UniAssist, a helpful university assistant for MAJU University. 
-          Help students with academic queries, course information, assignment help, 
-          email drafting, and university procedures. Be concise and accurate.`,
-        },
-        {
-          role: "user",
-          content: prompt,
-        },
-      ],
-      model: GROQ_MODELS.DEFAULT,
-      temperature: 0.7,
-      max_tokens: 1024,
-      stream: false,
-    });
+    // Get response from Python backend
+    console.log(`🤖 Sending to Python backend: "${prompt}"`);
+    let replyContent;
+    try {
+      replyContent = await getPythonBackendResponse(prompt);
+    } catch (error) {
+      console.error("Failed to get response from Python backend:", error.message);
+      replyContent = "Sorry, I'm unable to connect to the university knowledge base at the moment. Please try again later.";
+    }
 
     const reply = {
       type: "text",
       role: "assistant",
-      content: completion.choices[0]?.message?.content || "No response generated.",
+      content: replyContent,
       timestamp: Date.now(),
     };
 
@@ -212,17 +221,26 @@ export const textMessageController = async (req, res) => {
     chat.messages.push(reply);
     await chat.save();
 
+    // Update chat title if this is the first real message
+    if (chat.messages.filter(m => m.role === "user").length === 1) {
+      // Use first 5 words of the question as title
+      const title = prompt.split(' ').slice(0, 5).join(' ') + (prompt.split(' ').length > 5 ? '...' : '');
+      chat.title = title;
+      await chat.save();
+    }
+
     // Deduct credits
     await User.updateOne({ _id: userId }, { $inc: { credits: -1 } });
 
     res.json({ 
       success: true, 
       reply,
-      userMessage: userMessage
+      userMessage: userMessage,
+      source: "python_backend"
     });
 
   } catch (error) {
-    console.error("Error:", error.message);
+    console.error("Error in textMessageController:", error.message);
     res.status(500).json({
       success: false,
       message: error.message || "Error processing your request",
@@ -230,7 +248,8 @@ export const textMessageController = async (req, res) => {
   }
 };
 
-// Email Message Controller
+// Email Message Controller - You can keep using Groq or modify for Python backend
+// For now, I'll show how to modify it for Python backend too
 export const emailMessageController = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -267,34 +286,27 @@ export const emailMessageController = async (req, res) => {
     chat.messages.push(userMessage);
     await chat.save();
 
-    // Generate email
-    const completion = await groq.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content: `You are an email drafting assistant for university students.
-          Draft professional emails for professors, administration, or other students.
-          Include proper salutations, clear subject, professional tone, and closing remarks.
-          Format the email properly with paragraphs.
-          Provide ONLY the email content without explanations.`,
-        },
-        {
-          role: "user",
-          content: `Draft an email based on: ${prompt}\nRecipient: ${
-            recipient || "Not specified"
-          }\nSubject: ${subject || "No subject"}`,
-        },
-      ],
-      model: GROQ_MODELS.DEFAULT,
-      temperature: 0.7,
-      max_tokens: 2048,
-      stream: false,
-    });
+    // For email generation, you might want to create a separate endpoint in Python
+    // For now, we'll use the same /ask endpoint with modified prompt
+    const emailPrompt = `Please help draft an email based on: ${prompt}
+    Recipient: ${recipient || "Not specified"}
+    Subject: ${subject || "No subject"}
+    Please format the email professionally with salutation, body, and closing.`;
+    
+    console.log(`📧 Sending email request to Python backend: "${emailPrompt}"`);
+    
+    let replyContent;
+    try {
+      replyContent = await getPythonBackendResponse(emailPrompt);
+    } catch (error) {
+      console.error("Failed to get email response from Python backend:", error.message);
+      replyContent = "Sorry, I'm unable to draft emails at the moment. Please try again later.";
+    }
 
     const reply = {
       type: "email",
       role: "assistant",
-      content: completion.choices[0]?.message?.content || "No email generated.",
+      content: replyContent,
       emailData: {
         recipient: recipient || "",
         subject: subject || "Drafted Email",
@@ -313,11 +325,12 @@ export const emailMessageController = async (req, res) => {
     res.json({ 
       success: true, 
       reply,
-      userMessage: userMessage
+      userMessage: userMessage,
+      source: "python_backend"
     });
 
   } catch (error) {
-    console.error("Error:", error.message);
+    console.error("Error in emailMessageController:", error.message);
     res.status(500).json({
       success: false,
       message: error.message || "Error generating email",
@@ -325,8 +338,7 @@ export const emailMessageController = async (req, res) => {
   }
 };
 
-// Voice Message Controller using AssemblyAI
-// Voice Message Controller using AssemblyAI - FIXED VERSION
+// Voice Message Controller - UPDATED TO USE PYTHON BACKEND
 export const voiceMessageController = async (req, res) => {
   let tempFilePath = null;
   
@@ -425,11 +437,11 @@ export const voiceMessageController = async (req, res) => {
 
     console.log("✅ Transcription completed:", transcribedText);
 
-    // Create user voice message (ACTUAL TRANSCRIPTION, not placeholder)
+    // Create user voice message
     const userMessage = {
       type: "voice",
       role: "user",
-      content: transcribedText, // Real transcription
+      content: transcribedText,
       voiceMeta: {
         duration: duration || 0,
         fileSize: fileSize || 0,
@@ -444,37 +456,14 @@ export const voiceMessageController = async (req, res) => {
     // Add user voice message to chat
     chat.messages.push(userMessage);
     
-    // Generate AI response
+    // Get response from Python backend
+    console.log(`🤖 Sending voice transcription to Python backend: "${transcribedText}"`);
     let aiResponse = "";
     try {
-      const completion = await groq.chat.completions.create({
-        messages: [
-          {
-            role: "system",
-            content: `You are UniAssist, an AI assistant for MAJU University students.
-               The user sent a voice message. Here's what they said:
-               
-               "${transcribedText}"
-               
-               Respond helpfully and naturally to their voice message.
-               Keep your response concise and relevant to their query.`,
-          },
-          {
-            role: "user",
-            content: transcribedText,
-          },
-        ],
-        model: GROQ_MODELS.DEFAULT,
-        temperature: 0.7,
-        max_tokens: 1024,
-        stream: false,
-      });
-      
-      aiResponse = completion.choices[0]?.message?.content ||
-        "I received your voice message! How can I help you with this?";
+      aiResponse = await getPythonBackendResponse(transcribedText);
     } catch (error) {
-      console.error("Groq API Error:", error.message);
-      aiResponse = "I received your voice message. How can I assist you further?";
+      console.error("Python backend Error:", error.message);
+      aiResponse = "I received your voice message, but I'm having trouble accessing the knowledge base. Please try again or use text input.";
     }
 
     const reply = {
@@ -493,37 +482,9 @@ export const voiceMessageController = async (req, res) => {
 
     // Update chat title if this is the first real message
     if (chat.messages.filter(m => m.role === "user" && !m.content.includes("[Processing")).length === 1) {
-      // Generate a title from the transcription
-      try {
-        const titleCompletion = await groq.chat.completions.create({
-          messages: [
-            {
-              role: "system",
-              content: `Create a very short title (max 5 words) for a chat about: "${transcribedText}". 
-              Return only the title, nothing else. Make it relevant to university/student topics.`,
-            },
-            {
-              role: "user",
-              content: `Create title for: ${transcribedText}`,
-            },
-          ],
-          model: GROQ_MODELS.DEFAULT,
-          temperature: 0.3,
-          max_tokens: 30,
-          stream: false,
-        });
-        
-        const title = titleCompletion.choices[0]?.message?.content?.trim() || 
-                     transcribedText.split(' ').slice(0, 5).join(' ');
-        
-        chat.title = title;
-        await chat.save();
-      } catch (titleError) {
-        console.error("Title generation error:", titleError);
-        // Use first few words as fallback
-        chat.title = transcribedText.split(' ').slice(0, 5).join(' ') + '...';
-        await chat.save();
-      }
+      // Use first few words as title
+      chat.title = transcribedText.split(' ').slice(0, 5).join(' ') + (transcribedText.split(' ').length > 5 ? '...' : '');
+      await chat.save();
     }
 
     // Deduct credits
@@ -543,6 +504,7 @@ export const voiceMessageController = async (req, res) => {
         audioFormat: fileExtension,
       },
       creditsUsed: creditsToDeduct,
+      source: "python_backend",
       message: "Voice message processed successfully",
     });
 
@@ -559,21 +521,40 @@ export const voiceMessageController = async (req, res) => {
     }
   }
 };
-// Health check
+
+// Health check - Updated to check Python backend
 export const transcriptionHealth = async (req, res) => {
   try {
+    // Test Python backend connection
+    let pythonBackendHealthy = false;
+    try {
+      const testResponse = await fetch(`${PYTHON_BACKEND_URL}/ask`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ question: "test" }),
+        timeout: 5000,
+      });
+      pythonBackendHealthy = testResponse.ok;
+    } catch (error) {
+      console.error("Python backend health check failed:", error.message);
+    }
+    
     const health = {
-      groq: !!process.env.GROQ_API_KEY,
+      pythonBackend: pythonBackendHealthy,
+      pythonBackendUrl: PYTHON_BACKEND_URL,
       assemblyAI: !!process.env.ASSEMBLYAI_API_KEY,
       timestamp: new Date().toISOString(),
-      models: GROQ_MODELS,
       audioFormats: ["webm", "wav", "mp3", "ogg", "m4a"]
     };
     
     res.json({
       success: true,
       health,
-      message: "Transcription services health check"
+      message: pythonBackendHealthy 
+        ? "All systems operational" 
+        : "Python backend connection issue"
     });
   } catch (error) {
     res.status(500).json({
@@ -583,9 +564,38 @@ export const transcriptionHealth = async (req, res) => {
   }
 };
 
+// You might also want to add a direct test endpoint
+export const testPythonBackend = async (req, res) => {
+  try {
+    const { question } = req.body;
+    
+    if (!question) {
+      return res.status(400).json({
+        success: false,
+        message: "Question is required"
+      });
+    }
+    
+    const response = await getPythonBackendResponse(question);
+    
+    res.json({
+      success: true,
+      question,
+      response,
+      source: "python_backend"
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 export default {
   textMessageController,
   emailMessageController,
   voiceMessageController,
-  transcriptionHealth
+  transcriptionHealth,
+  testPythonBackend
 };

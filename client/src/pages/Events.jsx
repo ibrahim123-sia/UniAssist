@@ -266,7 +266,7 @@ const Events = () => {
               : "Date TBA",
             time: timeMatch ? timeMatch[0] : "Time TBA",
             location: location || "MAJU",
-            url,
+            url, // This is the original post URL
             author,
             source,
             hashtags: hashtags.slice(0, 5),
@@ -874,10 +874,10 @@ const Events = () => {
                           </div>
                         )}
 
-                        {/* Action Button */}
+                        {/* Action Button - FIXED: Now uses event.url (post link) instead of event.registrationLink */}
                         <div className="mt-6">
                           <a
-                            href={event.registrationLink}
+                            href={event.url} // Changed from event.registrationLink to event.url
                             target="_blank"
                             rel="noopener noreferrer"
                             className="w-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 

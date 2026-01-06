@@ -31,14 +31,17 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     setTheme,
     user,
     createNewChat,
-    deleteChat, // Use the actual deleteChat from context
+    deleteChat,
     token,
+    fetchUsersChats, // Add this to refresh chat list
+    axios, // Add axios for API calls
   } = useAppContext();
 
   const navigate = useNavigate();
   const location = useLocation();
   const [search, setSearch] = useState("");
   const sidebarRef = useRef(null);
+  const [loadingChatId, setLoadingChatId] = useState(null);
 
   // Close sidebar when clicking outside on mobile
   useEffect(() => {
@@ -47,16 +50,13 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         isMenuOpen &&
         sidebarRef.current &&
         !sidebarRef.current.contains(event.target) &&
-        window.innerWidth < 768 // Only on mobile
+        window.innerWidth < 768
       ) {
         setIsMenuOpen(false);
       }
     };
 
-    // Add event listener
     document.addEventListener("mousedown", handleClickOutside);
-
-    // Remove event listener on cleanup
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
@@ -78,7 +78,6 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     };
 
     document.addEventListener("keydown", handleEscapeKey);
-
     return () => {
       document.removeEventListener("keydown", handleEscapeKey);
     };
@@ -90,10 +89,40 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     navigate("/login");
   };
 
-  const handleChatClick = (chat) => {
-    setSelectedChat(chat);
-    if (window.innerWidth < 768) {
-      setIsMenuOpen(false);
+  const handleChatClick = async (chat) => {
+    try {
+      setLoadingChatId(chat._id || chat.id);
+      
+      // First navigate to chat page
+      navigate("/chat");
+      
+      // Fetch full chat details with messages
+      const { data } = await axios.get(`/api/chat/${chat._id || chat.id}`, {
+        headers: { Authorization: token }
+      });
+      
+      if (data.success) {
+        // Update the selected chat with full details including messages
+        setSelectedChat(data.chat);
+        toast.success("Chat loaded successfully");
+      } else {
+        toast.error("Failed to load chat messages");
+        // Still set the basic chat info
+        setSelectedChat(chat);
+      }
+      
+    } catch (error) {
+      console.error("Error loading chat:", error);
+      toast.error("Failed to load chat");
+      // Fallback: set the basic chat info
+      setSelectedChat(chat);
+    } finally {
+      setLoadingChatId(null);
+      
+      // Close sidebar on mobile
+      if (window.innerWidth < 768) {
+        setIsMenuOpen(false);
+      }
     }
   };
 
@@ -106,18 +135,20 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     if (!confirm) return;
 
     try {
-      // Call the actual deleteChat function from context (which calls the API)
       const result = await deleteChat(chatId);
       
       if (result.success) {
         toast.success("Chat deleted successfully");
         
-        // Clear selected chat if it was the deleted one
+        // If we deleted the currently selected chat, clear it
         if (selectedChat && selectedChat._id === chatId) {
           setSelectedChat(null);
         }
         
-        // Close sidebar on mobile after deletion
+        // Refresh chats list
+        await fetchUsersChats();
+        
+        // Close sidebar on mobile
         if (window.innerWidth < 768) {
           setIsMenuOpen(false);
         }
@@ -130,9 +161,17 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   };
 
   const handleNewChat = async () => {
-    const result = await createNewChat();
-    if (result.success) {
-      navigate("/chat");
+    try {
+      const result = await createNewChat();
+      if (result.success) {
+        // Refresh the chats list
+        await fetchUsersChats();
+        navigate("/chat");
+      } else {
+        toast.error(result.message || "Failed to create new chat");
+      }
+    } catch (error) {
+      toast.error("Error creating new chat");
     }
   };
 
@@ -145,7 +184,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
 
   return (
     <>
-      {/* Mobile Overlay - Click outside to close */}
+      {/* Mobile Overlay */}
       {isMenuOpen && window.innerWidth < 768 && (
         <div
           className="fixed inset-0 bg-black bg-opacity-50 z-40 transition-opacity duration-300"
@@ -256,47 +295,58 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                     .includes(search.toLowerCase()) ||
                   chat.name?.toLowerCase().includes(search.toLowerCase())
               )
-              .map((chat) => (
-                <div
-                  key={chat._id || chat.id}
-                  onClick={() => handleChatClick(chat)}
-                  className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
-                    theme === "dark"
-                      ? "hover:bg-gray-800/50"
-                      : "hover:bg-gray-100"
-                  } ${selectedChat?._id === chat._id ? 
-                    (theme === "dark" ? "bg-gray-800" : "bg-blue-50 border border-blue-200") : ""
-                  }`}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1">
-                      <MessageSquare className="w-4 h-4 text-gray-400" />
-                      <p
-                        className={`text-sm font-medium truncate ${
-                          theme === "dark" ? "text-gray-200" : "text-gray-800"
-                        }`}
-                      >
-                        {chat.messages?.[0]?.content?.slice(0, 30) ||
-                          chat.name ||
-                          "New Chat"}
+              .map((chat) => {
+                const isSelected = selectedChat?._id === chat._id;
+                const isLoading = loadingChatId === chat._id;
+                
+                return (
+                  <div
+                    key={chat._id || chat.id}
+                    onClick={() => handleChatClick(chat)}
+                    className={`group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
+                      theme === "dark"
+                        ? "hover:bg-gray-800/50"
+                        : "hover:bg-gray-100"
+                    } ${isSelected ? 
+                      (theme === "dark" ? "bg-gray-800 border border-gray-700" : "bg-blue-50 border border-blue-200") : ""
+                    } ${isLoading ? "opacity-50" : ""}`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <MessageSquare className="w-4 h-4 text-gray-400" />
+                        <div className="flex items-center gap-1">
+                          <p
+                            className={`text-sm font-medium truncate ${
+                              theme === "dark" ? "text-gray-200" : "text-gray-800"
+                            }`}
+                          >
+                            {chat.messages?.[0]?.content?.slice(0, 30) ||
+                              chat.name ||
+                              "New Chat"}
+                          </p>
+                          {isLoading && (
+                            <div className="ml-2 w-3 h-3 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin"></div>
+                          )}
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        {chat.updatedAt
+                          ? moment(chat.updatedAt).fromNow()
+                          : "Just now"}
                       </p>
                     </div>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {chat.updatedAt
-                        ? moment(chat.updatedAt).fromNow()
-                        : "Just now"}
-                    </p>
-                  </div>
 
-                  <button
-                    onClick={(e) => handleDeleteChat(e, chat._id || chat.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-opacity"
-                    aria-label="Delete chat"
-                  >
-                    <Trash2 className="w-4 h-4 text-gray-500 hover:text-red-500" />
-                  </button>
-                </div>
-              ))}
+                    <button
+                      onClick={(e) => handleDeleteChat(e, chat._id || chat.id)}
+                      className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700 transition-opacity"
+                      aria-label="Delete chat"
+                      disabled={isLoading}
+                    >
+                      <Trash2 className="w-4 h-4 text-gray-500 hover:text-red-500" />
+                    </button>
+                  </div>
+                );
+              })}
 
             {chats.length === 0 && (
               <div className="text-center py-8">
@@ -318,7 +368,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             to="/jobs"
             className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm ${
-              location.pathname === "/chat"
+              location.pathname === "/jobs"
                 ? theme === "dark"
                   ? "bg-gray-800 text-white"
                   : "bg-gray-100 text-gray-900"
@@ -326,14 +376,14 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             }`}
           >
             <MessageSquare className="w-4 h-4 text-blue-500" />
-            <span>Jobs</span>
+            <span>Job Opportunities</span>
           </Link>
 
           <Link
-            to="events"
+            to="/events"
             className={`w-full flex items-center gap-3 p-2.5 rounded-lg text-gray-700 dark:text-gray-300 
             hover:bg-gray-100 dark:hover:bg-gray-800 transition-all text-sm ${
-              location.pathname === "/deadlines"
+              location.pathname === "/events"
                 ? theme === "dark"
                   ? "bg-gray-800 text-white"
                   : "bg-gray-100 text-gray-900"
@@ -341,7 +391,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             }`}
           >
             <Calendar className="w-4 h-4 text-green-500" />
-            <span>MAJU Events</span>
+            <span>University Events</span>
           </Link>
 
           <Link
