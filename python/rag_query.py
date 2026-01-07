@@ -80,12 +80,12 @@ def create_rag_prompt(question, relevant_chunks, sources):
     """
     # Combine chunks into context
     context_parts = []
-    for i, (chunk, source) in enumerate(zip(relevant_chunks, sources), 1):
-        context_parts.append(f"[Source {i}: {source['source']}]\n{chunk}")
+    for chunk in relevant_chunks:
+        context_parts.append(chunk)
     
     context = "\n\n---\n\n".join(context_parts)
     
-    # Create the prompt
+    # Create the prompt - WITHOUT CITATION INSTRUCTIONS
     prompt = f"""You are a helpful assistant for Muhammad Ali Jinnah University (MAJU).
 Your task is to answer student questions using ONLY the provided context from the university website.
 If the context doesn't contain the answer, say "I don't have information about that in my database."
@@ -98,9 +98,12 @@ STUDENT'S QUESTION: {question}
 INSTRUCTIONS:
 1. Answer clearly and concisely
 2. Use ONLY information from the context above
-3. For each important fact, cite the source number in brackets like [1]
-4. If the context has contact info (emails, phones), include them
-5. If the context has fees or numbers, be precise
+3. DO NOT mention sources or citations in your answer
+4. DO NOT include any numbers in brackets like [1] or [2]
+5. DO NOT add a sources section at the end
+6. Provide a clean, natural answer as if you're a university representative
+7. If the context has contact info (emails, phones), include them naturally
+8. If the context has fees or numbers, be precise
 
 ANSWER:"""
     
@@ -130,7 +133,7 @@ def get_groq_response(prompt):
         response = client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             messages=[
-                {"role": "system", "content": "You are a helpful university assistant."},
+                {"role": "system", "content": "You are a helpful university assistant. Provide answers without citations or source references."},
                 {"role": "user", "content": prompt}
             ],
             temperature=0.3,
@@ -163,11 +166,8 @@ def ask_university_rag(question, provider="groq"):
     if not chunks:
         return "❌ No relevant information found in database."
     
-    # Show what was found
-    print(f"✅ Found {len(chunks)} relevant chunks:")
-    for i, (chunk, source, score) in enumerate(zip(chunks, sources, scores), 1):
-        print(f"   {i}. Similarity: {score:.2f} | Source: {source['source']}")
-        print(f"      Preview: {chunk[:100]}...")
+    # Show what was found (for debugging only, not shown to user)
+    print(f"✅ Found {len(chunks)} relevant chunks (not shown to user)")
     
     # Step 2: Create prompt
     prompt, source_list = create_rag_prompt(question, chunks, sources)
@@ -176,15 +176,19 @@ def ask_university_rag(question, provider="groq"):
     print(f"\n💭 Generating answer using {provider.upper()}...")
     answer = get_llm_response(prompt, provider)
     
-    # Step 4: Format final answer with sources
-    print(f"\n📝 FORMATTING ANSWER WITH CITATIONS...")
+    # Step 4: Clean the answer (remove any remaining citations)
+    print(f"\n📝 FINALIZING CLEAN ANSWER...")
     
-    # Add source URLs at the end
-    if source_list:
-        answer += "\n\n📎 SOURCES:\n"
-        for i, source in enumerate(source_list, 1):
-            answer += f"{i}. {source['source']}\n"
+    # Remove any citation patterns that might have slipped through
+    import re
+    # Remove [1], [2], etc.
+    answer = re.sub(r'\[\d+\]', '', answer)
+    # Remove "Source:" or "Sources:" sections
+    answer = re.sub(r'(?i)(sources?:.*?)(?=\n\n|\Z)', '', answer, flags=re.DOTALL)
+    # Remove any trailing source lists
+    answer = re.sub(r'(?i)\n\n(?:📎\s*)?(?:source|references?):.*', '', answer, flags=re.DOTALL)
     
+    # Return clean answer without sources
     return answer
 
 # ==================== SECTION 8: BATCH TESTING ====================
@@ -207,7 +211,8 @@ def test_sample_questions():
         answer = ask_university_rag(question, provider="groq")
         print(f"\n📢 ANSWER:\n{answer}")
         print("="*60)
-        input("Press Enter for next test...")
+        if i < len(test_questions):
+            input("Press Enter for next test...")
 
 # ==================== SECTION 9: INTERACTIVE MODE ====================
 def interactive_mode():
