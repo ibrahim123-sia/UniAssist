@@ -1,0 +1,34 @@
+# ===========================================
+# Python Dependencies for University RAG System
+# ===========================================
+# Install with: pip install -r requirements.txt
+
+# --- Web Scraping ---
+requests==2.31.0              # HTTP requests (fetching web pages)
+beautifulsoup4>=4.12.0        # HTML parsing
+lxml>=4.9.0                   # Fast XML/HTML parser (used by BeautifulSoup)
+
+# --- Vector Database ---
+chromadb==0.4.18              # Vector database for semantic search
+protobuf==3.20.3              # Required by ChromaDB
+
+# --- Embeddings ---
+sentence-transformers==2.2.2  # Text-to-vector embedding models
+huggingface-hub==0.19.4       # Model downloads from HuggingFace
+
+# --- LLM (AI Model) ---
+groq==0.9.0                   # Groq API client (fast Llama inference)
+
+# --- Web API ---
+fastapi>=0.104.0              # REST API framework
+uvicorn>=0.24.0               # ASGI server (runs FastAPI)
+pydantic==1.10.13             # Data validation (used by FastAPI)
+
+# --- Utilities ---
+python-dotenv==1.0.0          # Load .env file variables
+tqdm==4.66.0                  # Progress bars
+numpy==1.24.3                 # Numerical computing
+
+# --- Build Tools ---
+setuptools==75.5.0
+wheel==0.44.0
