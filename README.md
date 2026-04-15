@@ -4,6 +4,7 @@
 ![React](https://img.shields.io/badge/Frontend-React-61DAFB?style=flat&logo=react)
 ![Node.js](https://img.shields.io/badge/Backend-Node.js-339933?style=flat&logo=nodedotjs)
 ![Python](https://img.shields.io/badge/AI-Python-3776AB?style=flat&logo=python)
+![React Native](https://img.shields.io/badge/Mobile-React_Native-61DAFB?style=flat&logo=react)
 ![License](https://img.shields.io/badge/License-MIT-green?style=flat)
 
 UniAssist is a full-stack AI-powered web and mobile platform that consolidates all MAJU student services into one intelligent system. At its core is a smart chatbot that supports voice input and Roman Urdu — making university help accessible to every student.
@@ -39,18 +40,17 @@ UniAssist is a full-stack AI-powered web and mobile platform that consolidates a
 | **Logs & Analytics** | Full activity logs, chatbot conversation logs, issue analytics |
 
 ### 📱 Mobile App
-Cross-platform mobile application for all user roles with push notifications.
+Cross-platform React Native app for all user roles with push notifications and offline support.
 
 ---
 
 ## 🛠️ Tech Stack
 
 ```
-Frontend      →  React.js
-User & API    →  Node.js / Express
-AI & Chatbot  →  Python (NLP, CV parsing, voice, Roman Urdu)
-Mobile        →  React Native
-Database      →  MongoDB / PostgreSQL
+client/    →  React.js (Student, SFO & Admin UI)
+server/    →  Node.js / Express (Auth, APIs, user management)
+python/    →  Python (Chatbot NLP, CV parsing, voice, Roman Urdu)
+mobile/    →  React Native (iOS & Android)
 ```
 
 ---
@@ -76,7 +76,10 @@ cd client && npm install
 cd ../server && npm install
 
 # Install AI service dependencies
-cd ../ai && pip install -r requirements.txt
+cd ../python && pip install -r requirements.txt
+
+# Install mobile dependencies
+cd ../mobile && npm install
 ```
 
 ### Running Locally
@@ -85,11 +88,14 @@ cd ../ai && pip install -r requirements.txt
 # Start backend (from /server)
 npm run dev
 
-# Start AI service (from /ai)
+# Start AI service (from /python)
 python app.py
 
 # Start frontend (from /client)
 npm run dev
+
+# Start mobile (from /mobile)
+npx expo start
 ```
 
 ---
@@ -98,26 +104,26 @@ npm run dev
 
 ```
 uniassist/
-├── client/          # React frontend
-│   ├── src/
-│   │   ├── pages/   # Student, SFO, Admin pages
-│   │   └── components/
-├── server/          # Node.js backend
+├── client/           # React frontend (web portal)
+│   └── src/
+│       ├── pages/    # Student, SFO, Admin pages
+│       └── components/
+├── server/           # Node.js / Express backend
 │   ├── routes/
 │   ├── controllers/
 │   └── models/
-├── ai/              # Python AI service
-│   ├── chatbot/     # NLP & chatbot engine
-│   ├── cv_parser/   # CV extraction
-│   └── voice/       # Voice & Roman Urdu
-└── mobile/          # React Native app
+├── python/           # Python AI service
+│   ├── chatbot/      # NLP & chatbot engine
+│   ├── cv_parser/    # CV extraction & profile builder
+│   └── voice/        # Voice input & Roman Urdu processing
+└── mobile/           # React Native app (iOS & Android)
 ```
 
 ---
 
 ## 👥 Contributing
 
-Pull requests are welcome. For major changes, please open an issue first to discuss what you'd like to change.
+Pull requests are welcome. For major changes, please open an issue first to discuss what you would like to change.
 
 ---
 
