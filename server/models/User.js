@@ -14,18 +14,13 @@ const userSchema = new mongoose.Schema({
     trim: true,
     match: [/^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/, 'Please enter a valid email']
   },
-  password: { 
-    type: String, 
+  password: {
+    type: String,
     required: [true, 'Password is required'],
     minlength: [6, 'Password must be at least 6 characters'],
-    select: false 
+    select: false
   },
-  credits: { 
-    type: Number, 
-    default: 100,
-    min: [0, 'Credits cannot be negative']
-  },
-  otp: { 
+  otp: {
     type: String, 
     select: false 
   },

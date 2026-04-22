@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl -s -L -A \"Mozilla/5.0 \\(Windows NT 10.0; Win64; x64\\) AppleWebKit/537.36\" https://jinnah.edu/ -o /tmp/maju_home.html)",
+      "Read(//tmp/**)",
+      "WebFetch(domain:jinnah.edu)",
+      "WebSearch",
+      "Bash(xargs grep *)"
+    ]
+  }
+}

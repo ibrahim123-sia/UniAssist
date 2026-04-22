@@ -14,7 +14,7 @@ import {
   Sparkles,
   Users,
   Building,
-  CreditCard,
+  Wallet,
   X,
   RotateCcw,
   Trash2,
@@ -117,7 +117,7 @@ const GuestChat = () => {
     },
     { icon: <Users className="w-4 h-4" />, text: "Admission requirements?" },
     { icon: <Calendar className="w-4 h-4" />, text: "Application deadlines?" },
-    { icon: <CreditCard className="w-4 h-4" />, text: "Fee structure?" },
+    { icon: <Wallet className="w-4 h-4" />, text: "Fee structure?" },
     { icon: <Building className="w-4 h-4" />, text: "Campus facilities?" },
     {
       icon: <MessageCircle className="w-4 h-4" />,
@@ -138,8 +138,8 @@ const GuestChat = () => {
     <div
       className={`flex h-screen ${
         theme === "dark"
-          ? "bg-gray-900"
-          : "bg-linear-to-b from-blue-50 via-white to-gray-50"
+          ? "bg-[#0F1626]"
+          : "bg-linear-to-b from-[#EEF1FA] via-white to-[#F5F6F8]"
       }`}
     >
       {/* Mobile Overlay */}
@@ -154,8 +154,8 @@ const GuestChat = () => {
       <div
         className={`flex flex-col h-screen w-72 ${
           theme === "dark"
-            ? "bg-gray-900/95 border-gray-700 backdrop-blur-lg"
-            : "bg-white/95 border-gray-200 backdrop-blur-lg"
+            ? "bg-[#17203A]/95 border-[#273350] backdrop-blur-lg"
+            : "bg-white/95 border-[#E2E5EA] backdrop-blur-lg"
         } border-r transition-transform duration-300 fixed md:relative z-40
       ${isMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
@@ -168,15 +168,15 @@ const GuestChat = () => {
         </button>
 
         {/* Logo Section */}
-        <div className="p-6 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-6 border-b border-[#E2E5EA] dark:border-[#273350]">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-linear-to-r from-blue-600 to-indigo-600 rounded-lg">
+            <div className="p-2 bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] rounded-lg">
               <GraduationCap className="w-6 h-6 text-white" />
             </div>
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                 UniAssist
-                <span className="text-blue-600 dark:text-blue-400">.ai</span>
+                <span className="text-[#D0321E] dark:text-[#E57A63]">.ai</span>
               </h1>
               <p className="text-xs text-gray-600 dark:text-gray-400">
                 MAJU University Assistant
@@ -186,9 +186,9 @@ const GuestChat = () => {
         </div>
 
         {/* Guest Info */}
-        <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+        <div className="p-4 border-b border-[#E2E5EA] dark:border-[#273350]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-linear-to-r from-blue-500 to-purple-500 flex items-center justify-center">
+            <div className="w-9 h-9 rounded-full bg-linear-to-r from-[#1E2E6E] to-[#D0321E] flex items-center justify-center">
               <Users className="w-5 h-5 text-white" />
             </div>
             <div className="flex-1 min-w-0">
@@ -215,7 +215,7 @@ const GuestChat = () => {
         <div className="p-4">
           <button
             onClick={() => navigate("/register")}
-            className="w-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 
+            className="w-full bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] hover:from-[#162356] hover:to-[#162356] 
             text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm"
           >
             <Sparkles className="w-4 h-4" />
@@ -256,13 +256,13 @@ const GuestChat = () => {
         </div>
 
         {/* Theme & Auth */}
-        <div className="p-4 border-t border-gray-200 dark:border-gray-700 space-y-2">
+        <div className="p-4 border-t border-[#E2E5EA] dark:border-[#273350] space-y-2">
           <div className="flex items-center justify-between p-2.5 rounded-lg bg-gray-100/50 dark:bg-gray-800/50">
             <div className="flex items-center gap-3">
               {theme === "dark" ? (
-                <Moon className="w-4 h-4 text-purple-400" />
+                <Moon className="w-4 h-4 text-[#6E8BE0]" />
               ) : (
-                <Sun className="w-4 h-4 text-yellow-500" />
+                <Sun className="w-4 h-4 text-[#D0321E]" />
               )}
               <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
                 Theme
@@ -277,7 +277,7 @@ const GuestChat = () => {
               />
               <div
                 className={`w-10 h-5 rounded-full peer ${
-                  theme === "dark" ? "bg-purple-600" : "bg-gray-300"
+                  theme === "dark" ? "bg-[#6E8BE0]" : "bg-gray-300"
                 }`}
               ></div>
               <div
@@ -297,7 +297,7 @@ const GuestChat = () => {
             </button>
             <button
               onClick={() => navigate("/register")}
-              className="flex-1 px-3 py-2 text-sm bg-linear-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700"
+              className="flex-1 px-3 py-2 text-sm bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] text-white rounded-lg hover:from-[#162356] hover:to-[#162356]"
             >
               Register
             </button>
@@ -311,8 +311,8 @@ const GuestChat = () => {
         <header
           className={`md:hidden sticky top-0 z-10 border-b ${
             theme === "dark"
-              ? "bg-gray-900/95 border-gray-700 backdrop-blur-lg"
-              : "bg-white/95 border-gray-200 backdrop-blur-lg"
+              ? "bg-[#17203A]/95 border-[#273350] backdrop-blur-lg"
+              : "bg-white/95 border-[#E2E5EA] backdrop-blur-lg"
           }`}
         >
           <div className="p-4">
@@ -339,7 +339,7 @@ const GuestChat = () => {
               <div className="flex flex-col items-center">
                 <h1 className="text-lg font-bold text-gray-900 dark:text-white">
                   UniAssist
-                  <span className="text-blue-600 dark:text-blue-400">.ai</span>
+                  <span className="text-[#D0321E] dark:text-[#E57A63]">.ai</span>
                 </h1>
                 <p className="text-xs text-gray-600 dark:text-gray-400">
                   Guest Mode
@@ -385,7 +385,7 @@ const GuestChat = () => {
             </div>
             <button
               onClick={() => navigate("/register")}
-              className="cursor-pointer text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium"
+              className="cursor-pointer text-xs text-[#D0321E] dark:text-[#E57A63] hover:underline font-medium"
             >
               Upgrade →
             </button>
@@ -404,7 +404,7 @@ const GuestChat = () => {
               }`}
             >
               <div className="flex flex-col md:flex-row items-center gap-4">
-                <div className="p-3 bg-linear-to-r from-blue-600 to-indigo-600 rounded-xl">
+                <div className="p-3 bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] rounded-xl">
                   <Sparkles className="w-8 h-8 text-white" />
                 </div>
                 <div className="flex-1 text-center md:text-left">
@@ -551,7 +551,7 @@ const GuestChat = () => {
                 className={`px-3 py-1.5 rounded-lg transition-all shrink-0 flex items-center justify-center ${
                   isLoading || !inputMessage.trim()
                     ? "bg-gray-300 dark:bg-gray-700 cursor-not-allowed"
-                    : "bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                    : "bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] hover:from-[#162356] hover:to-[#162356]"
                 }`}
               >
                 <Send
@@ -575,7 +575,7 @@ const GuestChat = () => {
               <div className="text-[10px] text-gray-500 dark:text-gray-400">
                 <button
                   onClick={() => navigate("/register")}
-                  className="text-blue-600 dark:text-blue-400 hover:underline"
+                  className="text-[#D0321E] dark:text-[#E57A63] hover:underline"
                 >
                   Register for voice & email →
                 </button>

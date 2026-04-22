@@ -12,13 +12,10 @@ const messageRouter = express.Router()
 // Apply protection to all routes
 messageRouter.use(protect)
 
-// Text messages (1 credit)
 messageRouter.post('/text', textMessageController)
 
-// Email messages (2 credits)
 messageRouter.post('/email', emailMessageController)
 
-// Voice messages with Groq transcription (3 credits) - MAIN ENDPOINT
 messageRouter.post('/voice', voiceMessageController)
 
 // Health check

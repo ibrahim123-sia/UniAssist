@@ -1,5 +1,4 @@
 import Chat from "../models/Chat.js";
-import User from "../models/User.js";
 import { AssemblyAI } from 'assemblyai';
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
@@ -173,13 +172,6 @@ export const textMessageController = async (req, res) => {
   try {
     const userId = req.user._id;
 
-    if (req.user.credits < 1) {
-      return res.json({
-        success: false,
-        message: "Insufficient credits. Please purchase more credits.",
-      });
-    }
-
     const { chatId, prompt } = req.body;
 
     const chat = await Chat.findOne({ userId, _id: chatId });
@@ -229,11 +221,8 @@ export const textMessageController = async (req, res) => {
       await chat.save();
     }
 
-    // Deduct credits
-    await User.updateOne({ _id: userId }, { $inc: { credits: -1 } });
-
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       reply,
       userMessage: userMessage,
       source: "python_backend"
@@ -253,13 +242,6 @@ export const textMessageController = async (req, res) => {
 export const emailMessageController = async (req, res) => {
   try {
     const userId = req.user._id;
-
-    if (req.user.credits < 2) {
-      return res.json({
-        success: false,
-        message: "Insufficient credits for email generation.",
-      });
-    }
 
     const { chatId, prompt, recipient, subject } = req.body;
 
@@ -319,11 +301,8 @@ export const emailMessageController = async (req, res) => {
     chat.messages.push(reply);
     await chat.save();
 
-    // Deduct credits
-    await User.updateOne({ _id: userId }, { $inc: { credits: -2 } });
-
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       reply,
       userMessage: userMessage,
       source: "python_backend"
@@ -344,13 +323,6 @@ export const voiceMessageController = async (req, res) => {
   
   try {
     const userId = req.user._id;
-
-    if (req.user.credits < 3) {
-      return res.json({
-        success: false,
-        message: "Insufficient credits for voice processing. Voice messages require 3 credits.",
-      });
-    }
 
     const { chatId, audioUrl, duration, fileSize } = req.body;
 
@@ -487,12 +459,8 @@ export const voiceMessageController = async (req, res) => {
       await chat.save();
     }
 
-    // Deduct credits
-    const creditsToDeduct = transcription.isFallback ? 1 : 3;
-    await User.updateOne({ _id: userId }, { $inc: { credits: -creditsToDeduct } });
-
     console.log("=== VOICE MESSAGE PROCESSING COMPLETE ===");
-    
+
     // Send response
     res.json({
       success: true,
@@ -503,7 +471,6 @@ export const voiceMessageController = async (req, res) => {
         isFallback: transcription.isFallback || false,
         audioFormat: fileExtension,
       },
-      creditsUsed: creditsToDeduct,
       source: "python_backend",
       message: "Voice message processed successfully",
     });

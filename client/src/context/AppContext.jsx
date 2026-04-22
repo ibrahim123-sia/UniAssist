@@ -634,8 +634,6 @@ export const AppContextProvider = ({ children }) => {
       if (error.response?.status === 401) {
         errorMessage = "Session expired";
         logout();
-      } else if (error.response?.status === 402) {
-        errorMessage = "Insufficient credits";
       } else if (error.response?.status === 429) {
         errorMessage = "Too many requests";
       } else if (error.code === "ERR_NETWORK") {
@@ -677,8 +675,6 @@ export const AppContextProvider = ({ children }) => {
       if (error.response?.status === 401) {
         errorMessage = "Session expired";
         logout();
-      } else if (error.response?.status === 402) {
-        errorMessage = "Insufficient credits";
       } else if (error.response?.status === 400) {
         errorMessage = "Invalid email data";
       } else if (error.code === "ERR_NETWORK") {
@@ -730,87 +726,11 @@ export const AppContextProvider = ({ children }) => {
       } else if (error.response?.status === 401) {
         errorMessage = "Session expired";
         logout();
-      } else if (error.response?.status === 402) {
-        errorMessage = "Insufficient credits";
       } else if (error.code === "ERR_NETWORK") {
         errorMessage = "Network error";
       }
 
       return { success: false, message: errorMessage };
-    }
-  };
-
-  // ========== CREDIT FUNCTIONS ==========
-
-  const getCreditPlans = async () => {
-    try {
-      const { data } = await axios.get("/api/credit/plans", {
-        headers: { Authorization: token },
-      });
-      if (data.success) {
-        return { success: true, plans: data.plans };
-      } else {
-        return { success: false, message: data.message };
-      }
-    } catch (error) {
-      let errorMessage = "Failed to load plans";
-
-      if (error.response?.status === 401) {
-        errorMessage = "Session expired";
-        logout();
-      } else if (error.code === "ERR_NETWORK") {
-        errorMessage = "Network error";
-      }
-
-      return { success: false, message: errorMessage };
-    }
-  };
-
-  const purchasePlan = async (planId) => {
-    try {
-      const { data } = await axios.post(
-        "/api/credit/purchase",
-        { planId },
-        { headers: { Authorization: token } }
-      );
-      if (data.success) {
-        window.location.href = data.url;
-        return { success: true };
-      } else {
-        return { success: false, message: data.message };
-      }
-    } catch (error) {
-      let errorMessage = "Failed to process purchase";
-
-      if (error.response?.status === 401) {
-        errorMessage = "Session expired";
-        logout();
-      } else if (error.code === "ERR_NETWORK") {
-        errorMessage = "Network error";
-      }
-
-      return { success: false, message: errorMessage };
-    }
-  };
-
-  const getCreditBalance = async () => {
-    try {
-      const { data } = await axios.get("/api/credit/balance", {
-        headers: { Authorization: token },
-      });
-      if (data.success) {
-        setUser((prev) => ({ ...prev, credits: data.credits }));
-        return { success: true, credits: data.credits };
-      } else {
-        return { success: false, message: data.message };
-      }
-    } catch (error) {
-      if (error.response?.status === 401) {
-        logout();
-        return { success: false, message: "Session expired" };
-      }
-
-      return { success: false, message: error.message };
     }
   };
 
@@ -920,11 +840,6 @@ export const AppContextProvider = ({ children }) => {
     sendTextMessage,
     sendEmailMessage,
     sendVoiceMessage,
-
-    // Credits
-    getCreditPlans,
-    purchasePlan,
-    getCreditBalance,
 
     // Email validation (export for components to use)
     validateMajuEmail,

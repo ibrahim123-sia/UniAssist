@@ -755,7 +755,6 @@ export const loginUser = async (req, res) => {
         rollNumber: user.rollNumber,
         session: user.session,
         admissionYear: user.admissionYear,
-        credits: user.credits,
         isVerified: user.isVerified,
         isMajuStudent: user.isMajuStudent
       },

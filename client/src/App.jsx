@@ -7,7 +7,6 @@ import Register from "./pages/Register";
 import ProtectedRoute from "./components/ProtectedRoute";
 import ChatPage from "./pages/ChatPage";
 import GuestChat from "./pages/GuestChat";
-import Credits from "./pages/Credit";
 import Jobs from "./pages/Job"
 import Events from "./pages/Events";
 
@@ -19,22 +18,25 @@ const App = () => {
         toastOptions={{
           duration: 3000,
           style: {
-            background: "#363636",
-            color: "#fff",
+            background: "#1E2A47",
+            color: "#ECEEF3",
+            border: "1px solid #273350",
           },
           success: {
             duration: 3000,
             style: {
-              background: "#10B981",
+              background: "#1E2E6E",
               color: "#fff",
             },
+            iconTheme: { primary: "#6FB58A", secondary: "#fff" },
           },
           error: {
             duration: 4000,
             style: {
-              background: "#EF4444",
+              background: "#D0321E",
               color: "#fff",
             },
+            iconTheme: { primary: "#fff", secondary: "#D0321E" },
           },
         }}
       />
@@ -51,7 +53,6 @@ const App = () => {
           </ProtectedRoute>
         }>
           <Route path="chat" element={<ChatPage />} />
-          <Route path="credits" element={<Credits />} />
           <Route path="jobs" element={<Jobs />} />
           <Route path="events" element={<Events />} />
         </Route>

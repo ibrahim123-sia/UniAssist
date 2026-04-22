@@ -1,16 +1,66 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark,.dark *));
 
 *{
-    font-family: "Outfit", sans-serif;
+    font-family: "Poppins", sans-serif;
 }
+
 @theme{
-    --color-primary:#E6CCFF;
+    /* MAJU brand (light) */
+    --color-maju-navy: #1E2E6E;
+    --color-maju-navy-700: #162356;
+    --color-maju-navy-50: #EEF1FA;
+    --color-maju-red: #D0321E;
+    --color-maju-red-700: #B1291A;
+    --color-maju-red-50: #FCEEEB;
+
+    /* Light surfaces */
+    --color-maju-bg: #FFFFFF;
+    --color-maju-surface: #F5F6F8;
+    --color-maju-text: #222222;
+    --color-maju-muted: #5A6372;
+    --color-maju-border: #E2E5EA;
+
+    /* Library-at-night (dark) */
+    --color-night-bg: #0F1626;
+    --color-night-surface: #17203A;
+    --color-night-elevated: #1E2A47;
+    --color-night-input: #121A2E;
+    --color-night-border: #273350;
+    --color-night-text: #ECEEF3;
+    --color-night-muted: #A9B2C7;
+    --color-night-accent: #6E8BE0;
+    --color-night-highlight: #E57A63;
+    --color-night-bubble-user: #243763;
+
+    /* Back-compat alias */
+    --color-primary: #1E2E6E;
 }
+
+html, body{
+    background-color: var(--color-maju-bg);
+    color: var(--color-maju-text);
+}
+html.dark, html.dark body{
+    background-color: var(--color-night-bg);
+    color: var(--color-night-text);
+}
+
 ::-webkit-scrollbar{
-    display: none;
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track{
+    background: transparent;
+}
+::-webkit-scrollbar-thumb{
+    background: var(--color-maju-border);
+    border-radius: 3px;
+}
+html.dark ::-webkit-scrollbar-thumb{
+    background: var(--color-night-border);
 }
 
 .reset-tw:not(pre):not(code){

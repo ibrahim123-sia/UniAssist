@@ -880,7 +880,7 @@ const Events = () => {
                             href={event.url} // Changed from event.registrationLink to event.url
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="w-full bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 
+                            className="w-full bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] hover:from-[#162356] hover:to-[#162356] 
                             text-white font-medium py-3 rounded-lg flex items-center justify-center gap-2 transition-all"
                           >
                             <ExternalLink className="w-4 h-4" />

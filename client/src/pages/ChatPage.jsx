@@ -9,7 +9,7 @@ import {
   Book,
   Users,
   Building,
-  CreditCard,
+  Wallet,
   MessageSquare,
   Sparkles,
   Mic,
@@ -23,8 +23,7 @@ const ChatPage = () => {
     user,
     axios,
     token,
-    setUser,
-    setChats, 
+    setChats,
     setSelectedChat,
   } = useAppContext();
   const [messages, setMessages] = useState([]);
@@ -75,12 +74,6 @@ const ChatPage = () => {
   // Start recording audio
   const startRecording = async () => {
     try {
-      // Check user credits for voice (3 credits required)
-      if (user?.credits < 3) {
-        toast.error("Insufficient credits. Voice messages require 3 credits.");
-        return;
-      }
-
       if (!selectedChat) {
         toast.error("Please select or create a chat first");
         return;
@@ -383,15 +376,6 @@ const ChatPage = () => {
           setMessages((prev) => [...prev, aiMessage]);
         }
 
-        // Update user credits
-        if (setUser && user) {
-          const creditsUsed = response.data.creditsUsed || 3;
-          setUser((prev) => ({
-            ...prev,
-            credits: Math.max(0, prev.credits - creditsUsed),
-          }));
-        }
-
         // Show success message
         toast.success("Voice message processed successfully!");
 
@@ -437,8 +421,6 @@ const ChatPage = () => {
           toast.error(
             "No speech detected. Please speak clearly and try again."
           );
-        } else if (response.data.message?.includes("Insufficient credits")) {
-          toast.error(response.data.message);
         } else {
           toast.error(
             response.data.message || "Failed to process voice message"
@@ -511,7 +493,7 @@ const ChatPage = () => {
     },
     { icon: <Users className="w-4 h-4" />, text: "Admission requirements?" },
     { icon: <Calendar className="w-4 h-4" />, text: "Application deadlines?" },
-    { icon: <CreditCard className="w-4 h-4" />, text: "Fee structure?" },
+    { icon: <Wallet className="w-4 h-4" />, text: "Fee structure?" },
     { icon: <Building className="w-4 h-4" />, text: "Campus facilities?" },
     { icon: <Mail className="w-4 h-4" />, text: "Write an email to faculty" },
   ];
@@ -553,13 +535,6 @@ const ChatPage = () => {
           timestamp: Date.now(),
         };
         setMessages((prev) => [...prev, reply]);
-
-        // Update user credits
-        const creditDeduction = mode === "email" ? 2 : 1;
-        setUser((prev) => ({
-          ...prev,
-          credits: Math.max(0, prev.credits - creditDeduction),
-        }));
       } else {
         toast.error(data.message);
         setPrompt(promptCopy);
@@ -575,7 +550,7 @@ const ChatPage = () => {
     <div
       className={`flex-1 flex flex-col h-full overflow-hidden ${
         theme === "dark"
-          ? "bg-gray-900"
+          ? "bg-[#0F1626]"
           : "bg-linear-to-b from-blue-50 via-white to-gray-50"
       }`}
     >
@@ -591,7 +566,7 @@ const ChatPage = () => {
             }`}
           >
             <div className="flex flex-col md:flex-row items-center gap-4">
-              <div className="p-3 bg-linear-to-r from-blue-600 to-indigo-600 rounded-xl">
+              <div className="p-3 bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] rounded-xl">
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
               <div className="flex-1 text-center md:text-left">
@@ -620,7 +595,7 @@ const ChatPage = () => {
             <div className="h-full flex flex-col items-center justify-center min-h-[60vh]">
               <div className="text-center max-w-md">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-linear-to-r from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 flex items-center justify-center">
-                  <MessageSquare className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+                  <MessageSquare className="w-8 h-8 text-[#1E2E6E] dark:text-[#6E8BE0]" />
                 </div>
                 <p className="text-xl md:text-3xl text-center text-gray-400 dark:text-gray-300 mb-2">
                   Ask me Anything
@@ -740,25 +715,11 @@ const ChatPage = () => {
             onSubmit={handleTextSubmit}
             className={`p-2 rounded-xl border ${
               theme === "dark"
-                ? "bg-gray-800 border-gray-700"
-                : "bg-white border-gray-300 shadow-sm"
+                ? "bg-[#17203A] border-[#273350]"
+                : "bg-white border-[#E2E5EA] shadow-sm"
             }`}
           >
             <div className="flex gap-1.5">
-              {/* Mode Selector */}
-              {/* <select
-                onChange={(e) => setMode(e.target.value)}
-                value={mode}
-                className={`px-2.5 py-1.5 rounded-lg border text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 ${
-                  theme === "dark"
-                    ? "bg-gray-800 border-gray-700 text-white"
-                    : "bg-white border-gray-300 text-gray-900"
-                }`}
-              >
-                <option value="text">Text (1 credit)</option>
-                <option value="email">Email (2 credits)</option>
-              </select> */}
-
               {/* Input Field with Voice Button */}
               <div className="flex-1 relative">
                 <input
@@ -771,7 +732,7 @@ const ChatPage = () => {
                       : "Type your query or record voice..."
                   }
                   required
-                  className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm rounded-lg border border-gray-300 dark:border-gray-700 focus:border-blue-500 focus:ring-1 focus:ring-blue-500/20"
+                  className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm rounded-lg border border-[#E2E5EA] dark:border-[#273350] focus:border-[#1E2E6E] dark:focus:border-[#6E8BE0] focus:ring-1 focus:ring-[#1E2E6E]/20 dark:focus:ring-[#6E8BE0]/20"
                   disabled={isRecording || isProcessingVoice}
                 />
 
@@ -780,13 +741,9 @@ const ChatPage = () => {
                   <button
                     type="button"
                     onClick={startRecording}
-                    disabled={!selectedChat || user?.credits < 3}
-                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md text-blue-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                    title={
-                      user?.credits < 3
-                        ? `Insufficient credits. Voice messages require 3 credits (You have ${user?.credits})`
-                        : "Record voice message (3 credits)"
-                    }
+                    disabled={!selectedChat}
+                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md text-[#1E2E6E] dark:text-[#6E8BE0] hover:text-[#D0321E] dark:hover:text-[#E57A63] hover:bg-[#EEF1FA] dark:hover:bg-[#1E2A47] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Record voice message"
                   >
                     <Mic className="w-4 h-4" />
                   </button>
@@ -810,7 +767,7 @@ const ChatPage = () => {
                   isRecording ||
                   isProcessingVoice
                     ? "bg-gray-300 dark:bg-gray-700 cursor-not-allowed"
-                    : "bg-linear-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                    : "bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] hover:from-[#162356] hover:to-[#162356]"
                 }`}
               >
                 {loading ? (
@@ -822,53 +779,22 @@ const ChatPage = () => {
             </div>
 
             {/* Mode Indicator */}
-            <div className="flex items-center justify-between mt-1.5 px-1">
-              <div className="flex items-center gap-1">
-                <div
-                  className={`w-1.5 h-1.5 rounded-full ${
-                    mode === "email" ? "bg-blue-500" : "bg-emerald-500"
-                  }`}
-                ></div>
-                <span
-                  className={`text-[10px] ${
-                    theme === "dark" ? "text-gray-400" : "text-gray-500"
-                  }`}
-                >
-                  {mode === "email"
-                    ? "Email Mode (2 credits)"
-                    : "Chat Mode (1 credit)"}
-                </span>
-              </div>
-              <div className="text-[10px] text-gray-500 dark:text-gray-400">
-                Credits:{" "}
-                <span
-                  className={`font-semibold ${
-                    user?.credits < 3
-                      ? "text-red-600 dark:text-red-400"
-                      : "text-blue-600 dark:text-blue-400"
-                  }`}
-                >
-                  {user?.credits || 0}
-                </span>
-                {user?.credits < 3 && (
-                  <span className="ml-1 text-red-500">(Low)</span>
-                )}
-              </div>
+            <div className="flex items-center gap-1 mt-1.5 px-1">
+              <div
+                className={`w-1.5 h-1.5 rounded-full ${
+                  mode === "email" ? "bg-blue-500" : "bg-emerald-500"
+                }`}
+              ></div>
+              <span
+                className={`text-[10px] ${
+                  theme === "dark" ? "text-gray-400" : "text-gray-500"
+                }`}
+              >
+                {mode === "email" ? "Email Mode" : "Chat Mode"}
+              </span>
             </div>
           </form>
         )}
-
-        {/* Simple Instructions */}
-        {/* {!isRecording && !isProcessingVoice && (
-          <div className="mt-2">
-            <p className="text-[10px] text-gray-500 dark:text-gray-400 text-center">
-              <span className="flex items-center justify-center gap-1">
-                <Mic className="w-2.5 h-2.5" />
-                Voice messages: 3 credits • Max 30s • 2MB
-              </span>
-            </p>
-          </div>
-        )} */}
       </div>
     </div>
   );
