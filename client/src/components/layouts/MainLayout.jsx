@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
-import { useAppContext } from '../context/AppContext';
-import Sidebar from '../components/Sidebar';
-import MobileMenuButton from '../components/MobileMenuButton';
+import { useSelector } from 'react-redux';
+import Sidebar from '../Sidebar';
+import MobileMenuButton from '../MobileMenuButton';
 
 const MainLayout = () => {
-  const { user } = useAppContext();
+  const user = useSelector((s) => s.auth.user);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // If user is not logged in, redirect to guest chat

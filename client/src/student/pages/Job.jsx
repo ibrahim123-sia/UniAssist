@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import axios from 'axios';
 import moment from 'moment';
-import { useAppContext } from '../context/AppContext';
+import { useSelector } from 'react-redux';
 
 // SVG Icon Components
 const BriefcaseIcon = ({ className = "w-5 h-5" }) => (
@@ -102,7 +102,8 @@ const UsersIcon = ({ className = "w-5 h-5" }) => (
 );
 
 const Jobs = () => {
-  const { theme, user } = useAppContext();
+  const theme = useSelector((s) => s.theme.theme);
+  const user = useSelector((s) => s.auth.user);
   
   const [jobs, setJobs] = useState([]);
   const [filteredJobs, setFilteredJobs] = useState([]);

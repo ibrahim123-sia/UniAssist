@@ -1,8 +1,9 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { toast } from "react-hot-toast";
-import { Link } from "react-router-dom";
-import { useAppContext } from "../context/AppContext";
+import { Link, useNavigate } from "react-router-dom";
+import { useDispatch, useSelector } from "react-redux";
+import { loginUser, forgotPassword, resetPassword } from "../redux/slices/authSlice";
+import { toggleTheme as toggleThemeAction } from "../redux/slices/themeSlice";
 import {
   Sun,
   Moon,
@@ -17,14 +18,9 @@ import {
 } from "lucide-react";
 
 const Login = () => {
-  const {
-    theme,
-    setTheme,
-    setToken,
-    loginUser,
-    forgotPassword,
-    resetPassword,
-  } = useAppContext();
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const theme = useSelector((s) => s.theme.theme);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [resetEmail, setResetEmail] = useState("");
@@ -40,9 +36,11 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    const result = await loginUser(email, password);
+    const result = await dispatch(loginUser({ email, password })).unwrap();
 
-    if (!result.success) {
+    if (result.success) {
+      navigate("/chat", { replace: true });
+    } else {
       toast.error(result.message || "Login failed");
     }
 
@@ -53,7 +51,7 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    const result = await forgotPassword(resetEmail);
+    const result = await dispatch(forgotPassword({ email: resetEmail })).unwrap();
 
     if (result.success) {
       toast.success("OTP sent to your email");
@@ -75,7 +73,9 @@ const Login = () => {
 
     setLoading(true);
 
-    const result = await resetPassword(resetEmail, resetOtp, newPassword);
+    const result = await dispatch(
+      resetPassword({ email: resetEmail, otp: resetOtp, newPassword })
+    ).unwrap();
 
     if (result.success) {
       toast.success("Password reset successfully!");
@@ -84,6 +84,7 @@ const Login = () => {
       setResetOtp("");
       setNewPassword("");
       setConfirmPassword("");
+      setTimeout(() => navigate("/login", { replace: true }), 2000);
     } else {
       toast.error(result.message || "Password reset failed");
     }
@@ -92,7 +93,7 @@ const Login = () => {
   };
 
   const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
+    dispatch(toggleThemeAction());
   };
 
   return (

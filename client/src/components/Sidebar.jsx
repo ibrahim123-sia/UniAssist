@@ -1,5 +1,14 @@
 import React, { useState, useEffect, useRef } from "react";
-import { useAppContext } from "../context/AppContext";
+import { useDispatch, useSelector } from "react-redux";
+import axios from "../utils/axios";
+import {
+  createNewChat,
+  deleteChat,
+  fetchUsersChats,
+  setSelectedChat,
+} from "../redux/slices/chatSlice";
+import { setTheme } from "../redux/slices/themeSlice";
+import { logoutUser } from "../redux/slices/authSlice";
 import { Link } from "react-router-dom";
 import {
   MessageSquare,
@@ -19,19 +28,12 @@ import moment from "moment";
 import { useNavigate, useLocation } from "react-router-dom";
 
 const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
-  const {
-    chats,
-    setSelectedChat,
-    selectedChat,
-    theme,
-    setTheme,
-    user,
-    createNewChat,
-    deleteChat,
-    token,
-    fetchUsersChats,
-    axios,
-  } = useAppContext();
+  const dispatch = useDispatch();
+  const chats = useSelector((s) => s.chat.chats);
+  const selectedChat = useSelector((s) => s.chat.selectedChat);
+  const theme = useSelector((s) => s.theme.theme);
+  const user = useSelector((s) => s.auth.user);
+  const token = useSelector((s) => s.auth.token);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -91,8 +93,8 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     };
   }, [isMenuOpen, setIsMenuOpen]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
+  const handleLogout = async () => {
+    await dispatch(logoutUser());
     toast.success("Logged out successfully");
     navigate("/login");
   };
@@ -107,16 +109,16 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
       });
 
       if (data.success) {
-        setSelectedChat(data.chat);
+        dispatch(setSelectedChat(data.chat));
         toast.success("Chat loaded successfully");
       } else {
         toast.error("Failed to load chat messages");
-        setSelectedChat(chat);
+        dispatch(setSelectedChat(chat));
       }
     } catch (error) {
       console.error("Error loading chat:", error);
       toast.error("Failed to load chat");
-      setSelectedChat(chat);
+      dispatch(setSelectedChat(chat));
     } finally {
       setLoadingChatId(null);
       if (window.innerWidth < 768) {
@@ -133,13 +135,13 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     if (!confirm) return;
 
     try {
-      const result = await deleteChat(chatId);
+      const result = await dispatch(deleteChat({ chatId })).unwrap();
       if (result.success) {
         toast.success("Chat deleted successfully");
         if (selectedChat && selectedChat._id === chatId) {
-          setSelectedChat(null);
+          dispatch(setSelectedChat(null));
         }
-        await fetchUsersChats();
+        await dispatch(fetchUsersChats());
         if (window.innerWidth < 768) {
           setIsMenuOpen(false);
         }
@@ -153,9 +155,9 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
 
   const handleNewChat = async () => {
     try {
-      const result = await createNewChat();
+      const result = await dispatch(createNewChat()).unwrap();
       if (result.success) {
-        await fetchUsersChats();
+        await dispatch(fetchUsersChats());
         navigate("/chat");
       } else {
         toast.error(result.message || "Failed to create new chat");
@@ -423,7 +425,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
               <input
                 type="checkbox"
                 checked={isDark}
-                onChange={() => setTheme(isDark ? "light" : "dark")}
+                onChange={() => dispatch(setTheme(isDark ? "light" : "dark"))}
                 className="sr-only peer"
               />
               <div

@@ -5,7 +5,18 @@
       "Read(//tmp/**)",
       "WebFetch(domain:jinnah.edu)",
       "WebSearch",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(mkdir -p client/src/components/layouts)",
+      "Bash(git mv *)",
+      "Bash(rmdir client/src/pages)",
+      "Bash(npx vite *)",
+      "Bash(npx eslint *)",
+      "Bash(npm run *)",
+      "Bash(curl -s -o /dev/null -w \"HTTP %{http_code}\\\\n\" http://localhost:5173/)",
+      "Bash(curl -s -o /dev/null -w \"main.jsx HTTP %{http_code}\\\\n\" http://localhost:5173/src/main.jsx)",
+      "Bash(curl -s -o /dev/null -w \"store.js HTTP %{http_code}\\\\n\" http://localhost:5173/src/redux/store.js)",
+      "Bash(curl -s -o /dev/null -w \"authSlice HTTP %{http_code}\\\\n\" http://localhost:5173/src/redux/slices/authSlice.js)",
+      "Bash(curl -s http://localhost:5173/)"
     ]
   }
 }

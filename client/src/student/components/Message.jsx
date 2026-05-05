@@ -1,11 +1,11 @@
 import React from 'react';
-import { useAppContext } from '../context/AppContext';
+import { useSelector } from 'react-redux';
 import { User, Bot, Mail, Calendar, Image as ImageIcon, Volume2, Mic } from 'lucide-react';
 import Markdown from 'react-markdown';
 import moment from 'moment';
 
 const Message = ({ message }) => {
-  const { theme } = useAppContext();
+  const theme = useSelector((s) => s.theme.theme);
   const isUser = message.role === 'user';
   const isDark = theme === 'dark';
 

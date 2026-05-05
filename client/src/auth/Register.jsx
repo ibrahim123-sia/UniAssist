@@ -2,7 +2,9 @@
 import React, { useState } from "react";
 import { toast } from "react-hot-toast";
 import { Link, useNavigate } from "react-router-dom";
-import { useAppContext } from "../context/AppContext";
+import { useDispatch, useSelector } from "react-redux";
+import { registerUser, verifyOtp, resendOtp } from "../redux/slices/authSlice";
+import { toggleTheme } from "../redux/slices/themeSlice";
 import {
   Sun,
   Moon,
@@ -23,9 +25,8 @@ import {
 } from "lucide-react";
 
 const Register = () => {
-  // Check if these functions exist in your AppContext
-  const { theme, toggleTheme, registerUser, verifyOtp, resendOtp } =
-    useAppContext();
+  const dispatch = useDispatch();
+  const theme = useSelector((s) => s.theme.theme);
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -53,22 +54,18 @@ const Register = () => {
     setLoading(true);
 
     try {
-      // Check if registerUser exists in context
-      if (!registerUser || typeof registerUser !== "function") {
-        throw new Error("registerUser function not available in context");
-      }
+      const result = await dispatch(
+        registerUser({ name, email, password })
+      ).unwrap();
 
-      const result = await registerUser(name, email, password);
-
-      if (result && result.success) {
+      if (result.success) {
         toast.success("OTP sent to your email");
         setStep(2);
       } else {
-        toast.error(result?.message || "Registration failed");
+        toast.error(result.message || "Registration failed");
       }
     } catch (error) {
       toast.error(error.message || "Registration failed");
-      console.error("Registration error:", error);
     } finally {
       setLoading(false);
     }
@@ -79,18 +76,17 @@ const Register = () => {
     setLoading(true);
 
     try {
-      if (!verifyOtp || typeof verifyOtp !== "function") {
-        throw new Error("verifyOtp function not available");
-      }
+      const result = await dispatch(
+        verifyOtp({ email, otp: otp.replace(/\s/g, "") })
+      ).unwrap();
 
-      const result = await verifyOtp(email, otp.replace(/\s/g, ""));
-
-      if (!result.success) {
-        toast.error(result?.message || "Invalid OTP");
+      if (result.success) {
+        navigate("/chat", { replace: true });
+      } else {
+        toast.error(result.message || "Invalid OTP");
       }
     } catch (error) {
       toast.error(error.message || "Verification failed");
-      console.error("OTP verification error:", error);
     } finally {
       setLoading(false);
     }
@@ -98,21 +94,15 @@ const Register = () => {
 
   const handleResendOtp = async () => {
     try {
-      // Check if resendOtp exists in context
-      if (!resendOtp || typeof resendOtp !== "function") {
-        throw new Error("resendOtp function not available in context");
-      }
+      const result = await dispatch(resendOtp({ email })).unwrap();
 
-      const result = await resendOtp(email);
-
-      if (result && result.success) {
+      if (result.success) {
         toast.success("New OTP sent to your email!");
       } else {
-        toast.error(result?.message || "Failed to resend OTP");
+        toast.error(result.message || "Failed to resend OTP");
       }
     } catch (error) {
       toast.error(error.message || "Failed to resend OTP");
-      console.error("Resend OTP error:", error);
     }
   };
 
@@ -126,7 +116,7 @@ const Register = () => {
     >
       {/* Theme Toggle */}
       <button
-        onClick={toggleTheme}
+        onClick={() => dispatch(toggleTheme())}
         className="fixed top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 p-2 sm:p-3 rounded-full bg-white dark:bg-[#17203A] shadow-lg hover:shadow-xl transition-all duration-300 z-50 border border-transparent dark:border-[#273350]"
         aria-label="Toggle theme"
       >

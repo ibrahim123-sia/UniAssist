@@ -1,5 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
-import { useAppContext } from "../context/AppContext";
+import { useDispatch, useSelector } from "react-redux";
+import axios from "../../utils/axios";
+import { setChats, setSelectedChat } from "../../redux/slices/chatSlice";
 import Message from "../components/Message";
 import toast from "react-hot-toast";
 import {
@@ -17,15 +19,11 @@ import {
 
 const ChatPage = () => {
   const containRef = useRef(null);
-  const {
-    selectedChat,
-    theme,
-    user,
-    axios,
-    token,
-    setChats,
-    setSelectedChat,
-  } = useAppContext();
+  const dispatch = useDispatch();
+  const selectedChat = useSelector((s) => s.chat.selectedChat);
+  const theme = useSelector((s) => s.theme.theme);
+  const user = useSelector((s) => s.auth.user);
+  const token = useSelector((s) => s.auth.token);
   const [messages, setMessages] = useState([]);
   const [loading, setLoading] = useState(false);
   const [prompt, setPrompt] = useState("");
@@ -390,25 +388,21 @@ const ChatPage = () => {
           );
         }
 
-        // Refresh chats to get updated title
-        if (setChats && setSelectedChat) {
-          try {
-            const { data } = await axios.get("/api/chat/all", {
-              headers: { Authorization: token },
-            });
-            if (data.success) {
-              setChats(data.chats);
-              // Update selected chat
-              const updatedChat = data.chats.find(
-                (c) => c._id === selectedChat._id
-              );
-              if (updatedChat) {
-                setSelectedChat(updatedChat);
-              }
+        try {
+          const { data } = await axios.get("/api/chat/all", {
+            headers: { Authorization: token },
+          });
+          if (data.success) {
+            dispatch(setChats(data.chats));
+            const updatedChat = data.chats.find(
+              (c) => c._id === selectedChat._id
+            );
+            if (updatedChat) {
+              dispatch(setSelectedChat(updatedChat));
             }
-          } catch (refreshError) {
-            console.error("Failed to refresh chats:", refreshError);
           }
+        } catch (refreshError) {
+          console.error("Failed to refresh chats:", refreshError);
         }
       } else {
         // Remove temporary message on error

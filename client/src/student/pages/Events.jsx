@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { useAppContext } from "../context/AppContext";
+import { useSelector } from "react-redux";
 import {
   Calendar,
   MapPin,
@@ -14,7 +14,7 @@ import axios from "axios";
 import moment from "moment";
 
 const Events = () => {
-  const { theme } = useAppContext();
+  const theme = useSelector((s) => s.theme.theme);
   const [events, setEvents] = useState([]);
   const [filteredEvents, setFilteredEvents] = useState([]);
   const [loading, setLoading] = useState(true);

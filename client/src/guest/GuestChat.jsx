@@ -1,6 +1,11 @@
 import React, { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { useAppContext } from "../context/AppContext";
+import { useDispatch, useSelector } from "react-redux";
+import {
+  sendGuestMessage,
+  clearGuestSession,
+} from "../redux/slices/guestSlice";
+import { toggleTheme as toggleThemeAction } from "../redux/slices/themeSlice";
 import {
   Send,
   Brain,
@@ -23,15 +28,10 @@ import {
 import toast from "react-hot-toast";
 
 const GuestChat = () => {
-  const {
-    theme,
-    setTheme,
-    sendGuestMessage,
-    guestMessages,
-    guestSessionId,
-    clearGuestSession,
-    startNewGuestSession,
-  } = useAppContext();
+  const dispatch = useDispatch();
+  const theme = useSelector((s) => s.theme.theme);
+  const guestMessages = useSelector((s) => s.guest.guestMessages);
+  const guestSessionId = useSelector((s) => s.guest.guestSessionId);
 
   const navigate = useNavigate();
   const messagesEndRef = useRef(null);
@@ -42,7 +42,7 @@ const GuestChat = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
+    dispatch(toggleThemeAction());
   };
 
   // Improved scrollToBottom function
@@ -81,13 +81,14 @@ const GuestChat = () => {
     setTimeout(scrollToBottom, 50);
 
     try {
-      const result = await sendGuestMessage(userMessage);
-      
+      const result = await dispatch(
+        sendGuestMessage({ message: userMessage })
+      ).unwrap();
+
       if (!result.success) {
         toast.error(result.message || "Failed to send message");
       }
-      
-      // Scroll after response is processed
+
       setTimeout(scrollToBottom, 100);
     } catch (error) {
       console.error("Chat error:", error);
@@ -106,7 +107,7 @@ const GuestChat = () => {
   };
 
   const handleClearChat = () => {
-    clearGuestSession();
+    dispatch(clearGuestSession());
     toast.success("Chat cleared. Start a new conversation.");
   };
 

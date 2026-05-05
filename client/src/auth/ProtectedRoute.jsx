@@ -1,9 +1,9 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAppContext } from '../context/AppContext';
+import { useSelector } from 'react-redux';
 
-const ProtectedRoute = ({ children }) => {
-  const { user, loadingUser } = useAppContext();
+const ProtectedRoute = ({ children, roles }) => {
+  const { user, loadingUser } = useSelector((s) => s.auth);
   const location = useLocation();
 
   if (loadingUser) {
@@ -15,8 +15,11 @@ const ProtectedRoute = ({ children }) => {
   }
 
   if (!user) {
-    // Redirect to login but save the attempted location
     return <Navigate to="/login" state={{ from: location }} replace />;
+  }
+
+  if (roles && roles.length > 0 && !roles.includes(user.role)) {
+    return <Navigate to="/" replace />;
   }
 
   return children;
