@@ -1,10 +1,20 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { logoutUser } from '../redux/slices/authSlice';
+import toast from 'react-hot-toast';
 
 const ProtectedRoute = ({ children, roles }) => {
   const { user, loadingUser } = useSelector((s) => s.auth);
   const location = useLocation();
+  const dispatch = useDispatch();
+
+  useEffect(() => {
+    if (user?.isBlocked) {
+      toast.error("Your account has been blocked.");
+      dispatch(logoutUser());
+    }
+  }, [user, dispatch]);
 
   if (loadingUser) {
     return (
@@ -18,8 +28,14 @@ const ProtectedRoute = ({ children, roles }) => {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
+  if (user.isBlocked) {
+    return <Navigate to="/login" replace />;
+  }
+
   if (roles && roles.length > 0 && !roles.includes(user.role)) {
-    return <Navigate to="/" replace />;
+    if (user.role === "staff") return <Navigate to="/staff/issues" replace />;
+    if (user.role === "admin") return <Navigate to="/chat" replace />;
+    return <Navigate to="/chat" replace />;
   }
 
   return children;

@@ -28,6 +28,14 @@ logs/
 .idea/
 *.swp
 *.swo
+.claude/
+
+# Uploads (issue attachments — local dev only)
+server/uploads/
+
+# Internal docs (FYP spec, task notes — not for repo)
+doc/
+docs/
 
 # OS
 .DS_Store

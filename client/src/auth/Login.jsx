@@ -39,7 +39,9 @@ const Login = () => {
     const result = await dispatch(loginUser({ email, password })).unwrap();
 
     if (result.success) {
-      navigate("/chat", { replace: true });
+      const role = result.user?.role;
+      const dest = role === "staff" ? "/staff/issues" : "/chat";
+      navigate(dest, { replace: true });
     } else {
       toast.error(result.message || "Login failed");
     }

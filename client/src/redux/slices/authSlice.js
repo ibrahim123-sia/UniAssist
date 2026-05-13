@@ -148,13 +148,14 @@ export const loginUser = createAsyncThunk(
         return { success: false, message: "Email and password required" };
       }
 
-      const emailValidation = validateMajuEmail(email);
-      if (!emailValidation.isValid) {
+      const normalized = email.trim().toLowerCase();
+      const genericEmailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+      if (!genericEmailRegex.test(normalized)) {
         return { success: false, message: "Invalid email format" };
       }
 
       const { data } = await axios.post("/api/user/login", {
-        email: emailValidation.email,
+        email: normalized,
         password,
       });
 
@@ -168,7 +169,7 @@ export const loginUser = createAsyncThunk(
         message: data.message,
         attemptsRemaining: data.attemptsRemaining,
         needsVerification: data.needsVerification,
-        email: emailValidation.email,
+        email: normalized,
       };
     } catch (error) {
       let message = "Login failed";

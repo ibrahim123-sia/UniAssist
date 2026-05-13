@@ -1,0 +1,196 @@
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import axios from "../../utils/axios";
+
+const authHeader = (getState) => ({
+  headers: { Authorization: getState().auth.token },
+});
+
+const errorMessage = (error, fallback) => {
+  if (error.response?.status === 401) return "Session expired";
+  if (error.response?.status === 403) return error.response?.data?.message || "Access denied";
+  if (error.code === "ERR_NETWORK") return "Network error";
+  return error.response?.data?.message || fallback;
+};
+
+export const createIssue = createAsyncThunk(
+  "issue/create",
+  async ({ title, description, category, departmentId, files }, { getState }) => {
+    try {
+      const fd = new FormData();
+      fd.append("title", title);
+      fd.append("description", description);
+      fd.append("category", category || "other");
+      fd.append("departmentId", departmentId);
+      if (files && files.length) {
+        for (const f of files) fd.append("attachments", f);
+      }
+      const { data } = await axios.post("/api/issue", fd, {
+        headers: {
+          Authorization: getState().auth.token,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to create issue") };
+    }
+  }
+);
+
+export const fetchMyIssues = createAsyncThunk(
+  "issue/fetchMy",
+  async (status, { getState }) => {
+    try {
+      const params = status ? `?status=${encodeURIComponent(status)}` : "";
+      const { data } = await axios.get(`/api/issue/my${params}`, authHeader(getState));
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to load issues") };
+    }
+  }
+);
+
+export const fetchIssueById = createAsyncThunk(
+  "issue/fetchById",
+  async (id, { getState }) => {
+    try {
+      const { data } = await axios.get(`/api/issue/${id}`, authHeader(getState));
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to load issue") };
+    }
+  }
+);
+
+export const addStudentReply = createAsyncThunk(
+  "issue/replyStudent",
+  async ({ id, message }, { getState }) => {
+    try {
+      const { data } = await axios.post(
+        `/api/issue/${id}/reply`,
+        { message },
+        authHeader(getState)
+      );
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to send reply") };
+    }
+  }
+);
+
+export const fetchDeptIssues = createAsyncThunk(
+  "issue/fetchDept",
+  async (status, { getState }) => {
+    try {
+      const params = status ? `?status=${encodeURIComponent(status)}` : "";
+      const { data } = await axios.get(
+        `/api/issue/department${params}`,
+        authHeader(getState)
+      );
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to load department issues") };
+    }
+  }
+);
+
+export const fetchDeptIssueById = createAsyncThunk(
+  "issue/fetchDeptById",
+  async (id, { getState }) => {
+    try {
+      const { data } = await axios.get(
+        `/api/issue/department/${id}`,
+        authHeader(getState)
+      );
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to load issue") };
+    }
+  }
+);
+
+export const updateIssueStatus = createAsyncThunk(
+  "issue/updateStatus",
+  async ({ id, status }, { getState }) => {
+    try {
+      const { data } = await axios.patch(
+        `/api/issue/department/${id}/status`,
+        { status },
+        authHeader(getState)
+      );
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to update status") };
+    }
+  }
+);
+
+export const addStaffReply = createAsyncThunk(
+  "issue/replyStaff",
+  async ({ id, message }, { getState }) => {
+    try {
+      const { data } = await axios.post(
+        `/api/issue/department/${id}/sfo-reply`,
+        { message },
+        authHeader(getState)
+      );
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to send reply") };
+    }
+  }
+);
+
+const initialState = {
+  myIssues: [],
+  deptIssues: [],
+  selectedIssue: null,
+  loading: false,
+  submitting: false,
+};
+
+const issueSlice = createSlice({
+  name: "issue",
+  initialState,
+  reducers: {
+    clearSelectedIssue(state) {
+      state.selectedIssue = null;
+    },
+  },
+  extraReducers: (builder) => {
+    builder
+      .addCase(fetchMyIssues.pending, (state) => { state.loading = true; })
+      .addCase(fetchMyIssues.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload.success) state.myIssues = action.payload.issues;
+      })
+      .addCase(fetchMyIssues.rejected, (state) => { state.loading = false; })
+      .addCase(fetchDeptIssues.pending, (state) => { state.loading = true; })
+      .addCase(fetchDeptIssues.fulfilled, (state, action) => {
+        state.loading = false;
+        if (action.payload.success) state.deptIssues = action.payload.issues;
+      })
+      .addCase(fetchDeptIssues.rejected, (state) => { state.loading = false; })
+      .addCase(fetchIssueById.fulfilled, (state, action) => {
+        if (action.payload.success) state.selectedIssue = action.payload.issue;
+      })
+      .addCase(fetchDeptIssueById.fulfilled, (state, action) => {
+        if (action.payload.success) state.selectedIssue = action.payload.issue;
+      })
+      .addCase(addStudentReply.fulfilled, (state, action) => {
+        if (action.payload.success) state.selectedIssue = action.payload.issue;
+      })
+      .addCase(addStaffReply.fulfilled, (state, action) => {
+        if (action.payload.success) state.selectedIssue = action.payload.issue;
+      })
+      .addCase(updateIssueStatus.fulfilled, (state, action) => {
+        if (action.payload.success) state.selectedIssue = action.payload.issue;
+      })
+      .addCase(createIssue.pending, (state) => { state.submitting = true; })
+      .addCase(createIssue.fulfilled, (state) => { state.submitting = false; })
+      .addCase(createIssue.rejected, (state) => { state.submitting = false; });
+  },
+});
+
+export const { clearSelectedIssue } = issueSlice.actions;
+export default issueSlice.reducer;

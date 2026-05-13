@@ -10,9 +10,15 @@ import ChatPage from "./student/pages/ChatPage";
 import GuestChat from "./guest/GuestChat";
 import Jobs from "./student/pages/Job";
 import Events from "./student/pages/Events";
+import Issues from "./student/pages/Issues";
+import CreateIssue from "./student/pages/CreateIssue";
+import IssueDetail from "./student/pages/IssueDetail";
+import StaffIssues from "./staff/pages/StaffIssues";
+import StaffIssueDetail from "./staff/pages/StaffIssueDetail";
 import { fetchUser, setLoadingUser } from "./redux/slices/authSlice";
 import { fetchUsersChats } from "./redux/slices/chatSlice";
 import { fetchGuestChatHistory } from "./redux/slices/guestSlice";
+import { fetchDepartments } from "./redux/slices/departmentSlice";
 
 const App = () => {
   const dispatch = useDispatch();
@@ -35,7 +41,10 @@ const App = () => {
 
   useEffect(() => {
     if (user && token) {
-      dispatch(fetchUsersChats());
+      if (user.role === "student" || !user.role) {
+        dispatch(fetchUsersChats());
+      }
+      dispatch(fetchDepartments());
     }
   }, [user, token, dispatch]);
 
@@ -86,9 +95,46 @@ const App = () => {
             <MainLayout />
           </ProtectedRoute>
         }>
-          <Route path="chat" element={<ChatPage />} />
-          <Route path="jobs" element={<Jobs />} />
-          <Route path="events" element={<Events />} />
+          <Route path="chat" element={
+            <ProtectedRoute roles={["student", "admin"]}>
+              <ChatPage />
+            </ProtectedRoute>
+          } />
+          <Route path="jobs" element={
+            <ProtectedRoute roles={["student"]}>
+              <Jobs />
+            </ProtectedRoute>
+          } />
+          <Route path="events" element={
+            <ProtectedRoute roles={["student"]}>
+              <Events />
+            </ProtectedRoute>
+          } />
+          <Route path="issues" element={
+            <ProtectedRoute roles={["student"]}>
+              <Issues />
+            </ProtectedRoute>
+          } />
+          <Route path="issues/new" element={
+            <ProtectedRoute roles={["student"]}>
+              <CreateIssue />
+            </ProtectedRoute>
+          } />
+          <Route path="issues/:id" element={
+            <ProtectedRoute roles={["student"]}>
+              <IssueDetail />
+            </ProtectedRoute>
+          } />
+          <Route path="staff/issues" element={
+            <ProtectedRoute roles={["staff"]}>
+              <StaffIssues />
+            </ProtectedRoute>
+          } />
+          <Route path="staff/issues/:id" element={
+            <ProtectedRoute roles={["staff"]}>
+              <StaffIssueDetail />
+            </ProtectedRoute>
+          } />
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

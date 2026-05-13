@@ -11,15 +11,23 @@ export const protect = async (req, res, next) => {
     const user = await User.findById(userId);
 
     if (!user) {
-      return res.json({
+      return res.status(401).json({
         success: false,
         message: "Not authorized, user not found",
       });
-    } else {
-      req.user = user;
-      next();
     }
+
+    if (user.isBlocked) {
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been blocked. Please contact the administrator.",
+        blocked: true,
+      });
+    }
+
+    req.user = user;
+    next();
   } catch (error) {
-    return res.status(401).json({ message: "Not authorized token failed" });
+    return res.status(401).json({ success: false, message: "Not authorized token failed" });
   }
 };

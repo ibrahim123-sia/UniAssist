@@ -672,17 +672,17 @@ export const loginUser = async (req, res) => {
     });
   }
 
-  // Validate MAJU email format
-  const emailValidation = validateMajuEmail(email);
-  if (!emailValidation.isValid) {
+  const normalizedEmail = email.trim().toLowerCase();
+  const genericEmailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
+  if (!genericEmailRegex.test(normalizedEmail)) {
     return res.status(400).json({
       success: false,
-      message: emailValidation.error
+      message: "Invalid email format"
     });
   }
 
   try {
-    const user = await User.findOne({ email: emailValidation.email }).select("+password");
+    const user = await User.findOne({ email: normalizedEmail }).select("+password");
     
     if (!user) {
       return res.status(401).json({
@@ -756,7 +756,11 @@ export const loginUser = async (req, res) => {
         session: user.session,
         admissionYear: user.admissionYear,
         isVerified: user.isVerified,
-        isMajuStudent: user.isMajuStudent
+        isMajuStudent: user.isMajuStudent,
+        role: user.role,
+        department: user.department,
+        staffTitle: user.staffTitle,
+        isBlocked: user.isBlocked,
       },
     });
   } catch (error) {
@@ -773,7 +777,21 @@ export const getUser = async (req, res) => {
     const user = req.user;
     return res.json({
       success: true,
-      user,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        program: user.program,
+        rollNumber: user.rollNumber,
+        session: user.session,
+        admissionYear: user.admissionYear,
+        isVerified: user.isVerified,
+        isMajuStudent: user.isMajuStudent,
+        role: user.role,
+        department: user.department,
+        staffTitle: user.staffTitle,
+        isBlocked: user.isBlocked,
+      },
     });
   } catch (error) {
     console.error("Get user error:", error);

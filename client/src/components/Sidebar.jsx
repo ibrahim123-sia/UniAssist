@@ -22,10 +22,13 @@ import {
   Sun,
   GraduationCap,
   Briefcase,
+  AlertCircle,
+  Inbox,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import moment from "moment";
 import { useNavigate, useLocation } from "react-router-dom";
+import NotificationBell from "./NotificationBell";
 
 const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   const dispatch = useDispatch();
@@ -41,6 +44,10 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   const sidebarRef = useRef(null);
   const [loadingChatId, setLoadingChatId] = useState(null);
   const isDark = theme === "dark";
+
+  const isStudent = user?.role === "student" || !user?.role;
+  const isStaff = user?.role === "staff";
+  const isAdmin = user?.role === "admin";
 
   // palette tokens
   const C = {
@@ -168,7 +175,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   };
 
   const NavLink = ({ to, icon, label, accent }) => {
-    const active = location.pathname === to;
+    const active = location.pathname === to || location.pathname.startsWith(to + "/");
     return (
       <Link
         to={to}
@@ -223,7 +230,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         </button>
 
         {/* Logo Section */}
-        <Link to="/chat">
+        <Link to={isStaff ? "/staff/issues" : "/chat"}>
           <div className="p-6 border-b flex items-center gap-3" style={{ borderColor: C.border }}>
             <div
               className="w-11 h-11 rounded-lg flex items-center justify-center relative"
@@ -247,7 +254,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           </div>
         </Link>
 
-        {/* User Profile */}
+        {/* User Profile + Bell */}
         <div className="p-3 border-b flex items-center gap-3" style={{ borderColor: C.border }}>
           <div
             className="w-9 h-9 rounded-full flex items-center justify-center"
@@ -262,148 +269,184 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
               {user?.name || "User"}
             </p>
             <p className="text-xs truncate" style={{ color: C.muted }}>
-              {user?.email || "student@maju.edu.pk"}
+              {isStaff ? (user?.staffTitle || "Staff") : isAdmin ? "Administrator" : (user?.email || "student@maju.edu.pk")}
             </p>
           </div>
+          <NotificationBell />
         </div>
 
-        {/* New Chat Button */}
-        <div className="p-3">
-          <button
-            onClick={handleNewChat}
-            className="w-full text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm cursor-pointer"
-            style={{ backgroundColor: C.navy }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isDark ? "#8AA3E8" : "#162356")}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.navy)}
-          >
-            <Plus className="w-4 h-4" />
-            New Conversation
-          </button>
-        </div>
-
-        {/* Search Chats */}
-        <div className="px-3 pb-3">
-          <div className="relative">
-            <Search
-              className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4"
-              style={{ color: C.muted }}
-            />
-            <input
-              type="text"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search conversations..."
-              className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
-              style={{
-                backgroundColor: C.input,
-                borderColor: C.border,
-                color: C.text,
-              }}
-            />
+        {/* Student-only: New Chat */}
+        {isStudent && (
+          <div className="p-3">
+            <button
+              onClick={handleNewChat}
+              className="w-full text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm cursor-pointer"
+              style={{ backgroundColor: C.navy }}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isDark ? "#8AA3E8" : "#162356")}
+              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.navy)}
+            >
+              <Plus className="w-4 h-4" />
+              New Conversation
+            </button>
           </div>
-        </div>
+        )}
 
-        {/* Recent Chats */}
-        <div className="flex-1 overflow-y-auto px-3 pb-3">
-          <h3 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: C.muted }}>
-            Recent Conversations
-          </h3>
+        {/* Student-only: Search Chats */}
+        {isStudent && (
+          <div className="px-3 pb-3">
+            <div className="relative">
+              <Search
+                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4"
+                style={{ color: C.muted }}
+              />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search conversations..."
+                className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
+                style={{
+                  backgroundColor: C.input,
+                  borderColor: C.border,
+                  color: C.text,
+                }}
+              />
+            </div>
+          </div>
+        )}
 
-          <div className="space-y-1.5">
-            {chats
-              .filter(
-                (chat) =>
-                  chat.messages?.[0]?.content
-                    ?.toLowerCase()
-                    .includes(search.toLowerCase()) ||
-                  chat.name?.toLowerCase().includes(search.toLowerCase())
-              )
-              .map((chat) => {
-                const isSelected = selectedChat?._id === chat._id;
-                const isLoading = loadingChatId === chat._id;
+        {/* Recent Chats (student only) */}
+        {isStudent && (
+          <div className="flex-1 overflow-y-auto px-3 pb-3">
+            <h3 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: C.muted }}>
+              Recent Conversations
+            </h3>
 
-                return (
-                  <div
-                    key={chat._id || chat.id}
-                    onClick={() => handleChatClick(chat)}
-                    className="group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all"
-                    style={{
-                      backgroundColor: isSelected ? C.surfaceAlt : "transparent",
-                      border: isSelected ? `1px solid ${C.border}` : "1px solid transparent",
-                      opacity: isLoading ? 0.5 : 1,
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = C.surfaceAlt;
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
-                    }}
-                  >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <MessageSquare className="w-4 h-4 shrink-0" style={{ color: C.muted }} />
-                        <p className="text-sm font-medium truncate" style={{ color: C.text }}>
-                          {chat.messages?.[0]?.content?.slice(0, 30) ||
-                            chat.name ||
-                            "New Chat"}
-                        </p>
-                        {isLoading && (
-                          <div
-                            className="ml-2 w-3 h-3 border-2 rounded-full animate-spin shrink-0"
-                            style={{ borderColor: C.border, borderTopColor: C.navy }}
-                          ></div>
-                        )}
-                      </div>
-                      <p className="text-xs" style={{ color: C.muted }}>
-                        {chat.updatedAt
-                          ? moment(chat.updatedAt).fromNow()
-                          : "Just now"}
-                      </p>
-                    </div>
+            <div className="space-y-1.5">
+              {chats
+                .filter(
+                  (chat) =>
+                    chat.messages?.[0]?.content
+                      ?.toLowerCase()
+                      .includes(search.toLowerCase()) ||
+                    chat.name?.toLowerCase().includes(search.toLowerCase())
+                )
+                .map((chat) => {
+                  const isSelected = selectedChat?._id === chat._id;
+                  const isLoading = loadingChatId === chat._id;
 
-                    <button
-                      onClick={(e) => handleDeleteChat(e, chat._id || chat.id)}
-                      className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
-                      aria-label="Delete chat"
-                      disabled={isLoading}
-                      style={{ color: C.muted }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
+                  return (
+                    <div
+                      key={chat._id || chat.id}
+                      onClick={() => handleChatClick(chat)}
+                      className="group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all"
+                      style={{
+                        backgroundColor: isSelected ? C.surfaceAlt : "transparent",
+                        border: isSelected ? `1px solid ${C.border}` : "1px solid transparent",
+                        opacity: isLoading ? 0.5 : 1,
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = C.surfaceAlt;
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
+                      }}
                     >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                );
-              })}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <MessageSquare className="w-4 h-4 shrink-0" style={{ color: C.muted }} />
+                          <p className="text-sm font-medium truncate" style={{ color: C.text }}>
+                            {chat.messages?.[0]?.content?.slice(0, 30) ||
+                              chat.name ||
+                              "New Chat"}
+                          </p>
+                          {isLoading && (
+                            <div
+                              className="ml-2 w-3 h-3 border-2 rounded-full animate-spin shrink-0"
+                              style={{ borderColor: C.border, borderTopColor: C.navy }}
+                            ></div>
+                          )}
+                        </div>
+                        <p className="text-xs" style={{ color: C.muted }}>
+                          {chat.updatedAt
+                            ? moment(chat.updatedAt).fromNow()
+                            : "Just now"}
+                        </p>
+                      </div>
 
-            {chats.length === 0 && (
-              <div className="text-center py-8">
-                <MessageSquare className="w-10 h-10 mx-auto mb-3" style={{ color: C.border }} />
-                <p className="text-sm" style={{ color: C.muted }}>
-                  No conversations yet
-                </p>
-                <p className="text-xs mt-1" style={{ color: C.muted, opacity: 0.7 }}>
-                  Start a new chat to get started
-                </p>
-              </div>
-            )}
+                      <button
+                        onClick={(e) => handleDeleteChat(e, chat._id || chat.id)}
+                        className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                        aria-label="Delete chat"
+                        disabled={isLoading}
+                        style={{ color: C.muted }}
+                        onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  );
+                })}
+
+              {chats.length === 0 && (
+                <div className="text-center py-8">
+                  <MessageSquare className="w-10 h-10 mx-auto mb-3" style={{ color: C.border }} />
+                  <p className="text-sm" style={{ color: C.muted }}>
+                    No conversations yet
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: C.muted, opacity: 0.7 }}>
+                    Start a new chat to get started
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
 
-        {/* Quick Actions */}
+        {/* Staff filler section */}
+        {!isStudent && <div className="flex-1" />}
+
+        {/* Quick Actions / Nav */}
         <div className="p-2 border-t space-y-1" style={{ borderColor: C.border }}>
-          <NavLink
-            to="/jobs"
-            icon={<Briefcase className="w-4 h-4" />}
-            label="Job Opportunities"
-            accent={C.navy}
-          />
-          <NavLink
-            to="/events"
-            icon={<Calendar className="w-4 h-4" />}
-            label="University Events"
-            accent={C.red}
-          />
+          {isStudent && (
+            <>
+              <NavLink
+                to="/issues"
+                icon={<AlertCircle className="w-4 h-4" />}
+                label="My Issues"
+                accent={C.red}
+              />
+              <NavLink
+                to="/jobs"
+                icon={<Briefcase className="w-4 h-4" />}
+                label="Job Opportunities"
+                accent={C.navy}
+              />
+              <NavLink
+                to="/events"
+                icon={<Calendar className="w-4 h-4" />}
+                label="University Events"
+                accent={C.red}
+              />
+            </>
+          )}
+          {isStaff && (
+            <NavLink
+              to="/staff/issues"
+              icon={<Inbox className="w-4 h-4" />}
+              label="Department Inbox"
+              accent={C.navy}
+            />
+          )}
+          {isAdmin && (
+            <NavLink
+              to="/chat"
+              icon={<MessageSquare className="w-4 h-4" />}
+              label="Chat"
+              accent={C.navy}
+            />
+          )}
         </div>
 
         <div className="p-3 border-t" style={{ borderColor: C.border }}>

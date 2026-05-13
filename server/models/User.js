@@ -1,13 +1,13 @@
 import mongoose from "mongoose";
 
 const userSchema = new mongoose.Schema({
-  name: { 
-    type: String, 
+  name: {
+    type: String,
     trim: true,
     required: [true, 'Name is required']
   },
-  email: { 
-    type: String, 
+  email: {
+    type: String,
     required: [true, 'Email is required'],
     unique: true,
     lowercase: true,
@@ -21,30 +21,49 @@ const userSchema = new mongoose.Schema({
     select: false
   },
   otp: {
-    type: String, 
-    select: false 
+    type: String,
+    select: false
   },
-  otpExpires: { 
-    type: Date, 
-    select: false 
+  otpExpires: {
+    type: Date,
+    select: false
   },
-  isVerified: { 
-    type: Boolean, 
-    default: false 
+  isVerified: {
+    type: Boolean,
+    default: false
   },
-  resetPasswordOtp: { 
-    type: String, 
-    select: false 
+  resetPasswordOtp: {
+    type: String,
+    select: false
   },
-  resetPasswordExpires: { 
-    type: Date, 
-    select: false 
-  }
+  resetPasswordExpires: {
+    type: Date,
+    select: false
+  },
+  role: {
+    type: String,
+    enum: ["student", "staff", "admin"],
+    default: "student",
+    index: true,
+  },
+  department: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Department",
+    default: null,
+    index: true,
+  },
+  staffTitle: {
+    type: String,
+    default: null,
+  },
+  isBlocked: {
+    type: Boolean,
+    default: false,
+  },
 }, {
   timestamps: true
 });
 
-// NO PRE-SAVE HOOKS AT ALL - completely remove them
 const User = mongoose.model("User", userSchema);
 
 export default User;
