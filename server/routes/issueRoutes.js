@@ -11,10 +11,12 @@ import {
   getDeptIssueById,
   updateIssueStatus,
   addStaffReply,
+  getDeptStats,
 } from "../controllers/issueController.js";
 
 const router = express.Router();
 
+router.get("/department/stats", protect, requireRole("staff"), getDeptStats);
 router.get("/department", protect, requireRole("staff"), getDeptIssues);
 router.get("/department/:id", protect, requireRole("staff"), getDeptIssueById);
 router.patch("/department/:id/status", protect, requireRole("staff"), updateIssueStatus);

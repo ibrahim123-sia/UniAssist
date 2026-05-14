@@ -33,6 +33,13 @@ python-dotenv==1.0.0          # Load .env file variables
 tqdm==4.66.0                  # Progress bars
 numpy==1.24.3                 # Numerical computing
 
+# --- Admin / Vector CRUD ---
+pyjwt>=2.8.0                  # Decode Node-issued JWTs
+python-multipart>=0.0.6       # Required for FastAPI file uploads
+pypdf>=4.0.0                  # PDF text extraction
+python-docx>=1.1.0            # DOCX text extraction
+langchain-text-splitters>=0.0.1  # RecursiveCharacterTextSplitter
+
 # --- Build Tools ---
 setuptools==75.5.0
 wheel==0.44.0

@@ -78,6 +78,18 @@ export const addStudentReply = createAsyncThunk(
   }
 );
 
+export const fetchDeptStats = createAsyncThunk(
+  "issue/fetchDeptStats",
+  async (_, { getState }) => {
+    try {
+      const { data } = await axios.get("/api/issue/department/stats", authHeader(getState));
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to load stats") };
+    }
+  }
+);
+
 export const fetchDeptIssues = createAsyncThunk(
   "issue/fetchDept",
   async (status, { getState }) => {
@@ -145,6 +157,8 @@ const initialState = {
   myIssues: [],
   deptIssues: [],
   selectedIssue: null,
+  deptStats: null,
+  deptStatsLoading: false,
   loading: false,
   submitting: false,
 };
@@ -188,7 +202,13 @@ const issueSlice = createSlice({
       })
       .addCase(createIssue.pending, (state) => { state.submitting = true; })
       .addCase(createIssue.fulfilled, (state) => { state.submitting = false; })
-      .addCase(createIssue.rejected, (state) => { state.submitting = false; });
+      .addCase(createIssue.rejected, (state) => { state.submitting = false; })
+      .addCase(fetchDeptStats.pending, (state) => { state.deptStatsLoading = true; })
+      .addCase(fetchDeptStats.fulfilled, (state, action) => {
+        state.deptStatsLoading = false;
+        if (action.payload.success) state.deptStats = action.payload.stats;
+      })
+      .addCase(fetchDeptStats.rejected, (state) => { state.deptStatsLoading = false; });
   },
 });
 

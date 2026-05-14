@@ -60,6 +60,25 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false,
   },
+  lastLoginAt: {
+    type: Date,
+    default: null,
+  },
+  flags: {
+    type: [
+      new mongoose.Schema(
+        {
+          type: { type: String, default: "inappropriate_language" },
+          message: { type: String, default: "" },
+          matches: { type: [String], default: [] },
+          chatId: { type: mongoose.Schema.Types.ObjectId, ref: "Chat", default: null },
+          timestamp: { type: Date, default: Date.now },
+        },
+        { _id: true }
+      ),
+    ],
+    default: [],
+  },
 }, {
   timestamps: true
 });

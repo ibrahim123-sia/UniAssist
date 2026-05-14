@@ -6,6 +6,12 @@ import themeReducer from "./slices/themeSlice";
 import issueReducer from "./slices/issueSlice";
 import notificationReducer from "./slices/notificationSlice";
 import departmentReducer from "./slices/departmentSlice";
+import adminStatsReducer from "./slices/adminStatsSlice";
+import adminUserReducer from "./slices/adminUserSlice";
+import adminStaffReducer from "./slices/adminStaffSlice";
+import adminQueryReducer from "./slices/adminQuerySlice";
+import adminDataReducer from "./slices/adminDataSlice";
+import adminLogReducer from "./slices/adminLogSlice";
 
 export const store = configureStore({
   reducer: {
@@ -16,5 +22,11 @@ export const store = configureStore({
     issue: issueReducer,
     notification: notificationReducer,
     department: departmentReducer,
+    adminStats: adminStatsReducer,
+    adminUser: adminUserReducer,
+    adminStaff: adminStaffReducer,
+    adminQuery: adminQueryReducer,
+    adminData: adminDataReducer,
+    adminLog: adminLogReducer,
   },
 });

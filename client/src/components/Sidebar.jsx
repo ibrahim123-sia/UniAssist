@@ -24,6 +24,13 @@ import {
   Briefcase,
   AlertCircle,
   Inbox,
+  LayoutDashboard,
+  Users as UsersIcon,
+  UserPlus,
+  Building2,
+  HelpCircle,
+  Database,
+  Activity,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import moment from "moment";
@@ -230,7 +237,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         </button>
 
         {/* Logo Section */}
-        <Link to={isStaff ? "/staff/issues" : "/chat"}>
+        <Link to={isStaff ? "/staff/dashboard" : isAdmin ? "/admin/dashboard" : "/chat"}>
           <div className="p-6 border-b flex items-center gap-3" style={{ borderColor: C.border }}>
             <div
               className="w-11 h-11 rounded-lg flex items-center justify-center relative"
@@ -404,8 +411,59 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           </div>
         )}
 
+        {/* Admin nav (top, scrollable) */}
+        {isAdmin && (
+          <div className="flex-1 overflow-y-auto px-2 pt-3 pb-2 space-y-1">
+            <h3 className="text-xs font-semibold uppercase tracking-wide px-2 mb-2" style={{ color: C.muted }}>
+              Admin Console
+            </h3>
+            <NavLink
+              to="/admin/dashboard"
+              icon={<LayoutDashboard className="w-4 h-4" />}
+              label="Dashboard"
+              accent={C.navy}
+            />
+            <NavLink
+              to="/admin/users"
+              icon={<UsersIcon className="w-4 h-4" />}
+              label="Users"
+              accent={C.navy}
+            />
+            <NavLink
+              to="/admin/staff"
+              icon={<UserPlus className="w-4 h-4" />}
+              label="Staff"
+              accent={C.red}
+            />
+            <NavLink
+              to="/admin/departments"
+              icon={<Building2 className="w-4 h-4" />}
+              label="Departments"
+              accent={C.navy}
+            />
+            <NavLink
+              to="/admin/query"
+              icon={<HelpCircle className="w-4 h-4" />}
+              label="Query"
+              accent={C.red}
+            />
+            <NavLink
+              to="/admin/data"
+              icon={<Database className="w-4 h-4" />}
+              label="Data"
+              accent={C.navy}
+            />
+            <NavLink
+              to="/admin/logs"
+              icon={<Activity className="w-4 h-4" />}
+              label="Logs & Activity"
+              accent={C.red}
+            />
+          </div>
+        )}
+
         {/* Staff filler section */}
-        {!isStudent && <div className="flex-1" />}
+        {!isStudent && !isAdmin && <div className="flex-1" />}
 
         {/* Quick Actions / Nav */}
         <div className="p-2 border-t space-y-1" style={{ borderColor: C.border }}>
@@ -432,20 +490,20 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
             </>
           )}
           {isStaff && (
-            <NavLink
-              to="/staff/issues"
-              icon={<Inbox className="w-4 h-4" />}
-              label="Department Inbox"
-              accent={C.navy}
-            />
-          )}
-          {isAdmin && (
-            <NavLink
-              to="/chat"
-              icon={<MessageSquare className="w-4 h-4" />}
-              label="Chat"
-              accent={C.navy}
-            />
+            <>
+              <NavLink
+                to="/staff/dashboard"
+                icon={<LayoutDashboard className="w-4 h-4" />}
+                label="Dashboard"
+                accent={C.navy}
+              />
+              <NavLink
+                to="/staff/issues"
+                icon={<Inbox className="w-4 h-4" />}
+                label="Department Inbox"
+                accent={C.red}
+              />
+            </>
           )}
         </div>
 

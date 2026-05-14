@@ -15,6 +15,15 @@ import CreateIssue from "./student/pages/CreateIssue";
 import IssueDetail from "./student/pages/IssueDetail";
 import StaffIssues from "./staff/pages/StaffIssues";
 import StaffIssueDetail from "./staff/pages/StaffIssueDetail";
+import StaffDashboard from "./staff/pages/StaffDashboard";
+import AdminShell from "./administrator/layout/AdminShell";
+import AdminDashboard from "./administrator/pages/Dashboard";
+import AdminUsers from "./administrator/pages/Users";
+import AdminStaff from "./administrator/pages/Staff";
+import AdminDepartments from "./administrator/pages/Departments";
+import AdminQuery from "./administrator/pages/Query";
+import AdminData from "./administrator/pages/Data";
+import AdminLogs from "./administrator/pages/Logs";
 import { fetchUser, setLoadingUser } from "./redux/slices/authSlice";
 import { fetchUsersChats } from "./redux/slices/chatSlice";
 import { fetchGuestChatHistory } from "./redux/slices/guestSlice";
@@ -125,6 +134,11 @@ const App = () => {
               <IssueDetail />
             </ProtectedRoute>
           } />
+          <Route path="staff/dashboard" element={
+            <ProtectedRoute roles={["staff"]}>
+              <StaffDashboard />
+            </ProtectedRoute>
+          } />
           <Route path="staff/issues" element={
             <ProtectedRoute roles={["staff"]}>
               <StaffIssues />
@@ -135,6 +149,24 @@ const App = () => {
               <StaffIssueDetail />
             </ProtectedRoute>
           } />
+
+          {/* Admin */}
+          <Route path="admin" element={
+            <ProtectedRoute roles={["admin"]}>
+              <AdminShell />
+            </ProtectedRoute>
+          }>
+            <Route index element={<Navigate to="/admin/dashboard" replace />} />
+            <Route path="dashboard" element={<AdminDashboard />} />
+            <Route path="users" element={<AdminUsers />} />
+            <Route path="users/:id" element={<AdminUsers />} />
+            <Route path="staff" element={<AdminStaff />} />
+            <Route path="departments" element={<AdminDepartments />} />
+            <Route path="query" element={<AdminQuery />} />
+            <Route path="query/:id" element={<AdminQuery />} />
+            <Route path="data" element={<AdminData />} />
+            <Route path="logs" element={<AdminLogs />} />
+          </Route>
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />

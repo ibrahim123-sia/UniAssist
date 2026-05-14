@@ -40,7 +40,12 @@ const Login = () => {
 
     if (result.success) {
       const role = result.user?.role;
-      const dest = role === "staff" ? "/staff/issues" : "/chat";
+      const dest =
+        role === "staff"
+          ? "/staff/dashboard"
+          : role === "admin"
+          ? "/admin/dashboard"
+          : "/chat";
       navigate(dest, { replace: true });
     } else {
       toast.error(result.message || "Login failed");

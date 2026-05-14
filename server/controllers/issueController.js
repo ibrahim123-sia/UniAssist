@@ -152,6 +152,118 @@ export const addStudentReply = async (req, res) => {
   }
 };
 
+export const getDeptStats = async (req, res) => {
+  if (!req.user.department) {
+    return res.status(400).json({ success: false, message: "Staff has no department assigned" });
+  }
+  try {
+    const deptId = req.user.department;
+    const startOfWeek = new Date();
+    startOfWeek.setDate(startOfWeek.getDate() - 6);
+    startOfWeek.setHours(0, 0, 0, 0);
+
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    sevenDaysAgo.setHours(0, 0, 0, 0);
+
+    const [byStatus, resolvedThisWeek, repliesGiven, responseStats, last7d, recent] = await Promise.all([
+      Issue.aggregate([
+        { $match: { department: deptId } },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]),
+      Issue.countDocuments({
+        department: deptId,
+        status: { $in: ["Resolved", "Closed"] },
+        updatedAt: { $gte: startOfWeek },
+      }),
+      Issue.aggregate([
+        { $match: { department: deptId } },
+        { $unwind: "$replies" },
+        { $match: { "replies.authorId": req.user._id } },
+        { $count: "count" },
+      ]),
+      // Avg time-to-first-staff-reply across this dept's issues that have one
+      Issue.aggregate([
+        { $match: { department: deptId, "replies.0": { $exists: true } } },
+        {
+          $project: {
+            createdAt: 1,
+            firstStaffReply: {
+              $arrayElemAt: [
+                {
+                  $filter: {
+                    input: "$replies",
+                    as: "r",
+                    cond: { $eq: ["$$r.authorRole", "staff"] },
+                  },
+                },
+                0,
+              ],
+            },
+          },
+        },
+        { $match: { firstStaffReply: { $ne: null } } },
+        {
+          $project: {
+            durationMs: { $subtract: ["$firstStaffReply.createdAt", "$createdAt"] },
+          },
+        },
+        { $group: { _id: null, avgMs: { $avg: "$durationMs" }, count: { $sum: 1 } } },
+      ]),
+      Issue.aggregate([
+        { $match: { department: deptId, createdAt: { $gte: sevenDaysAgo } } },
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
+            count: { $sum: 1 },
+          },
+        },
+        { $sort: { _id: 1 } },
+      ]),
+      Issue.find({ department: deptId })
+        .sort({ updatedAt: -1 })
+        .limit(5)
+        .select("title status studentName updatedAt category"),
+    ]);
+
+    const statusMap = byStatus.reduce((acc, s) => ({ ...acc, [s._id]: s.count }), {});
+    const total = Object.values(statusMap).reduce((a, b) => a + b, 0);
+
+    // Build 7-day series (zero-fill)
+    const series = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const found = last7d.find((x) => x._id === key);
+      series.push({ date: key, count: found ? found.count : 0 });
+    }
+
+    res.json({
+      success: true,
+      stats: {
+        total,
+        byStatus: {
+          Pending: statusMap.Pending || 0,
+          "In Progress": statusMap["In Progress"] || 0,
+          Resolved: statusMap.Resolved || 0,
+          Closed: statusMap.Closed || 0,
+        },
+        resolvedThisWeek,
+        repliesGivenByMe: repliesGiven[0]?.count || 0,
+        avgResponseHours: responseStats[0]?.avgMs
+          ? +(responseStats[0].avgMs / 3600000).toFixed(1)
+          : null,
+        last7d: series,
+        recent,
+      },
+    });
+  } catch (error) {
+    console.error("getDeptStats error:", error);
+    res.status(500).json({ success: false, message: "Failed to load stats" });
+  }
+};
+
 export const getDeptIssues = async (req, res) => {
   if (!req.user.department) {
     return res.status(400).json({ success: false, message: "Staff has no department assigned" });

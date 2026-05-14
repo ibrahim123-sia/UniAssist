@@ -2,7 +2,18 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
 import User from "../models/User.js";
+import LoginEvent from "../models/LoginEvent.js";
 import rateLimit from "express-rate-limit";
+
+const recordLogin = (req, email, userId, success, reason = "") =>
+  LoginEvent.create({
+    userId: userId || null,
+    email: (email || "").toLowerCase(),
+    success,
+    reason,
+    ip: req.ip || req.headers["x-forwarded-for"] || "",
+    userAgent: req.headers["user-agent"] || "",
+  }).catch((err) => console.error("recordLogin failed:", err.message));
 
 // Gmail Transporter with App Password - REMOVE SPACES FROM PASSWORD!
 const transporter = nodemailer.createTransport({
@@ -683,8 +694,9 @@ export const loginUser = async (req, res) => {
 
   try {
     const user = await User.findOne({ email: normalizedEmail }).select("+password");
-    
+
     if (!user) {
+      recordLogin(req, normalizedEmail, null, false, "user_not_found");
       return res.status(401).json({
         success: false,
         message: "Invalid email or password"
@@ -694,6 +706,7 @@ export const loginUser = async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
+      recordLogin(req, normalizedEmail, user._id, false, "bad_password");
       // Increment failed login attempts
       user.loginAttempts = (user.loginAttempts || 0) + 1;
       user.lastLoginAttempt = new Date();
@@ -726,10 +739,12 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    // Reset login attempts on successful login
+    // Reset login attempts on successful login + stamp last login
     user.loginAttempts = 0;
     user.accountLockedUntil = undefined;
+    user.lastLoginAt = new Date();
     await user.save();
+    recordLogin(req, normalizedEmail, user._id, true);
 
     // Check if user is verified
     if (!user.isVerified) {

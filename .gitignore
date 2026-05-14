@@ -1,9 +1,9 @@
-﻿# Environment variables
+# Environment variables
 **/.env
 **/.env.local
 **/.env.*.local
 !.env.example
-python/.env
+
 # Dependencies
 node_modules/
 package-lock.json
@@ -11,66 +11,68 @@ yarn.lock
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Build
+# Build artifacts
 dist/
+dist-ssr/
 build/
 out/
 .next/
 .cache/
+*.local
 
 # Logs
 logs/
 *.log
 
-# IDE
-.vscode/
+# IDE / Editor
+.vscode/*
+!.vscode/extensions.json
 .idea/
 *.swp
 *.swo
-.claude/
+*.sw?
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
 
-# Uploads (issue attachments — local dev only)
+# Claude assistant artifacts
+.claude/
+CLAUDE.md
+**/CLAUDE.md
+
+# Local user uploads (issue attachments)
 server/uploads/
 
-# Internal docs (FYP spec, task notes — not for repo)
+# Internal docs / FYP working notes
 doc/
 docs/
 
-# OS
-.DS_Store
-Thumbs.db
-
-
+# Python
 venv/
-.env/
 .venv/
+.env/
 Lib/
 Scripts/
 Include/
-
-# Python cache
 __pycache__/
 *.pyc
+*.pyo
 
-# ML / torch large files
+# Vector store data (large, regenerated)
+python/chroma_db/
+python/data/clean_pages.json
+python/data/chunks.json
+python/data/urls.txt
+
+# ML / torch large binaries
 *.dll
 *.pt
 *.pth
 
-
-# Node
-node_modules/
-dist/
-build/
-
-# Python
-venv/
-__pycache__/
-*.pyc
-.env
-
-# Logs / OS
-*.log
+# OS
 .DS_Store
 Thumbs.db

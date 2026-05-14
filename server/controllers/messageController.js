@@ -18,17 +18,21 @@ const assemblyClient = new AssemblyAI({
 const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
 
 // Helper function to call Python backend
-async function getPythonBackendResponse(question) {
+async function getPythonBackendResponse(question, context = {}) {
   try {
     console.log(`📡 Calling Python backend at: ${PYTHON_BACKEND_URL}/ask`);
-    
+
     const response = await fetch(`${PYTHON_BACKEND_URL}/ask`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ question }),
-      timeout: 30000, // 30 second timeout
+      body: JSON.stringify({
+        question,
+        user_id: context.userId ? String(context.userId) : undefined,
+        chat_id: context.chatId ? String(context.chatId) : undefined,
+      }),
+      timeout: 30000,
     });
 
     if (!response.ok) {
@@ -196,7 +200,7 @@ export const textMessageController = async (req, res) => {
     console.log(`🤖 Sending to Python backend: "${prompt}"`);
     let replyContent;
     try {
-      replyContent = await getPythonBackendResponse(prompt);
+      replyContent = await getPythonBackendResponse(prompt, { userId, chatId });
     } catch (error) {
       console.error("Failed to get response from Python backend:", error.message);
       replyContent = "Sorry, I'm unable to connect to the university knowledge base at the moment. Please try again later.";
@@ -276,10 +280,10 @@ export const emailMessageController = async (req, res) => {
     Please format the email professionally with salutation, body, and closing.`;
     
     console.log(`📧 Sending email request to Python backend: "${emailPrompt}"`);
-    
+
     let replyContent;
     try {
-      replyContent = await getPythonBackendResponse(emailPrompt);
+      replyContent = await getPythonBackendResponse(emailPrompt, { userId, chatId });
     } catch (error) {
       console.error("Failed to get email response from Python backend:", error.message);
       replyContent = "Sorry, I'm unable to draft emails at the moment. Please try again later.";
@@ -432,7 +436,7 @@ export const voiceMessageController = async (req, res) => {
     console.log(`🤖 Sending voice transcription to Python backend: "${transcribedText}"`);
     let aiResponse = "";
     try {
-      aiResponse = await getPythonBackendResponse(transcribedText);
+      aiResponse = await getPythonBackendResponse(transcribedText, { userId, chatId });
     } catch (error) {
       console.error("Python backend Error:", error.message);
       aiResponse = "I received your voice message, but I'm having trouble accessing the knowledge base. Please try again or use text input.";

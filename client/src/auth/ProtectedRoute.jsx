@@ -33,8 +33,8 @@ const ProtectedRoute = ({ children, roles }) => {
   }
 
   if (roles && roles.length > 0 && !roles.includes(user.role)) {
-    if (user.role === "staff") return <Navigate to="/staff/issues" replace />;
-    if (user.role === "admin") return <Navigate to="/chat" replace />;
+    if (user.role === "staff") return <Navigate to="/staff/dashboard" replace />;
+    if (user.role === "admin") return <Navigate to="/admin/dashboard" replace />;
     return <Navigate to="/chat" replace />;
   }
 
