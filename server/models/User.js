@@ -56,6 +56,12 @@ const userSchema = new mongoose.Schema({
     type: String,
     default: null,
   },
+  profilePicture: {
+    // Relative URL under /uploads/avatars/ — client prepends VITE_SERVER_URL.
+    // Empty string = fall back to initial-letter avatar.
+    type: String,
+    default: "",
+  },
   isBlocked: {
     type: Boolean,
     default: false,

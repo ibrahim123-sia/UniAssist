@@ -23,6 +23,21 @@ End-to-end implementation: students can submit issues to a chosen department, ea
 - `/staff/issues/:id` — full thread, student card, **inline attachment preview** (modal lightbox for images, PDF iframe), **assignee strip** with `Assign to me` + `Reassign…` (dropdown of same-dept staff), **combined composer** (reply textarea + status picker + conditional rejection-reason input → single submit fires one notification), **concurrency-aware**: every write sends `expectedUpdatedAt`; server returns 409 on mismatch with the latest state and the UI shows "Sara just resolved this" instead of silently overwriting. A non-blocking toast fires on every poll where someone *else* updated the issue.
 - Sidebar shows Dashboard + Department Inbox. Post-login lands on `/staff/dashboard`.
 
+### Self-service profile management (all roles)
+
+- New `User.profilePicture` field (relative URL under `/uploads/avatars/`).
+- New `avatarUpload` multer config — images-only, 2MB cap, stored under `server/uploads/avatars/`.
+- New endpoints:
+  - `PATCH /api/user/profile` — multipart with optional `avatar` file + optional `name`. Updates the user's own record only. Old avatar file is cleaned up on replace.
+  - `POST /api/user/change-password` — verifies current password via bcrypt, requires min 6 chars, rejects same-as-current.
+- `GET /api/user/get` now populates `department` and returns `profilePicture`.
+- New page `/profile` (universal — student, staff, admin all share it):
+  - Avatar with camera-button overlay → file picker → instant preview
+  - Editable display name
+  - Read-only email / role / department badges
+  - Change-password form with show/hide toggles + confirm-password check
+- Sidebar profile area is now a `Link to="/profile"`; renders the uploaded avatar when present, falls back to the first-letter circle otherwise.
+
 #### Tier 1 enhancement (multi-staff coordination)
 
 - **`Rejected` status** added to enum with required `rejectionReason`. Stored on the issue and shown to the student in the notification email + UI badge.

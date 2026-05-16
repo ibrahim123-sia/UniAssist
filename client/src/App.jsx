@@ -16,6 +16,7 @@ import IssueDetail from "./student/pages/IssueDetail";
 import StaffIssues from "./staff/pages/StaffIssues";
 import StaffIssueDetail from "./staff/pages/StaffIssueDetail";
 import StaffDashboard from "./staff/pages/StaffDashboard";
+import Profile from "./profile/Profile";
 import AdminShell from "./administrator/layout/AdminShell";
 import AdminDashboard from "./administrator/pages/Dashboard";
 import AdminUsers from "./administrator/pages/Users";
@@ -149,6 +150,9 @@ const App = () => {
               <StaffIssueDetail />
             </ProtectedRoute>
           } />
+
+          {/* Universal — every authenticated role manages their own profile */}
+          <Route path="profile" element={<Profile />} />
 
           {/* Admin */}
           <Route path="admin" element={

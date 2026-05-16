@@ -1,14 +1,17 @@
 import express from 'express'
-import { 
+import {
   registerUser,
   verifyOtp,
   resentOtp,
   forgetPassword,
   resetPassword,
   loginUser,
-  getUser
+  getUser,
+  updateProfile,
+  changePassword,
 } from '../controllers/userController.js'
 import { protect } from '../middlewares/auth.js'
+import { avatarUpload, handleUploadError } from '../middlewares/upload.js'
 
 const userRouter = express.Router()
 
@@ -22,7 +25,15 @@ userRouter.post('/verify-otp', verifyOtp)
 userRouter.post('/reset-password', resetPassword)
 userRouter.post('/login', loginUser)
 
-// Protected route - get user profile
+// Protected routes
 userRouter.get('/get', protect, getUser)
+userRouter.patch(
+  '/profile',
+  protect,
+  avatarUpload.single('avatar'),
+  handleUploadError,
+  updateProfile
+)
+userRouter.post('/change-password', protect, changePassword)
 
 export default userRouter

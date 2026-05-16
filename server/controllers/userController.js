@@ -787,33 +787,122 @@ export const loginUser = async (req, res) => {
   }
 };
 
+const serializeUser = (user) => ({
+  _id: user._id,
+  name: user.name,
+  email: user.email,
+  program: user.program,
+  rollNumber: user.rollNumber,
+  session: user.session,
+  admissionYear: user.admissionYear,
+  isVerified: user.isVerified,
+  isMajuStudent: user.isMajuStudent,
+  role: user.role,
+  department: user.department,
+  staffTitle: user.staffTitle,
+  isBlocked: user.isBlocked,
+  profilePicture: user.profilePicture || "",
+});
+
 export const getUser = async (req, res) => {
   try {
-    const user = req.user;
-    return res.json({
-      success: true,
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        program: user.program,
-        rollNumber: user.rollNumber,
-        session: user.session,
-        admissionYear: user.admissionYear,
-        isVerified: user.isVerified,
-        isMajuStudent: user.isMajuStudent,
-        role: user.role,
-        department: user.department,
-        staffTitle: user.staffTitle,
-        isBlocked: user.isBlocked,
-      },
-    });
+    const user = await User.findById(req.user._id).populate("department", "code name");
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    return res.json({ success: true, user: serializeUser(user) });
   } catch (error) {
     console.error("Get user error:", error);
     return res.status(500).json({
       success: false,
-      message: "Server error fetching user data"
+      message: "Server error fetching user data",
     });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /api/user/profile
+//   Multipart form: optional `avatar` file, optional `name` field.
+//   Used by everyone (student / staff / admin) to manage their own profile.
+//   Email + role are NOT editable here — admins handle role changes via the
+//   admin panel; email changes need re-verification and aren't supported yet.
+// ---------------------------------------------------------------------------
+
+export const updateProfile = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const { name } = req.body || {};
+    if (name !== undefined) {
+      const trimmed = String(name).trim();
+      if (trimmed.length < 2) {
+        return res.status(400).json({ success: false, message: "Name must be at least 2 characters" });
+      }
+      user.name = trimmed;
+    }
+
+    if (req.file) {
+      // Delete the old avatar file if it was stored locally
+      if (user.profilePicture && user.profilePicture.startsWith("/uploads/avatars/")) {
+        const old = "." + user.profilePicture; // "./uploads/avatars/xxx.png"
+        // Fire-and-forget cleanup
+        import("fs").then(({ unlink }) => unlink(old, () => {}));
+      }
+      user.profilePicture = `/uploads/avatars/${req.file.filename}`;
+    }
+
+    await user.save();
+    const populated = await User.findById(user._id).populate("department", "code name");
+    return res.json({ success: true, user: serializeUser(populated) });
+  } catch (error) {
+    console.error("updateProfile error:", error);
+    return res.status(500).json({ success: false, message: "Failed to update profile" });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// POST /api/user/change-password
+//   Body: { currentPassword, newPassword }
+//   Verifies current password against the hash, then sets a new bcrypt hash.
+//   Min 6 chars (matches User.password model rule).
+// ---------------------------------------------------------------------------
+
+export const changePassword = async (req, res) => {
+  const { currentPassword, newPassword } = req.body || {};
+  if (!currentPassword || !newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: "Current password and new password are both required",
+    });
+  }
+  if (String(newPassword).length < 6) {
+    return res.status(400).json({
+      success: false,
+      message: "New password must be at least 6 characters",
+    });
+  }
+  if (currentPassword === newPassword) {
+    return res.status(400).json({
+      success: false,
+      message: "New password must be different from the current one",
+    });
+  }
+  try {
+    // `password` is `select: false` on the schema, so we have to ask for it explicitly.
+    const user = await User.findById(req.user._id).select("+password");
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+
+    const matches = await bcrypt.compare(currentPassword, user.password);
+    if (!matches) {
+      return res.status(401).json({ success: false, message: "Current password is incorrect" });
+    }
+
+    user.password = await hashPassword(newPassword);
+    await user.save();
+
+    return res.json({ success: true, message: "Password changed successfully" });
+  } catch (error) {
+    console.error("changePassword error:", error);
+    return res.status(500).json({ success: false, message: "Failed to change password" });
   }
 };
 

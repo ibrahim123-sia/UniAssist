@@ -299,6 +299,52 @@ export const logoutUser = createAsyncThunk(
   }
 );
 
+// PATCH /api/user/profile — multipart (name + optional avatar file)
+export const updateProfile = createAsyncThunk(
+  "auth/updateProfile",
+  async ({ name, avatarFile }, { getState }) => {
+    const token = getState().auth.token;
+    try {
+      const fd = new FormData();
+      if (name !== undefined) fd.append("name", name);
+      if (avatarFile) fd.append("avatar", avatarFile);
+      const { data } = await axios.patch("/api/user/profile", fd, {
+        headers: {
+          Authorization: token,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to update profile",
+      };
+    }
+  }
+);
+
+// POST /api/user/change-password — { currentPassword, newPassword }
+export const changePassword = createAsyncThunk(
+  "auth/changePassword",
+  async ({ currentPassword, newPassword }, { getState }) => {
+    const token = getState().auth.token;
+    try {
+      const { data } = await axios.post(
+        "/api/user/change-password",
+        { currentPassword, newPassword },
+        { headers: { Authorization: token } }
+      );
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to change password",
+      };
+    }
+  }
+);
+
 const initialState = {
   user: null,
   token: localStorage.getItem("token") || null,
@@ -344,6 +390,11 @@ const authSlice = createSlice({
       .addCase(logoutUser.fulfilled, (state) => {
         state.token = null;
         state.user = null;
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        if (action.payload.success) {
+          state.user = action.payload.user;
+        }
       });
   },
 });

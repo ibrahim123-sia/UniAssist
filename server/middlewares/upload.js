@@ -3,15 +3,16 @@ import path from "path";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
 
-const UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads/issues";
+const ISSUE_UPLOAD_DIR = process.env.UPLOAD_DIR || "uploads/issues";
+const AVATAR_UPLOAD_DIR = "uploads/avatars";
 
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+for (const dir of [ISSUE_UPLOAD_DIR, AVATAR_UPLOAD_DIR]) {
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
 }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, UPLOAD_DIR);
+    cb(null, ISSUE_UPLOAD_DIR);
   },
   filename: (req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
@@ -41,6 +42,35 @@ export const issueUpload = multer({
   limits: {
     fileSize: 5 * 1024 * 1024,
     files: 3,
+  },
+});
+
+// ---------------------------------------------------------------------------
+// Avatar upload — separate config so we can enforce images-only and a smaller
+// size limit independently from issue attachments.
+// ---------------------------------------------------------------------------
+
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, AVATAR_UPLOAD_DIR);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${uuidv4()}${ext}`);
+  },
+});
+
+const avatarFilter = (req, file, cb) => {
+  if (file.mimetype.startsWith("image/")) cb(null, true);
+  else cb(new Error("Profile picture must be an image (JPG, PNG, WebP, etc.)"), false);
+};
+
+export const avatarUpload = multer({
+  storage: avatarStorage,
+  fileFilter: avatarFilter,
+  limits: {
+    fileSize: 2 * 1024 * 1024, // 2MB cap
+    files: 1,
   },
 });
 

@@ -261,24 +261,38 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           </div>
         </Link>
 
-        {/* User Profile + Bell */}
+        {/* User Profile + Bell — clicking the profile area goes to /profile */}
         <div className="p-3 border-b flex items-center gap-3" style={{ borderColor: C.border }}>
-          <div
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{ backgroundColor: C.navy }}
+          <Link
+            to="/profile"
+            className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-90 transition"
+            title="Manage your profile"
           >
-            <span className="text-white font-semibold text-sm">
-              {user?.name?.charAt(0)?.toUpperCase() || "U"}
-            </span>
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate" style={{ color: C.text }}>
-              {user?.name || "User"}
-            </p>
-            <p className="text-xs truncate" style={{ color: C.muted }}>
-              {isStaff ? (user?.staffTitle || "Staff") : isAdmin ? "Administrator" : (user?.email || "student@maju.edu.pk")}
-            </p>
-          </div>
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center overflow-hidden"
+              style={{ backgroundColor: C.navy }}
+            >
+              {user?.profilePicture ? (
+                <img
+                  src={`${import.meta.env.VITE_SERVER_URL || "http://localhost:3000"}${user.profilePicture}`}
+                  alt={user.name || "avatar"}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span className="text-white font-semibold text-sm">
+                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                </span>
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate" style={{ color: C.text }}>
+                {user?.name || "User"}
+              </p>
+              <p className="text-xs truncate" style={{ color: C.muted }}>
+                {isStaff ? (user?.staffTitle || "Staff") : isAdmin ? "Administrator" : (user?.email || "student@maju.edu.pk")}
+              </p>
+            </div>
+          </Link>
           <NotificationBell />
         </div>
 
