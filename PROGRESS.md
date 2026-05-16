@@ -34,9 +34,14 @@ End-to-end implementation: students can submit issues to a chosen department, ea
 - New page `/profile` (universal — student, staff, admin all share it):
   - Avatar with camera-button overlay → file picker → instant preview
   - Editable display name
-  - Read-only email / role / department badges
+  - Read-only email / role / department badges (email is intentionally locked for staff — only admin can change it from the admin panel)
   - Change-password form with show/hide toggles + confirm-password check
 - Sidebar profile area is now a `Link to="/profile"`; renders the uploaded avatar when present, falls back to the first-letter circle otherwise.
+- **Admin can edit staff email** — `PATCH /api/admin/staff/:id` now accepts `email` in addition to `name`/`departmentId`/`staffTitle`. Validates format and uniqueness (409 if another account already uses it). Admin Staff page got a pencil-icon Edit button → modal with name/email/department/staffTitle fields.
+- **Email-change notifications** — when the email actually changes:
+  - The staff member gets an `account_email_changed` in-app notification ("Your sign-in email was changed to X") + an email to the **new** address explaining the change and where to log in
+  - A **security alert email** is sent to the **old** address ("If you didn't expect this, contact your administrator") so a compromised admin account can't silently hijack a staffer's login email
+  - New `Notification.type` enum value `account_email_changed`, plus a new `sendDirectEmail({to, subject, heading, body, link})` helper in `services/notify.js` for sending to arbitrary addresses without creating an in-app notification
 
 #### Tier 1 enhancement (multi-staff coordination)
 

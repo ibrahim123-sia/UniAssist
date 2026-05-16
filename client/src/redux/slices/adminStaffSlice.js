@@ -44,11 +44,11 @@ export const createStaff = createAsyncThunk(
 
 export const updateStaff = createAsyncThunk(
   "adminStaff/update",
-  async ({ id, name, departmentId, staffTitle }, { getState }) => {
+  async ({ id, name, email, departmentId, staffTitle }, { getState }) => {
     try {
       const { data } = await axios.patch(
         `/api/admin/staff/${id}`,
-        { name, departmentId, staffTitle },
+        { name, email, departmentId, staffTitle },
         authHeader(getState)
       );
       return data;

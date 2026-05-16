@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Plus, Search, Copy, Check, UserPlus, UserX, ShieldCheck, Trash2 } from "lucide-react";
+import { Plus, Search, Copy, Check, UserPlus, UserX, ShieldCheck, Trash2, Pencil } from "lucide-react";
 import toast from "react-hot-toast";
 import moment from "moment";
 import {
   fetchStaff,
   createStaff,
+  updateStaff,
   deactivateStaff,
 } from "../../redux/slices/adminStaffSlice";
 import { fetchDepartments } from "../../redux/slices/departmentSlice";
@@ -30,6 +31,9 @@ const Staff = () => {
   const [credentials, setCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editForm, setEditForm] = useState({ name: "", email: "", departmentId: "", staffTitle: "" });
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const query = useMemo(
     () => ({ departmentId: deptFilter || undefined, search }),
@@ -76,6 +80,53 @@ const Staff = () => {
       setConfirmDelete(null);
     } else {
       toast.error(result.message || "Failed to deactivate");
+    }
+  };
+
+  const openEdit = (staffer) => {
+    setEditTarget(staffer);
+    setEditForm({
+      name: staffer.name || "",
+      email: staffer.email || "",
+      departmentId: staffer.department?._id || staffer.department || "",
+      staffTitle: staffer.staffTitle || "",
+    });
+  };
+
+  const closeEdit = () => {
+    setEditTarget(null);
+    setSavingEdit(false);
+  };
+
+  const handleEdit = async (e) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    const trimmedName = editForm.name.trim();
+    const trimmedEmail = editForm.email.trim().toLowerCase();
+    if (trimmedName.length < 2) {
+      toast.error("Name must be at least 2 characters");
+      return;
+    }
+    if (!/^[\w-.]+@([\w-]+\.)+[\w-]{2,8}$/.test(trimmedEmail)) {
+      toast.error("Enter a valid email address");
+      return;
+    }
+    setSavingEdit(true);
+    const result = await dispatch(
+      updateStaff({
+        id: editTarget._id,
+        name: trimmedName,
+        email: trimmedEmail,
+        departmentId: editForm.departmentId || undefined,
+        staffTitle: editForm.staffTitle,
+      })
+    ).unwrap();
+    setSavingEdit(false);
+    if (result.success) {
+      toast.success("Staff updated");
+      closeEdit();
+    } else {
+      toast.error(result.message || "Failed to update staff");
     }
   };
 
@@ -188,18 +239,30 @@ const Staff = () => {
                   )}
                 </AdminTableCell>
                 <AdminTableCell>
-                  {!s.isBlocked && (
+                  <div className="flex items-center gap-1">
                     <button
-                      onClick={() => setConfirmDelete(s)}
+                      onClick={() => openEdit(s)}
                       className="p-1.5 rounded transition-colors"
                       style={{ color: C.muted }}
-                      aria-label="Deactivate"
-                      onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
+                      aria-label="Edit"
+                      onMouseEnter={(e) => (e.currentTarget.style.color = C.navy)}
                       onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Pencil className="w-4 h-4" />
                     </button>
-                  )}
+                    {!s.isBlocked && (
+                      <button
+                        onClick={() => setConfirmDelete(s)}
+                        className="p-1.5 rounded transition-colors"
+                        style={{ color: C.muted }}
+                        aria-label="Deactivate"
+                        onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
+                        onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
                 </AdminTableCell>
               </AdminTableRow>
             ))}
@@ -340,6 +403,96 @@ const Staff = () => {
             </button>
           </div>
         </div>
+      </AdminModal>
+
+      <AdminModal
+        open={!!editTarget}
+        onClose={closeEdit}
+        title="Edit staff member"
+        size="md"
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={closeEdit}
+              className="px-3 py-2 text-sm rounded-lg border"
+              style={{ borderColor: C.border, color: C.text }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              form="edit-staff-form"
+              disabled={savingEdit}
+              className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
+              style={{ backgroundColor: C.navy }}
+            >
+              {savingEdit ? "Saving..." : "Save changes"}
+            </button>
+          </>
+        }
+      >
+        <form id="edit-staff-form" onSubmit={handleEdit} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+              Full name
+            </label>
+            <input
+              type="text"
+              value={editForm.name}
+              onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+              required
+              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
+              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+              Email
+            </label>
+            <input
+              type="email"
+              value={editForm.email}
+              onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+              required
+              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
+              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            />
+            <p className="text-xs mt-1" style={{ color: C.muted }}>
+              The staff member will sign in with this email. Tell them after changing it.
+            </p>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+              Department
+            </label>
+            <select
+              value={editForm.departmentId}
+              onChange={(e) => setEditForm({ ...editForm, departmentId: e.target.value })}
+              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
+              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            >
+              {departments.map((d) => (
+                <option key={d._id} value={d._id}>
+                  {d.code} — {d.name}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+              Staff title
+            </label>
+            <input
+              type="text"
+              value={editForm.staffTitle}
+              onChange={(e) => setEditForm({ ...editForm, staffTitle: e.target.value })}
+              placeholder="e.g. SFO, IT Staff, HOD"
+              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
+              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            />
+          </div>
+        </form>
       </AdminModal>
 
       <ConfirmDialog

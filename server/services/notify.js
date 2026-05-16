@@ -33,6 +33,30 @@ const emailTemplate = ({ heading, body, link }) => `
   </div>
 `;
 
+// Send an email to an arbitrary address WITHOUT creating an in-app notification.
+// Used for security alerts (e.g. "your sign-in email was just changed") that
+// need to reach the OLD address, which is no longer attached to any user record.
+export const sendDirectEmail = async ({ to, subject, heading, body, link }) => {
+  if (!to) return;
+  try {
+    const clientBase = process.env.CLIENT_URL || "";
+    const fullLink = clientBase && link ? `${clientBase}${link}` : null;
+    await transporter.sendMail({
+      from: `"UniAssist" <${process.env.EMAIL_USER}>`,
+      to,
+      subject: subject || heading,
+      html: emailTemplate({
+        heading: heading || subject,
+        body: body || "",
+        link: fullLink,
+      }),
+      text: `${heading || subject}${fullLink ? `\n\nOpen: ${fullLink}` : ""}`,
+    });
+  } catch (err) {
+    console.error("sendDirectEmail failed:", err.message);
+  }
+};
+
 export const notify = async (
   user,
   { type, issueId, message, link, emailSubject, emailHeading, emailBody }

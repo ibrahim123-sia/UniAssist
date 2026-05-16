@@ -4,7 +4,7 @@ import User from "../models/User.js";
 import Department from "../models/Department.js";
 import Issue from "../models/Issue.js";
 import Chat from "../models/Chat.js";
-import { notify } from "../services/notify.js";
+import { notify, sendDirectEmail } from "../services/notify.js";
 
 const sanitizeNamePart = (s) =>
   (s || "")
@@ -223,8 +223,10 @@ export const createStaffUser = async (req, res) => {
   }
 };
 
+const EMAIL_REGEX = /^[\w-.]+@([\w-]+\.)+[\w-]{2,8}$/;
+
 export const updateStaffUser = async (req, res) => {
-  const { name, departmentId, staffTitle } = req.body;
+  const { name, email, departmentId, staffTitle } = req.body;
   try {
     const user = await User.findById(req.params.id);
     if (!user || user.role !== "staff") {
@@ -237,7 +239,54 @@ export const updateStaffUser = async (req, res) => {
       if (!dept) return res.status(400).json({ success: false, message: "Invalid department" });
       user.department = dept._id;
     }
+    let previousEmail = null;
+    if (email !== undefined) {
+      const normalized = String(email).trim().toLowerCase();
+      if (!EMAIL_REGEX.test(normalized)) {
+        return res.status(400).json({ success: false, message: "Invalid email format" });
+      }
+      if (normalized !== user.email) {
+        const existing = await User.findOne({ email: normalized, _id: { $ne: user._id } });
+        if (existing) {
+          return res.status(409).json({
+            success: false,
+            message: "Another account already uses that email",
+          });
+        }
+        previousEmail = user.email;
+        user.email = normalized;
+      }
+    }
     await user.save();
+
+    // If the email actually changed, notify the staff member two ways:
+    //   1) To the NEW address + in-app bell — "this is now your sign-in email"
+    //   2) To the OLD address — security alert in case the change wasn't expected
+    if (previousEmail) {
+      const adminName = req.user?.name || "An administrator";
+      notify(user, {
+        type: "account_email_changed",
+        message: `Your sign-in email was changed to ${user.email}`,
+        link: "/profile",
+        emailSubject: "Your UniAssist sign-in email was changed",
+        emailHeading: "Your sign-in email was updated",
+        emailBody: `${adminName} updated your UniAssist sign-in email.<br/><br/>
+          <strong>Previous:</strong> ${previousEmail}<br/>
+          <strong>New (use this to log in):</strong> ${user.email}<br/><br/>
+          Your password is unchanged. If you didn't expect this change, contact your administrator immediately.`,
+      }).catch((err) => console.error("notify email-change to new addr failed:", err.message));
+
+      sendDirectEmail({
+        to: previousEmail,
+        subject: "Security alert: your UniAssist sign-in email was changed",
+        heading: "Security alert — sign-in email changed",
+        body: `${adminName} changed the sign-in email on your UniAssist account.<br/><br/>
+          <strong>Old email (this one):</strong> ${previousEmail}<br/>
+          <strong>New email (now used to sign in):</strong> ${user.email}<br/><br/>
+          You will no longer be able to sign in with this address. If you did NOT expect or authorize this change, contact your administrator immediately — your account may be compromised.`,
+      }).catch((err) => console.error("security alert to old addr failed:", err.message));
+    }
+
     const populated = await User.findById(user._id).populate("department", "code name");
     res.json({ success: true, user: populated });
   } catch (error) {
