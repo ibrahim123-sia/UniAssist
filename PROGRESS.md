@@ -224,6 +224,16 @@ cd ../client && npm run dev         # http://localhost:5173
 - [ ] Staff login → lands on `/staff/dashboard` with their dept's stats; chart renders; recent issues clickable
 - [ ] Sidebar shows Dashboard + Department Inbox
 
+## Project-wide alignment pass (2026-05-16)
+
+Three-angle audit (server / client / Python+integration) ran clean except for a real broken endpoint and four robustness items. All addressed:
+
+- **`/chunks` GET auth fixed.** Previously `list_chunks` declared `_user: dict = None` as a plain Python param — FastAPI never injected the Authorization header, so every call hit `verify_admin(None)` and 401'd. Now uses `authorization: Optional[str] = Header(default=None)` like its sibling endpoints. Admin Data tab listing works again.
+- **Avatar cleanup robust.** `updateProfile` resolves the old avatar path via `path.join(process.cwd(), user.profilePicture.replace(/^\//, ""))` instead of `"." + path`. Doesn't break if the server is started from a different directory.
+- **Profile blob URL cleanup.** Added `useEffect` cleanup in `Profile.jsx` that revokes the preview `URL.createObjectURL` on unmount or when the user picks a different file. No more leaked blob URLs.
+- **`VITE_PYTHON_URL` exported.** Added to `client/.env`. Admin Data tab no longer relies on the hardcoded localhost fallback.
+- **`issue_assigned` notification type.** Added to `Notification` enum and used by both `notify()` calls in `assignIssue` (previously misused `issue_replied`).
+
 ## Open follow-ups
 
 Items the spec lists or that we deferred:

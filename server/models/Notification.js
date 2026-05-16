@@ -16,6 +16,7 @@ const notificationSchema = new mongoose.Schema(
         "issue_created",
         "user_flagged",
         "account_email_changed",
+        "issue_assigned",
       ],
       required: true,
     },

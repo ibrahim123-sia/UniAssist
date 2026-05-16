@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import nodemailer from "nodemailer";
@@ -841,11 +843,11 @@ export const updateProfile = async (req, res) => {
     }
 
     if (req.file) {
-      // Delete the old avatar file if it was stored locally
+      // Delete the old avatar file if it was stored locally. Resolve against
+      // process.cwd() so this works regardless of how the server was started.
       if (user.profilePicture && user.profilePicture.startsWith("/uploads/avatars/")) {
-        const old = "." + user.profilePicture; // "./uploads/avatars/xxx.png"
-        // Fire-and-forget cleanup
-        import("fs").then(({ unlink }) => unlink(old, () => {}));
+        const oldPath = path.join(process.cwd(), user.profilePicture.replace(/^\//, ""));
+        fs.unlink(oldPath, () => {}); // best-effort; ignore ENOENT
       }
       user.profilePicture = `/uploads/avatars/${req.file.filename}`;
     }

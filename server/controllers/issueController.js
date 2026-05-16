@@ -577,7 +577,7 @@ export const assignIssue = async (req, res) => {
     // Notify the new assignee (unless it's themselves)
     if (assigneeUser && assigneeUser._id.toString() !== req.user._id.toString()) {
       notify(assigneeUser, {
-        type: "issue_replied",
+        type: "issue_assigned",
         issueId: issue._id,
         message: `${req.user.name} assigned "${issue.title}" to you`,
         link: `/staff/issues/${issue._id}`,
@@ -591,7 +591,7 @@ export const assignIssue = async (req, res) => {
       const prev = await User.findById(previousId);
       if (prev) {
         notify(prev, {
-          type: "issue_replied",
+          type: "issue_assigned",
           issueId: issue._id,
           message: `${req.user.name} reassigned "${issue.title}"`,
           link: `/staff/issues/${issue._id}`,

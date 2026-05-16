@@ -291,9 +291,9 @@ async def list_chunks(
     limit: int = Query(25, ge=1, le=100),
     offset: int = Query(0, ge=0),
     search: Optional[str] = None,
-    _user: dict = None,
+    authorization: Optional[str] = Header(default=None),
 ):
-    _user = verify_admin(_user) if not isinstance(_user, dict) else _user
+    verify_admin(authorization)
     return _list_chunks_impl(limit, offset, search)
 
 
