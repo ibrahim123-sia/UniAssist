@@ -1,20 +1,15 @@
 import Chat from "../models/Chat.js";
-import { AssemblyAI } from 'assemblyai';
 import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
 import os from "os";
-import fetch from "node-fetch"; // You might need to install this: npm install node-fetch
+import fetch from "node-fetch";
+import FormData from "form-data";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Initialize APIs - Remove Groq, add Python backend URL
-const assemblyClient = new AssemblyAI({
-  apiKey: process.env.ASSEMBLYAI_API_KEY,
-});
-
-// Python FastAPI backend URL
+// Python FastAPI backend URL — RAG + local Whisper transcription live here
 const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
 
 // Helper function to call Python backend
@@ -102,50 +97,54 @@ const validateAudioQuality = (audioPath) => {
   }
 };
 
-// Transcribe audio using AssemblyAI
-async function transcribeWithAssemblyAI(audioPath) {
+// Transcribe audio by forwarding the file to the local Python /transcribe
+// endpoint (faster-whisper). No data leaves this machine.
+async function transcribeWithPython(audioPath) {
   try {
-    console.log("=== ASSEMBLYAI TRANSCRIPTION START ===");
-    
+    console.log("=== LOCAL WHISPER TRANSCRIPTION START ===");
+
     if (!fs.existsSync(audioPath)) {
-      return { 
-        success: false, 
-        error: "Audio file not found"
-      };
+      return { success: false, error: "Audio file not found" };
     }
-    
-    // Upload file to AssemblyAI
-    const audioUrl = await assemblyClient.files.upload(audioPath);
-    
-    // Transcribe
-    const transcript = await assemblyClient.transcripts.transcribe({
-      audio: audioUrl,
+
+    const form = new FormData();
+    form.append("file", fs.createReadStream(audioPath), {
+      filename: path.basename(audioPath),
     });
-    
-    if (transcript.text && transcript.text.trim()) {
-      const transcribedText = transcript.text.trim();
-      console.log("✅ AssemblyAI transcription completed!");
-      console.log("Text:", transcribedText);
-      
-      return {
-        success: true,
-        text: transcribedText,
-        service: "assemblyai",
-        language: transcript.language_code
-      };
-    } else {
+
+    const response = await fetch(`${PYTHON_BACKEND_URL}/transcribe`, {
+      method: "POST",
+      body: form,
+      headers: form.getHeaders(),
+      timeout: 120000, // Whisper on CPU can take a while on long clips
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
       return {
         success: false,
-        error: "AssemblyAI returned empty transcription"
+        error: `Python /transcribe returned ${response.status}: ${detail.slice(0, 200)}`,
       };
     }
-  } catch (error) {
-    console.error("💥 AssemblyAI transcription error:", error.message);
-    
-    return { 
-      success: false, 
-      error: `Transcription failed: ${error.message}`
+
+    const data = await response.json();
+    if (!data.text || !data.text.trim()) {
+      return { success: false, error: "Whisper returned empty transcription" };
+    }
+
+    console.log("✅ Whisper transcription completed");
+    console.log("Text:", data.text);
+
+    return {
+      success: true,
+      text: data.text.trim(),
+      service: "whisper",
+      language: data.language,
+      duration: data.duration,
     };
+  } catch (error) {
+    console.error("💥 Whisper transcription error:", error.message);
+    return { success: false, error: `Transcription failed: ${error.message}` };
   }
 }
 
@@ -241,8 +240,7 @@ export const textMessageController = async (req, res) => {
   }
 };
 
-// Email Message Controller - You can keep using Groq or modify for Python backend
-// For now, I'll show how to modify it for Python backend too
+// Email Message Controller — routes through the same Python /ask endpoint.
 export const emailMessageController = async (req, res) => {
   try {
     const userId = req.user._id;
@@ -377,10 +375,10 @@ export const voiceMessageController = async (req, res) => {
       });
     }
 
-    // Transcribe with AssemblyAI
-    let transcription = await transcribeWithAssemblyAI(tempFilePath);
-    
-    // If AssemblyAI fails, use fallback
+    // Transcribe with local Whisper (via Python service)
+    let transcription = await transcribeWithPython(tempFilePath);
+
+    // If Whisper fails, use basic fallback
     if (!transcription.success) {
       transcription = await transcribeWithBasicFallback(tempFilePath);
       
@@ -515,7 +513,7 @@ export const transcriptionHealth = async (req, res) => {
     const health = {
       pythonBackend: pythonBackendHealthy,
       pythonBackendUrl: PYTHON_BACKEND_URL,
-      assemblyAI: !!process.env.ASSEMBLYAI_API_KEY,
+      whisper: pythonBackendHealthy, // local transcription is part of the Python service
       timestamp: new Date().toISOString(),
       audioFormats: ["webm", "wav", "mp3", "ogg", "m4a"]
     };

@@ -5,17 +5,12 @@ import path from "path";
 import os from "os";
 import { fileURLToPath } from "url";
 import fetch from "node-fetch";
-import { AssemblyAI } from 'assemblyai';
+import FormData from "form-data";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Python FastAPI backend URL
+// Python FastAPI backend URL — RAG + local Whisper transcription live here
 const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
-
-// Initialize AssemblyAI for guest voice transcription
-const assemblyClient = process.env.ASSEMBLYAI_API_KEY ? new AssemblyAI({
-  apiKey: process.env.ASSEMBLYAI_API_KEY,
-}) : null;
 
 // In-memory storage for guest sessions
 const guestSessions = new Map();
@@ -132,50 +127,54 @@ const validateAudioQuality = (audioPath) => {
   }
 };
 
-// Transcribe audio using AssemblyAI
-async function transcribeWithAssemblyAI(audioPath) {
+// Transcribe audio by forwarding the file to the local Python /transcribe
+// endpoint (faster-whisper). No data leaves this machine.
+async function transcribeWithPython(audioPath) {
   try {
-    console.log("=== ASSEMBLYAI TRANSCRIPTION START ===");
-    
+    console.log("=== LOCAL WHISPER TRANSCRIPTION START ===");
+
     if (!fs.existsSync(audioPath)) {
-      return { 
-        success: false, 
-        error: "Audio file not found"
-      };
+      return { success: false, error: "Audio file not found" };
     }
-    
-    // Upload file to AssemblyAI
-    const audioUrl = await assemblyClient.files.upload(audioPath);
-    
-    // Transcribe
-    const transcript = await assemblyClient.transcripts.transcribe({
-      audio: audioUrl,
+
+    const form = new FormData();
+    form.append("file", fs.createReadStream(audioPath), {
+      filename: path.basename(audioPath),
     });
-    
-    if (transcript.text && transcript.text.trim()) {
-      const transcribedText = transcript.text.trim();
-      console.log("✅ AssemblyAI transcription completed!");
-      console.log("Text:", transcribedText);
-      
-      return {
-        success: true,
-        text: transcribedText,
-        service: "assemblyai",
-        language: transcript.language_code
-      };
-    } else {
+
+    const response = await fetch(`${PYTHON_BACKEND_URL}/transcribe`, {
+      method: "POST",
+      body: form,
+      headers: form.getHeaders(),
+      timeout: 120000,
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
       return {
         success: false,
-        error: "AssemblyAI returned empty transcription"
+        error: `Python /transcribe returned ${response.status}: ${detail.slice(0, 200)}`,
       };
     }
-  } catch (error) {
-    console.error("💥 AssemblyAI transcription error:", error.message);
-    
-    return { 
-      success: false, 
-      error: `Transcription failed: ${error.message}`
+
+    const data = await response.json();
+    if (!data.text || !data.text.trim()) {
+      return { success: false, error: "Whisper returned empty transcription" };
+    }
+
+    console.log("✅ Whisper transcription completed");
+    console.log("Text:", data.text);
+
+    return {
+      success: true,
+      text: data.text.trim(),
+      service: "whisper",
+      language: data.language,
+      duration: data.duration,
     };
+  } catch (error) {
+    console.error("💥 Whisper transcription error:", error.message);
+    return { success: false, error: `Transcription failed: ${error.message}` };
   }
 }
 
@@ -320,14 +319,11 @@ export const guestVoiceChatController = async (req, res) => {
       });
     }
 
-    // Transcribe with AssemblyAI or fallback
-    let transcription;
-    if (assemblyClient) {
-      transcription = await transcribeWithAssemblyAI(tempFilePath);
-    }
-    
-    // If AssemblyAI fails or not available, use fallback
-    if (!assemblyClient || !transcription || !transcription.success) {
+    // Transcribe with local Whisper (via Python service)
+    let transcription = await transcribeWithPython(tempFilePath);
+
+    // If Whisper fails, use basic fallback
+    if (!transcription || !transcription.success) {
       transcription = await transcribeWithBasicFallback(tempFilePath);
       
       if (!transcription.success) {
@@ -608,7 +604,7 @@ export const guestHealthCheck = async (req, res) => {
     const health = {
       pythonBackend: pythonBackendHealthy,
       pythonBackendUrl: PYTHON_BACKEND_URL,
-      assemblyAI: !!assemblyClient,
+      whisper: pythonBackendHealthy,
       guestSessions: guestSessions.size,
       sessionExpiryMinutes: GUEST_SESSION_EXPIRY / (60 * 1000),
       timestamp: new Date().toISOString(),

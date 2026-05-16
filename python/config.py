@@ -144,14 +144,29 @@ BATCH_SIZE = 100                        # Chunks processed at a time during buil
 # =============================================================
 # LLM (LARGE LANGUAGE MODEL) SETTINGS
 # =============================================================
-# The LLM generates human-like answers from the retrieved chunks.
-# We use Groq's API for fast inference with the Llama model.
+# We now run Llama 3.2:3b locally through the Ollama daemon.
+# Start the daemon with `ollama serve` (or the Ollama tray app on Windows).
+# Pull the model once with: `ollama pull llama3.2:3b`
 
-GROQ_API_KEY = os.getenv("GROQ_API_KEY")   # Loaded from .env file
-LLM_MODEL = "llama-3.3-70b-versatile"       # The AI model used for answers
+OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
+LLM_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 LLM_TEMPERATURE = 0.3                       # Lower = more focused answers (0-1)
-LLM_MAX_TOKENS = 1000                       # Max length of generated answer
+LLM_MAX_TOKENS = 1000                       # Max length of generated answer (Ollama `num_predict`)
+LLM_REQUEST_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "300"))  # seconds; 3B on CPU is slow (cold start ~30-60s + generation)
 TOP_K_RESULTS = 3                            # Number of chunks to retrieve per question
+
+
+# =============================================================
+# SPEECH-TO-TEXT (replaces AssemblyAI)
+# =============================================================
+# Local Whisper via `faster-whisper`. The model is downloaded on first use
+# and cached in ~/.cache/huggingface. `base` (~145MB) is a good speed/quality
+# tradeoff on CPU; switch to `tiny` (~75MB) for faster, `small` (~470MB) for
+# better accuracy.
+
+WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
+WHISPER_DEVICE = os.getenv("WHISPER_DEVICE", "cpu")   # "cpu" or "cuda"
+WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")  # int8 = fastest on CPU
 
 
 # =============================================================

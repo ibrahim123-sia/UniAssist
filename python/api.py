@@ -25,6 +25,7 @@ MODERATION:
 import os
 import io
 import uuid
+import tempfile
 from typing import Optional, List
 
 import jwt
@@ -39,6 +40,8 @@ import config
 import rag
 import database
 from moderation import check_message
+from language_detect import detect_language, normalize_for_prompt
+from transcribe import transcribe_audio
 
 load_dotenv()
 
@@ -135,6 +138,7 @@ class AnswerResponse(BaseModel):
     answer: str
     flagged: bool = False
     matches: Optional[List[str]] = None
+    language: Optional[str] = None
 
 
 class ChunkBody(BaseModel):
@@ -150,6 +154,10 @@ class ModerationBody(BaseModel):
     text: str
 
 
+class LanguageBody(BaseModel):
+    text: str
+
+
 # =============================================================
 # /ASK — Public RAG with moderation
 # =============================================================
@@ -157,6 +165,10 @@ class ModerationBody(BaseModel):
 WARNING_RESPONSE = (
     "I noticed inappropriate language in your message. Please rephrase your "
     "question respectfully so I can help you."
+)
+WARNING_RESPONSE_URDU = (
+    "Aap ke message mein na-munasib alfaaz hain. Baraye meherbani apna sawal "
+    "tameez se dobara likhein taa-ke main madad kar sakun."
 )
 
 
@@ -181,23 +193,78 @@ def _flag_user(user_id: str, message: str, matches: List[str], chat_id: Optional
 
 @app.post("/ask", response_model=AnswerResponse)
 async def ask_question(request: QuestionRequest):
+    detected = detect_language(request.question)
+    lang = normalize_for_prompt(detected["language"])
+
     moderation = check_message(request.question)
     if moderation["flagged"]:
         if request.user_id:
             _flag_user(request.user_id, request.question, moderation["matches"], request.chat_id)
+        warning = WARNING_RESPONSE_URDU if lang == "roman_urdu" else WARNING_RESPONSE
         return AnswerResponse(
-            answer=WARNING_RESPONSE,
+            answer=warning,
             flagged=True,
             matches=moderation["matches"],
+            language=detected["language"],
         )
 
-    answer = rag.ask(request.question)
-    return AnswerResponse(answer=answer, flagged=False)
+    answer = rag.ask(request.question, language=lang)
+    return AnswerResponse(answer=answer, flagged=False, language=detected["language"])
 
 
 @app.post("/moderation/check")
 async def moderation_check(body: ModerationBody):
     return check_message(body.text)
+
+
+@app.post("/language/detect")
+async def language_detect(body: LanguageBody):
+    """Public language classifier — used by Node or the client when needed."""
+    return detect_language(body.text)
+
+
+# =============================================================
+# /TRANSCRIBE — Local speech-to-text (replaces AssemblyAI)
+# =============================================================
+
+@app.post("/transcribe")
+async def transcribe(
+    file: UploadFile = File(...),
+    language: Optional[str] = Form(None),
+):
+    """Transcribe an uploaded audio file with local Whisper.
+
+    Accepts webm / wav / mp3 / ogg / m4a. The audio is written to a temp
+    file because faster-whisper reads from disk (it shells out to ffmpeg
+    under the hood for non-WAV formats).
+    """
+    content = await file.read()
+    if not content:
+        raise HTTPException(status_code=400, detail="Empty audio file")
+
+    # Preserve the original extension so ffmpeg picks the right demuxer.
+    suffix = ""
+    if file.filename and "." in file.filename:
+        suffix = "." + file.filename.rsplit(".", 1)[-1].lower()
+    elif file.content_type and "/" in file.content_type:
+        suffix = "." + file.content_type.split("/", 1)[-1].split(";")[0].lower()
+    if not suffix:
+        suffix = ".webm"
+
+    fd, tmp_path = tempfile.mkstemp(suffix=suffix, prefix="uniassist_audio_")
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(content)
+        result = transcribe_audio(tmp_path, language=language)
+    finally:
+        try:
+            os.remove(tmp_path)
+        except OSError:
+            pass
+
+    if not result["success"]:
+        raise HTTPException(status_code=422, detail=result.get("error") or "Transcription failed")
+    return result
 
 
 # =============================================================
