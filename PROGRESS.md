@@ -18,10 +18,19 @@ End-to-end implementation: students can submit issues to a chosen department, ea
 
 ### FYP Spec §3.1 — Staff Portal
 
-- `/staff/dashboard` — open / in-progress / resolved-this-week cards, 7-day new-issue trend (recharts area chart), avg first-response time (computed from time-to-first-staff-reply), this-staff's reply count, and most recent 5 issues.
-- `/staff/issues` — department-scoped inbox with status filter chips and live counts, 20s polling, refresh button.
-- `/staff/issues/:id` — full thread, student card, attachments, status pill row (one click changes status), reply textarea.
-- Sidebar shows Dashboard + Department Inbox (was just the inbox before). Post-login lands on `/staff/dashboard`.
+- `/staff/dashboard` — open / in-progress / resolved-this-week cards, 7-day new-issue trend (recharts area chart), avg first-response time (computed from time-to-first-staff-reply), this-staff's reply count, and most recent 5 issues. Status pill list includes Rejected.
+- `/staff/issues` — department-scoped inbox with status filter chips (Pending / In Progress / Resolved / Closed / **Rejected**) and live counts, 20s polling, refresh button. Each card shows an **assignedTo badge** (`Assigned to you` / `Assigned: <name>` / `Unassigned`).
+- `/staff/issues/:id` — full thread, student card, **inline attachment preview** (modal lightbox for images, PDF iframe), **assignee strip** with `Assign to me` + `Reassign…` (dropdown of same-dept staff), **combined composer** (reply textarea + status picker + conditional rejection-reason input → single submit fires one notification), **concurrency-aware**: every write sends `expectedUpdatedAt`; server returns 409 on mismatch with the latest state and the UI shows "Sara just resolved this" instead of silently overwriting. A non-blocking toast fires on every poll where someone *else* updated the issue.
+- Sidebar shows Dashboard + Department Inbox. Post-login lands on `/staff/dashboard`.
+
+#### Tier 1 enhancement (multi-staff coordination)
+
+- **`Rejected` status** added to enum with required `rejectionReason`. Stored on the issue and shown to the student in the notification email + UI badge.
+- **`Issue.lastEvent`** subdoc: `{type, byUserId, byName, byRole, at, note}`. Updated on every staff write so the UI can render "Sara just …" banners.
+- **`Issue.assignedTo`** now populated on all staff endpoints. New `PATCH /api/issue/department/:id/assign` (assign to a same-dept staffer or `null` to unassign). New `GET /api/issue/department/staff` for the reassign picker.
+- **Combined reply + status**: `POST /api/issue/department/:id/sfo-reply` now accepts optional `status`, `reason`, `expectedUpdatedAt`. One save, one student notification.
+- **Concurrency guard**: every mutating endpoint accepts `expectedUpdatedAt`; mismatch → `409 VERSION_CONFLICT` with the fresh issue in the response body. Slice auto-merges the fresh issue into state.
+- **Cross-staff notifications**: when one staffer changes status, the other staffers in the same department get an in-app notification so two people don't both jump on the same item.
 
 ### FYP Spec §4 — Administrator Panel (full UI + backend)
 

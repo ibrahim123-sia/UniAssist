@@ -5,7 +5,7 @@ import { FileText, Clock, RefreshCw, Building2 } from "lucide-react";
 import moment from "moment";
 import { fetchDeptIssues } from "../../redux/slices/issueSlice";
 
-const STATUSES = ["All", "Pending", "In Progress", "Resolved", "Closed"];
+const STATUSES = ["All", "Pending", "In Progress", "Resolved", "Closed", "Rejected"];
 
 const statusStyle = (status, isDark) => {
   const palette = {
@@ -13,6 +13,7 @@ const statusStyle = (status, isDark) => {
     "In Progress": { bg: isDark ? "#13314f" : "#E0F0FF", text: isDark ? "#7BB6F5" : "#1463B0" },
     Resolved: { bg: isDark ? "#163320" : "#E0F8E5", text: isDark ? "#7BD594" : "#1B7A33" },
     Closed: { bg: isDark ? "#2a2a2a" : "#EDEDED", text: isDark ? "#B5B5B5" : "#666666" },
+    Rejected: { bg: isDark ? "#3a1818" : "#FCE6E6", text: isDark ? "#F08D7B" : "#A8261B" },
   };
   return palette[status] || palette.Closed;
 };
@@ -125,7 +126,7 @@ const StaffIssues = () => {
                       <p className="text-sm line-clamp-2" style={{ color: C.muted }}>
                         {issue.description}
                       </p>
-                      <div className="flex items-center gap-4 mt-3 text-xs" style={{ color: C.muted }}>
+                      <div className="flex items-center gap-4 mt-3 text-xs flex-wrap" style={{ color: C.muted }}>
                         <span>From: {issue.studentName}</span>
                         <span>{issue.studentEmail}</span>
                         <span>Category: {issue.category}</span>
@@ -136,6 +137,28 @@ const StaffIssues = () => {
                         {issue.replies?.length > 0 && (
                           <span>{issue.replies.length} repl{issue.replies.length === 1 ? "y" : "ies"}</span>
                         )}
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
+                          style={{
+                            backgroundColor: issue.assignedTo
+                              ? (issue.assignedTo._id === user?._id
+                                  ? (isDark ? "#13314f" : "#E0F0FF")
+                                  : (isDark ? "#1E2A47" : "#EEF1F6"))
+                              : "transparent",
+                            color: issue.assignedTo
+                              ? (issue.assignedTo._id === user?._id
+                                  ? (isDark ? "#7BB6F5" : "#1463B0")
+                                  : C.muted)
+                              : C.muted,
+                            border: issue.assignedTo ? "none" : `1px dashed ${C.border}`,
+                          }}
+                        >
+                          {issue.assignedTo
+                            ? (issue.assignedTo._id === user?._id
+                                ? "Assigned to you"
+                                : `Assigned: ${issue.assignedTo.name}`)
+                            : "Unassigned"}
+                        </span>
                       </div>
                     </div>
                   </div>

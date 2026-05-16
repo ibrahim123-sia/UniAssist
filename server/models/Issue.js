@@ -64,16 +64,28 @@ const issueSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ["Pending", "In Progress", "Resolved", "Closed"],
+      enum: ["Pending", "In Progress", "Resolved", "Closed", "Rejected"],
       default: "Pending",
       index: true,
     },
+    // Mandatory when status=Rejected, optional otherwise. Shown to the student.
+    rejectionReason: { type: String, trim: true, default: "" },
     attachments: { type: [attachmentSchema], default: [] },
     replies: { type: [replySchema], default: [] },
     assignedTo: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
       default: null,
+    },
+    // Last write metadata — used by the staff UI to show "Sara just resolved this"
+    // banners and for concurrency-conflict messages.
+    lastEvent: {
+      type: { type: String, enum: ["created", "reply", "status", "assign"], default: "created" },
+      byUserId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+      byName: { type: String, default: "" },
+      byRole: { type: String, default: "" },
+      at: { type: Date, default: Date.now },
+      note: { type: String, default: "" }, // e.g. previous->new status
     },
   },
   { timestamps: true }

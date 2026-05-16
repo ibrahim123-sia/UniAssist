@@ -12,14 +12,18 @@ import {
   updateIssueStatus,
   addStaffReply,
   getDeptStats,
+  assignIssue,
+  listDeptStaff,
 } from "../controllers/issueController.js";
 
 const router = express.Router();
 
 router.get("/department/stats", protect, requireRole("staff"), getDeptStats);
+router.get("/department/staff", protect, requireRole("staff"), listDeptStaff);
 router.get("/department", protect, requireRole("staff"), getDeptIssues);
 router.get("/department/:id", protect, requireRole("staff"), getDeptIssueById);
 router.patch("/department/:id/status", protect, requireRole("staff"), updateIssueStatus);
+router.patch("/department/:id/assign", protect, requireRole("staff"), assignIssue);
 router.post("/department/:id/sfo-reply", protect, requireRole("staff"), addStaffReply);
 
 router.post(

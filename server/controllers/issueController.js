@@ -248,6 +248,7 @@ export const getDeptStats = async (req, res) => {
           "In Progress": statusMap["In Progress"] || 0,
           Resolved: statusMap.Resolved || 0,
           Closed: statusMap.Closed || 0,
+          Rejected: statusMap.Rejected || 0,
         },
         resolvedThisWeek,
         repliesGivenByMe: repliesGiven[0]?.count || 0,
@@ -264,6 +265,65 @@ export const getDeptStats = async (req, res) => {
   }
 };
 
+const STAFF_ISSUE_POPULATE = [
+  { path: "department", select: "code name" },
+  { path: "assignedTo", select: "name email staffTitle" },
+  { path: "lastEvent.byUserId", select: "name staffTitle" },
+];
+
+const ALLOWED_STATUSES = ["Pending", "In Progress", "Resolved", "Closed", "Rejected"];
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const sameDept = (issue, user) =>
+  issue.department._id.toString() === user.department.toString();
+
+// Concurrency check: client passes the `updatedAt` it last saw; if the issue
+// has changed since then, reject with 409 so the UI can show "updated by X".
+const versionConflict = (issue, expectedUpdatedAt) => {
+  if (!expectedUpdatedAt) return false;
+  return new Date(issue.updatedAt).toISOString() !== new Date(expectedUpdatedAt).toISOString();
+};
+
+const conflictResponse = async (res, issueId) => {
+  const fresh = await Issue.findById(issueId).populate(STAFF_ISSUE_POPULATE);
+  const ev = fresh?.lastEvent || {};
+  const who = ev.byName ? `${ev.byName}${ev.byRole === "staff" ? " (staff)" : ""}` : "another staff member";
+  return res.status(409).json({
+    success: false,
+    code: "VERSION_CONFLICT",
+    message: `This issue was just updated by ${who}. Refresh to see the latest before retrying.`,
+    issue: fresh,
+  });
+};
+
+const recordEvent = (issue, user, type, note = "") => {
+  issue.lastEvent = {
+    type,
+    byUserId: user._id,
+    byName: user.name,
+    byRole: user.role,
+    at: new Date(),
+    note,
+  };
+};
+
+const notifyDeptStaffOthers = async (issue, currentUserId, payload) => {
+  const others = await User.find({
+    role: "staff",
+    department: issue.department._id,
+    isBlocked: false,
+    _id: { $ne: currentUserId },
+  });
+  for (const s of others) notify(s, payload).catch(() => {});
+};
+
+// ---------------------------------------------------------------------------
+// GET /api/issue/department
+// ---------------------------------------------------------------------------
+
 export const getDeptIssues = async (req, res) => {
   if (!req.user.department) {
     return res.status(400).json({ success: false, message: "Staff has no department assigned" });
@@ -273,7 +333,7 @@ export const getDeptIssues = async (req, res) => {
     const filter = { department: req.user.department };
     if (status) filter.status = status;
     const issues = await Issue.find(filter)
-      .populate("department", "code name")
+      .populate(STAFF_ISSUE_POPULATE)
       .sort({ updatedAt: -1 });
     res.json({ success: true, issues });
   } catch (error) {
@@ -287,9 +347,9 @@ export const getDeptIssueById = async (req, res) => {
     return res.status(400).json({ success: false, message: "Staff has no department assigned" });
   }
   try {
-    const issue = await Issue.findById(req.params.id).populate("department", "code name");
+    const issue = await Issue.findById(req.params.id).populate(STAFF_ISSUE_POPULATE);
     if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
-    if (issue.department._id.toString() !== req.user.department.toString()) {
+    if (!sameDept(issue, req.user)) {
       return res.status(403).json({ success: false, message: "Issue belongs to another department" });
     }
     res.json({ success: true, issue });
@@ -299,32 +359,52 @@ export const getDeptIssueById = async (req, res) => {
   }
 };
 
-const ALLOWED_STATUSES = ["Pending", "In Progress", "Resolved", "Closed"];
+// ---------------------------------------------------------------------------
+// PATCH /api/issue/department/:id/status
+//   Status-only update. Accepts optional `reason` (required for Rejected) and
+//   optional `expectedUpdatedAt` for concurrency safety.
+// ---------------------------------------------------------------------------
 
 export const updateIssueStatus = async (req, res) => {
-  const { status } = req.body;
+  const { status, reason, expectedUpdatedAt } = req.body;
   if (!ALLOWED_STATUSES.includes(status)) {
     return res.status(400).json({
       success: false,
       message: `status must be one of: ${ALLOWED_STATUSES.join(", ")}`,
     });
   }
+  if (status === "Rejected" && (!reason || !reason.trim())) {
+    return res.status(400).json({
+      success: false,
+      message: "A reason is required when rejecting an issue.",
+    });
+  }
   try {
     const issue = await Issue.findById(req.params.id).populate("department", "code name");
     if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
-    if (issue.department._id.toString() !== req.user.department.toString()) {
+    if (!sameDept(issue, req.user)) {
       return res.status(403).json({ success: false, message: "Issue belongs to another department" });
     }
+    if (versionConflict(issue, expectedUpdatedAt)) return conflictResponse(res, issue._id);
     if (issue.status === status) {
-      return res.json({ success: true, issue, message: "Status unchanged" });
+      const populated = await Issue.findById(issue._id).populate(STAFF_ISSUE_POPULATE);
+      return res.json({ success: true, issue: populated, message: "Status unchanged" });
     }
+
     const previous = issue.status;
     issue.status = status;
+    if (status === "Rejected") issue.rejectionReason = reason.trim();
     if (!issue.assignedTo) issue.assignedTo = req.user._id;
+    recordEvent(issue, req.user, "status", `${previous} → ${status}`);
     await issue.save();
 
+    // Notify the student
     const student = await User.findById(issue.studentId);
     if (student) {
+      const reasonLine =
+        status === "Rejected" && issue.rejectionReason
+          ? `<br/><br/><strong>Reason:</strong> ${issue.rejectionReason}`
+          : "";
       notify(student, {
         type: "issue_status_changed",
         issueId: issue._id,
@@ -332,53 +412,222 @@ export const updateIssueStatus = async (req, res) => {
         link: `/issues/${issue._id}`,
         emailSubject: `Issue update: ${status}`,
         emailHeading: "Your issue status has changed",
-        emailBody: `<strong>${issue.title}</strong><br/><br/>Status: ${previous} → <strong>${status}</strong><br/>Department: ${issue.department.code}`,
+        emailBody: `<strong>${issue.title}</strong><br/><br/>Status: ${previous} → <strong>${status}</strong><br/>Department: ${issue.department.code}${reasonLine}`,
       });
     }
 
-    res.json({ success: true, issue });
+    // Notify other dept staff (so they don't waste effort on a resolved item)
+    await notifyDeptStaffOthers(issue, req.user._id, {
+      type: "issue_status_changed",
+      issueId: issue._id,
+      message: `${req.user.name} marked "${issue.title}" as ${status}`,
+      link: `/staff/issues/${issue._id}`,
+    });
+
+    const populated = await Issue.findById(issue._id).populate(STAFF_ISSUE_POPULATE);
+    res.json({ success: true, issue: populated });
   } catch (error) {
     console.error("updateIssueStatus error:", error);
     res.status(500).json({ success: false, message: "Failed to update status" });
   }
 };
 
+// ---------------------------------------------------------------------------
+// POST /api/issue/department/:id/sfo-reply
+//   Combined reply + optional status change. Reply text is required; if
+//   `status` is also provided, it's applied in the same save (one DB round
+//   trip, one student notification).
+// ---------------------------------------------------------------------------
+
 export const addStaffReply = async (req, res) => {
-  const { message } = req.body;
+  const { message, status, reason, expectedUpdatedAt } = req.body;
   if (!message || !message.trim()) {
     return res.status(400).json({ success: false, message: "Reply message is required" });
+  }
+  if (status !== undefined && !ALLOWED_STATUSES.includes(status)) {
+    return res.status(400).json({
+      success: false,
+      message: `status must be one of: ${ALLOWED_STATUSES.join(", ")}`,
+    });
+  }
+  if (status === "Rejected" && (!reason || !reason.trim())) {
+    return res.status(400).json({
+      success: false,
+      message: "A reason is required when rejecting an issue.",
+    });
   }
   try {
     const issue = await Issue.findById(req.params.id).populate("department", "code name");
     if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
-    if (issue.department._id.toString() !== req.user.department.toString()) {
+    if (!sameDept(issue, req.user)) {
       return res.status(403).json({ success: false, message: "Issue belongs to another department" });
     }
+    if (versionConflict(issue, expectedUpdatedAt)) return conflictResponse(res, issue._id);
+
+    const statusChanged = status && status !== issue.status;
+    const previous = issue.status;
+
     issue.replies.push({
       authorId: req.user._id,
       authorName: req.user.name,
       authorRole: "staff",
       message: message.trim(),
     });
+    if (statusChanged) {
+      issue.status = status;
+      if (status === "Rejected") issue.rejectionReason = reason.trim();
+    }
     if (!issue.assignedTo) issue.assignedTo = req.user._id;
+
+    recordEvent(
+      issue,
+      req.user,
+      statusChanged ? "status" : "reply",
+      statusChanged ? `${previous} → ${status} + reply` : "replied"
+    );
     await issue.save();
 
+    // ONE combined notification to the student
     const student = await User.findById(issue.studentId);
     if (student) {
+      const titlePrefix = statusChanged
+        ? `${req.user.staffTitle || "Staff"} marked your issue ${status}`
+        : `${req.user.staffTitle || "Staff"} replied on: ${issue.title}`;
+      const reasonLine =
+        statusChanged && status === "Rejected" && issue.rejectionReason
+          ? `<br/><br/><strong>Reason:</strong> ${issue.rejectionReason}`
+          : "";
+      const statusLine = statusChanged
+        ? `<br/><br/><strong>Status:</strong> ${previous} → ${status}${reasonLine}`
+        : "";
       notify(student, {
-        type: "issue_replied",
+        type: statusChanged ? "issue_status_changed" : "issue_replied",
         issueId: issue._id,
-        message: `${req.user.staffTitle || "Staff"} replied on: ${issue.title}`,
+        message: titlePrefix,
         link: `/issues/${issue._id}`,
-        emailSubject: `New reply on your issue`,
-        emailHeading: `${req.user.staffTitle || "Staff"} replied to your issue`,
-        emailBody: `<strong>${issue.title}</strong><br/><br/>${req.user.name} (${issue.department.code}): ${message.trim()}`,
+        emailSubject: statusChanged ? `Issue update: ${status}` : "New reply on your issue",
+        emailHeading: titlePrefix,
+        emailBody: `<strong>${issue.title}</strong>${statusLine}<br/><br/><strong>${req.user.name} (${issue.department.code}):</strong> ${message.trim()}`,
       });
     }
 
-    res.json({ success: true, issue });
+    // If status changed, let other dept staff know so two people don't
+    // both try to handle the same item.
+    if (statusChanged) {
+      await notifyDeptStaffOthers(issue, req.user._id, {
+        type: "issue_status_changed",
+        issueId: issue._id,
+        message: `${req.user.name} marked "${issue.title}" as ${status}`,
+        link: `/staff/issues/${issue._id}`,
+      });
+    }
+
+    const populated = await Issue.findById(issue._id).populate(STAFF_ISSUE_POPULATE);
+    res.json({ success: true, issue: populated });
   } catch (error) {
     console.error("addStaffReply error:", error);
     res.status(500).json({ success: false, message: "Failed to add reply" });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// PATCH /api/issue/department/:id/assign
+//   Body: { assigneeId: <userId> | null, expectedUpdatedAt? }
+//   Assigns the issue to a staff member in the same department, or unassigns
+//   with null. The newly-assigned staff member gets a notification.
+// ---------------------------------------------------------------------------
+
+export const assignIssue = async (req, res) => {
+  const { assigneeId, expectedUpdatedAt } = req.body;
+  if (!req.user.department) {
+    return res.status(400).json({ success: false, message: "Staff has no department assigned" });
+  }
+  try {
+    const issue = await Issue.findById(req.params.id).populate("department", "code name");
+    if (!issue) return res.status(404).json({ success: false, message: "Issue not found" });
+    if (!sameDept(issue, req.user)) {
+      return res.status(403).json({ success: false, message: "Issue belongs to another department" });
+    }
+    if (versionConflict(issue, expectedUpdatedAt)) return conflictResponse(res, issue._id);
+
+    let assigneeUser = null;
+    if (assigneeId) {
+      assigneeUser = await User.findById(assigneeId);
+      if (
+        !assigneeUser ||
+        assigneeUser.role !== "staff" ||
+        !assigneeUser.department ||
+        assigneeUser.department.toString() !== req.user.department.toString() ||
+        assigneeUser.isBlocked
+      ) {
+        return res
+          .status(400)
+          .json({ success: false, message: "Assignee must be an active staff member in this department" });
+      }
+    }
+
+    const previousId = issue.assignedTo ? issue.assignedTo.toString() : null;
+    issue.assignedTo = assigneeUser ? assigneeUser._id : null;
+    const note = assigneeUser
+      ? `assigned to ${assigneeUser.name}`
+      : "unassigned";
+    recordEvent(issue, req.user, "assign", note);
+    await issue.save();
+
+    // Notify the new assignee (unless it's themselves)
+    if (assigneeUser && assigneeUser._id.toString() !== req.user._id.toString()) {
+      notify(assigneeUser, {
+        type: "issue_replied",
+        issueId: issue._id,
+        message: `${req.user.name} assigned "${issue.title}" to you`,
+        link: `/staff/issues/${issue._id}`,
+        emailSubject: `[${issue.department.code}] Issue assigned to you`,
+        emailHeading: "An issue was assigned to you",
+        emailBody: `<strong>${issue.title}</strong><br/><br/>Assigned by: ${req.user.name}<br/>Department: ${issue.department.code}`,
+      }).catch(() => {});
+    }
+    // Also tell the previous assignee (if any) it's been taken off their plate
+    if (previousId && previousId !== req.user._id.toString() && previousId !== (assigneeUser?._id.toString() || "")) {
+      const prev = await User.findById(previousId);
+      if (prev) {
+        notify(prev, {
+          type: "issue_replied",
+          issueId: issue._id,
+          message: `${req.user.name} reassigned "${issue.title}"`,
+          link: `/staff/issues/${issue._id}`,
+        }).catch(() => {});
+      }
+    }
+
+    const populated = await Issue.findById(issue._id).populate(STAFF_ISSUE_POPULATE);
+    res.json({ success: true, issue: populated });
+  } catch (error) {
+    console.error("assignIssue error:", error);
+    res.status(500).json({ success: false, message: "Failed to assign issue" });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /api/issue/department/staff
+//   Returns the list of staffers in the current user's department, for the
+//   reassign dropdown.
+// ---------------------------------------------------------------------------
+
+export const listDeptStaff = async (req, res) => {
+  if (!req.user.department) {
+    return res.status(400).json({ success: false, message: "Staff has no department assigned" });
+  }
+  try {
+    const staff = await User.find({
+      role: "staff",
+      department: req.user.department,
+      isBlocked: false,
+    })
+      .select("name email staffTitle")
+      .sort({ name: 1 });
+    res.json({ success: true, staff });
+  } catch (error) {
+    console.error("listDeptStaff error:", error);
+    res.status(500).json({ success: false, message: "Failed to load staff" });
   }
 };

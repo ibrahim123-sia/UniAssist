@@ -12,6 +12,15 @@ const errorMessage = (error, fallback) => {
   return error.response?.data?.message || fallback;
 };
 
+// 409 responses carry the freshest issue payload so the UI can show "Sara just
+// resolved this" and let the user retry against the new state.
+const conflictPayload = (error) => ({
+  success: false,
+  conflict: true,
+  message: error.response?.data?.message || "This issue was just updated by another staff member.",
+  issue: error.response?.data?.issue || null,
+});
+
 export const createIssue = createAsyncThunk(
   "issue/create",
   async ({ title, description, category, departmentId, files }, { getState }) => {
@@ -123,15 +132,16 @@ export const fetchDeptIssueById = createAsyncThunk(
 
 export const updateIssueStatus = createAsyncThunk(
   "issue/updateStatus",
-  async ({ id, status }, { getState }) => {
+  async ({ id, status, reason, expectedUpdatedAt }, { getState }) => {
     try {
       const { data } = await axios.patch(
         `/api/issue/department/${id}/status`,
-        { status },
+        { status, reason, expectedUpdatedAt },
         authHeader(getState)
       );
       return data;
     } catch (error) {
+      if (error.response?.status === 409) return conflictPayload(error);
       return { success: false, message: errorMessage(error, "Failed to update status") };
     }
   }
@@ -139,16 +149,46 @@ export const updateIssueStatus = createAsyncThunk(
 
 export const addStaffReply = createAsyncThunk(
   "issue/replyStaff",
-  async ({ id, message }, { getState }) => {
+  async ({ id, message, status, reason, expectedUpdatedAt }, { getState }) => {
     try {
       const { data } = await axios.post(
         `/api/issue/department/${id}/sfo-reply`,
-        { message },
+        { message, status, reason, expectedUpdatedAt },
         authHeader(getState)
       );
       return data;
     } catch (error) {
+      if (error.response?.status === 409) return conflictPayload(error);
       return { success: false, message: errorMessage(error, "Failed to send reply") };
+    }
+  }
+);
+
+export const assignIssue = createAsyncThunk(
+  "issue/assign",
+  async ({ id, assigneeId, expectedUpdatedAt }, { getState }) => {
+    try {
+      const { data } = await axios.patch(
+        `/api/issue/department/${id}/assign`,
+        { assigneeId, expectedUpdatedAt },
+        authHeader(getState)
+      );
+      return data;
+    } catch (error) {
+      if (error.response?.status === 409) return conflictPayload(error);
+      return { success: false, message: errorMessage(error, "Failed to reassign issue") };
+    }
+  }
+);
+
+export const fetchDeptStaff = createAsyncThunk(
+  "issue/fetchDeptStaff",
+  async (_, { getState }) => {
+    try {
+      const { data } = await axios.get("/api/issue/department/staff", authHeader(getState));
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to load staff") };
     }
   }
 );
@@ -159,6 +199,7 @@ const initialState = {
   selectedIssue: null,
   deptStats: null,
   deptStatsLoading: false,
+  deptStaff: [],
   loading: false,
   submitting: false,
 };
@@ -195,10 +236,18 @@ const issueSlice = createSlice({
         if (action.payload.success) state.selectedIssue = action.payload.issue;
       })
       .addCase(addStaffReply.fulfilled, (state, action) => {
-        if (action.payload.success) state.selectedIssue = action.payload.issue;
+        // Refresh the selected issue on success AND on conflict — server
+        // returned the latest version either way, so the UI stays in sync.
+        if (action.payload.issue) state.selectedIssue = action.payload.issue;
       })
       .addCase(updateIssueStatus.fulfilled, (state, action) => {
-        if (action.payload.success) state.selectedIssue = action.payload.issue;
+        if (action.payload.issue) state.selectedIssue = action.payload.issue;
+      })
+      .addCase(assignIssue.fulfilled, (state, action) => {
+        if (action.payload.issue) state.selectedIssue = action.payload.issue;
+      })
+      .addCase(fetchDeptStaff.fulfilled, (state, action) => {
+        if (action.payload.success) state.deptStaff = action.payload.staff;
       })
       .addCase(createIssue.pending, (state) => { state.submitting = true; })
       .addCase(createIssue.fulfilled, (state) => { state.submitting = false; })

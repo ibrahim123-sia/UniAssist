@@ -30,6 +30,7 @@ const statusBadge = (status, isDark) => {
     "In Progress": { bg: isDark ? "#13314f" : "#E0F0FF", text: isDark ? "#7BB6F5" : "#1463B0" },
     Resolved: { bg: isDark ? "#163320" : "#E0F8E5", text: isDark ? "#7BD594" : "#1B7A33" },
     Closed: { bg: isDark ? "#2a2a2a" : "#EDEDED", text: isDark ? "#B5B5B5" : "#666666" },
+    Rejected: { bg: isDark ? "#3a1818" : "#FCE6E6", text: isDark ? "#F08D7B" : "#A8261B" },
   };
   return palette[status] || palette.Closed;
 };
@@ -217,7 +218,7 @@ const StaffDashboard = () => {
                 </div>
               </div>
 
-              {["Pending", "In Progress", "Resolved", "Closed"].map((k) => {
+              {["Pending", "In Progress", "Resolved", "Closed", "Rejected"].map((k) => {
                 const sb = statusBadge(k, isDark);
                 return (
                   <div key={k} className="flex items-center justify-between text-sm">

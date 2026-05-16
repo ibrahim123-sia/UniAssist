@@ -78,6 +78,7 @@ export const getAdminStats = async (req, res) => {
             "In Progress": statusMap["In Progress"] || 0,
             Resolved: statusMap.Resolved || 0,
             Closed: statusMap.Closed || 0,
+            Rejected: statusMap.Rejected || 0,
           },
           last7d,
         },
