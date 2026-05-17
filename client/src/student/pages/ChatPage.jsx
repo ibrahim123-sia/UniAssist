@@ -544,7 +544,7 @@ const ChatPage = () => {
     <div
       className={`flex-1 flex flex-col h-full overflow-hidden ${
         theme === "dark"
-          ? "bg-[#0F1626]"
+          ? "bg-[#131A2C]"
           : "bg-linear-to-b from-blue-50 via-white to-gray-50"
       }`}
     >
@@ -560,7 +560,7 @@ const ChatPage = () => {
             }`}
           >
             <div className="flex flex-col md:flex-row items-center gap-4">
-              <div className="p-3 bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] rounded-xl">
+              <div className="p-3 bg-linear-to-r from-[#1B2D5C] to-[#1B2D5C] rounded-xl">
                 <Sparkles className="w-8 h-8 text-white" />
               </div>
               <div className="flex-1 text-center md:text-left">
@@ -572,7 +572,7 @@ const ChatPage = () => {
                     theme === "dark" ? "text-gray-300" : "text-gray-600"
                   }`}
                 >
-                  Your intelligent assistant for MAJU University. Ask questions,
+                  Your intelligent assistant for MAJU. Ask questions,
                   draft emails, and get personalized help.
                 </p>
               </div>
@@ -589,7 +589,7 @@ const ChatPage = () => {
             <div className="h-full flex flex-col items-center justify-center min-h-[60vh]">
               <div className="text-center max-w-md">
                 <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-linear-to-r from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 flex items-center justify-center">
-                  <MessageSquare className="w-8 h-8 text-[#1E2E6E] dark:text-[#6E8BE0]" />
+                  <MessageSquare className="w-8 h-8 text-[#1B2D5C] dark:text-[#C8102E]" />
                 </div>
                 <p className="text-xl md:text-3xl text-center text-gray-400 dark:text-gray-300 mb-2">
                   Ask me Anything
@@ -709,7 +709,7 @@ const ChatPage = () => {
             onSubmit={handleTextSubmit}
             className={`p-2 rounded-xl border ${
               theme === "dark"
-                ? "bg-[#17203A] border-[#273350]"
+                ? "bg-[#1A2238] border-[#2A3550]"
                 : "bg-white border-[#E2E5EA] shadow-sm"
             }`}
           >
@@ -726,7 +726,7 @@ const ChatPage = () => {
                       : "Type your query or record voice..."
                   }
                   required
-                  className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm rounded-lg border border-[#E2E5EA] dark:border-[#273350] focus:border-[#1E2E6E] dark:focus:border-[#6E8BE0] focus:ring-1 focus:ring-[#1E2E6E]/20 dark:focus:ring-[#6E8BE0]/20"
+                  className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm rounded-lg border border-[#E2E5EA] dark:border-[#2A3550] focus:border-[#1B2D5C] dark:focus:border-[#C8102E] focus:ring-1 focus:ring-[#1B2D5C]/20 dark:focus:ring-[#C8102E]/20"
                   disabled={isRecording || isProcessingVoice}
                 />
 
@@ -736,7 +736,7 @@ const ChatPage = () => {
                     type="button"
                     onClick={startRecording}
                     disabled={!selectedChat}
-                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md text-[#1E2E6E] dark:text-[#6E8BE0] hover:text-[#D0321E] dark:hover:text-[#E57A63] hover:bg-[#EEF1FA] dark:hover:bg-[#1E2A47] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md text-[#1B2D5C] dark:text-[#C8102E] hover:text-[#C8102E] dark:hover:text-[#F4B860] hover:bg-[#ECEFF7] dark:hover:bg-[#232C46] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Record voice message"
                   >
                     <Mic className="w-4 h-4" />
@@ -761,7 +761,7 @@ const ChatPage = () => {
                   isRecording ||
                   isProcessingVoice
                     ? "bg-gray-300 dark:bg-gray-700 cursor-not-allowed"
-                    : "bg-linear-to-r from-[#1E2E6E] to-[#1E2E6E] hover:from-[#162356] hover:to-[#162356]"
+                    : "bg-linear-to-r from-[#1B2D5C] to-[#1B2D5C] hover:from-[#142347] hover:to-[#142347]"
                 }`}
               >
                 {loading ? (

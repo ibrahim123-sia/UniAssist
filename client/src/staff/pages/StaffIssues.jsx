@@ -28,12 +28,12 @@ const StaffIssues = () => {
   const isDark = theme === "dark";
 
   const C = {
-    bg: isDark ? "#0F1626" : "#F5F6F8",
-    surface: isDark ? "#17203A" : "#FFFFFF",
-    border: isDark ? "#273350" : "#E2E5EA",
-    text: isDark ? "#ECEEF3" : "#222222",
-    muted: isDark ? "#A9B2C7" : "#5A6372",
-    navy: isDark ? "#6E8BE0" : "#1E2E6E",
+    bg: isDark ? "#131A2C" : "#F5F6F8",
+    surface: isDark ? "#1A2238" : "#FFFFFF",
+    border: isDark ? "#2A3550" : "#E2E5EA",
+    text: isDark ? "#E8EAF1" : "#222222",
+    muted: isDark ? "#9CA7BD" : "#5A6372",
+    navy: isDark ? "#C8102E" : "#1B2D5C",
   };
 
   useEffect(() => {
@@ -143,7 +143,7 @@ const StaffIssues = () => {
                             backgroundColor: issue.assignedTo
                               ? (issue.assignedTo._id === user?._id
                                   ? (isDark ? "#13314f" : "#E0F0FF")
-                                  : (isDark ? "#1E2A47" : "#EEF1F6"))
+                                  : (isDark ? "#232C46" : "#EEF1F6"))
                               : "transparent",
                             color: issue.assignedTo
                               ? (issue.assignedTo._id === user?._id

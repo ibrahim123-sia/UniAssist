@@ -16,8 +16,8 @@ const Message = ({ message }) => {
         <div
           className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0"
           style={{
-            backgroundColor: isDark ? '#2A1F1A' : '#FCEEEB',
-            color: isDark ? '#E57A63' : '#D0321E',
+            backgroundColor: isDark ? '#2A1F1A' : '#FBE9EC',
+            color: isDark ? '#F4B860' : '#C8102E',
           }}
         >
           <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -29,14 +29,14 @@ const Message = ({ message }) => {
         className="max-w-[85%] sm:max-w-[80%] rounded-2xl px-4 py-3"
         style={{
           backgroundColor: isUser
-            ? isDark ? '#243763' : '#1E2E6E'
-            : isDark ? '#17203A' : '#FFFFFF',
+            ? isDark ? '#2F3A5C' : '#1B2D5C'
+            : isDark ? '#1A2238' : '#FFFFFF',
           color: isUser
             ? '#FFFFFF'
-            : isDark ? '#ECEEF3' : '#222222',
+            : isDark ? '#E8EAF1' : '#222222',
           border: isUser
             ? 'none'
-            : isDark ? '1px solid #273350' : '1px solid #E2E5EA',
+            : isDark ? '1px solid #2A3550' : '1px solid #E2E5EA',
           boxShadow: !isUser && !isDark ? '0 1px 2px rgba(30, 46, 110, 0.04)' : 'none',
         }}
       >
@@ -63,7 +63,7 @@ const Message = ({ message }) => {
           {message.type === 'voice' && message.isProcessing && (
             <div
               className="flex items-center gap-2 text-sm"
-              style={{ color: isDark ? '#E57A63' : '#D0321E' }}
+              style={{ color: isDark ? '#F4B860' : '#C8102E' }}
             >
               <Mic className="w-4 h-4 animate-pulse" />
               <span>Processing voice message...</span>
@@ -74,7 +74,7 @@ const Message = ({ message }) => {
           {message.isVoiceResponse && (
             <div
               className="flex items-center gap-2 text-xs mb-2"
-              style={{ color: isDark ? '#E57A63' : '#D0321E' }}
+              style={{ color: isDark ? '#F4B860' : '#C8102E' }}
             >
               <Volume2 className="w-3 h-3" />
               <span>Response to your voice message</span>
@@ -98,8 +98,8 @@ const Message = ({ message }) => {
                       <code
                         className={`${className} px-1 py-0.5 rounded text-sm`}
                         style={{
-                          backgroundColor: isDark ? '#121A2E' : '#F5F6F8',
-                          color: isDark ? '#ECEEF3' : '#222222',
+                          backgroundColor: isDark ? '#0E1525' : '#F5F6F8',
+                          color: isDark ? '#E8EAF1' : '#222222',
                         }}
                         {...props}
                       >
@@ -112,8 +112,8 @@ const Message = ({ message }) => {
                       <pre
                         className="p-3 rounded-lg overflow-x-auto my-2 text-sm"
                         style={{
-                          backgroundColor: isDark ? '#121A2E' : '#F5F6F8',
-                          color: isDark ? '#ECEEF3' : '#222222',
+                          backgroundColor: isDark ? '#0E1525' : '#F5F6F8',
+                          color: isDark ? '#E8EAF1' : '#222222',
                         }}
                         {...props}
                       >
@@ -132,7 +132,7 @@ const Message = ({ message }) => {
           {message.type === 'voice' && message.voiceMeta && (
             <div
               className="text-xs mt-2"
-              style={{ color: isUser ? 'rgba(255,255,255,0.7)' : isDark ? '#A9B2C7' : '#5A6372' }}
+              style={{ color: isUser ? 'rgba(255,255,255,0.7)' : isDark ? '#9CA7BD' : '#5A6372' }}
             >
               Duration: {message.voiceMeta.duration}s
               {message.voiceMeta.transcriptionService && (
@@ -150,7 +150,7 @@ const Message = ({ message }) => {
           style={{
             color: isUser
               ? 'rgba(255,255,255,0.7)'
-              : isDark ? '#A9B2C7' : '#5A6372',
+              : isDark ? '#9CA7BD' : '#5A6372',
           }}
         >
           {moment(message.timestamp).format('h:mm A')}
@@ -162,8 +162,8 @@ const Message = ({ message }) => {
         <div
           className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center shrink-0"
           style={{
-            backgroundColor: isDark ? '#243763' : '#EEF1FA',
-            color: isDark ? '#ECEEF3' : '#1E2E6E',
+            backgroundColor: isDark ? '#2F3A5C' : '#ECEFF7',
+            color: isDark ? '#E8EAF1' : '#1B2D5C',
           }}
         >
           <User className="w-4 h-4 sm:w-5 sm:h-5" />

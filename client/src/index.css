@@ -8,35 +8,42 @@
 }
 
 @theme{
-    /* MAJU brand (light) */
-    --color-maju-navy: #1E2E6E;
-    --color-maju-navy-700: #162356;
-    --color-maju-navy-50: #EEF1FA;
-    --color-maju-red: #D0321E;
-    --color-maju-red-700: #B1291A;
-    --color-maju-red-50: #FCEEEB;
+    /* ===== MAJU brand — light theme =====
+       Aligned with Muhammad Ali Jinnah University's official identity:
+       deep navy as primary, brick red as accent, white surface.
+       Hexes are the institutional standards used across MAJU collateral. */
+    --color-maju-navy: #1B2D5C;
+    --color-maju-navy-700: #142347;
+    --color-maju-navy-50: #ECEFF7;
+    --color-maju-red: #C8102E;
+    --color-maju-red-700: #A50D26;
+    --color-maju-red-50: #FBE9EC;
 
     /* Light surfaces */
     --color-maju-bg: #FFFFFF;
     --color-maju-surface: #F5F6F8;
-    --color-maju-text: #222222;
+    --color-maju-text: #1F2330;
     --color-maju-muted: #5A6372;
     --color-maju-border: #E2E5EA;
 
-    /* Library-at-night (dark) */
-    --color-night-bg: #0F1626;
-    --color-night-surface: #17203A;
-    --color-night-elevated: #1E2A47;
-    --color-night-input: #121A2E;
-    --color-night-border: #273350;
-    --color-night-text: #ECEEF3;
-    --color-night-muted: #A9B2C7;
-    --color-night-accent: #6E8BE0;
-    --color-night-highlight: #E57A63;
-    --color-night-bubble-user: #243763;
+    /* ===== Founder's Block at dusk — dark theme =====
+       Inspired by MAJU's red-brick architecture seen at sunset.
+       Navy lineage carries from the light theme; MAJU red replaces the
+       generic blue accent so primary actions read as MAJU-branded.
+       A warm sandstone amber lifts hover/badge states. */
+    --color-night-bg: #131A2C;
+    --color-night-surface: #1A2238;
+    --color-night-elevated: #232C46;
+    --color-night-input: #0E1525;
+    --color-night-border: #2A3550;
+    --color-night-text: #E8EAF1;
+    --color-night-muted: #9CA7BD;
+    --color-night-accent: #C8102E;
+    --color-night-highlight: #F4B860;
+    --color-night-bubble-user: #2F3A5C;
 
     /* Back-compat alias */
-    --color-primary: #1E2E6E;
+    --color-primary: #1B2D5C;
 }
 
 html, body{

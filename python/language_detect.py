@@ -151,7 +151,28 @@ def detect_language(text: str) -> Dict:
 
     tokens = _tokenize(text)
     if not tokens:
-        # Non-Latin script — fall through to langdetect if available
+        # Non-Latin script. Check Unicode ranges first — langdetect is
+        # unreliable on very short Urdu/Hindi inputs ("آپ کیسے ہیں" → throws).
+        # Arabic-script range covers Urdu; Devanagari range covers Hindi.
+        # Either way we want the LLM to reply in Roman Urdu, so we return
+        # "ur" — `normalize_for_prompt("ur")` maps it to "roman_urdu".
+        if re.search(r"[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]", text):
+            return {
+                "language": "ur",
+                "confidence": 0.95,
+                "scores": {"en": 0.0, "roman_urdu": 1.0},
+                "tokens": 0,
+                "matched_urdu_tokens": [],
+            }
+        if re.search(r"[ऀ-ॿ]", text):
+            return {
+                "language": "hi",
+                "confidence": 0.95,
+                "scores": {"en": 0.0, "roman_urdu": 1.0},
+                "tokens": 0,
+                "matched_urdu_tokens": [],
+            }
+        # Fall back to langdetect for other non-Latin scripts.
         if _LANGDETECT_OK:
             try:
                 top = detect_langs(text)[0]
@@ -219,7 +240,15 @@ def detect_language(text: str) -> Dict:
 
 
 def normalize_for_prompt(language: str) -> str:
-    """Map any detector output to one of the three labels the LLM prompt uses."""
+    """Map any detector output to one of the three labels the LLM prompt uses.
+
+    Actual Urdu script ("ur" from langdetect) is treated as Roman Urdu intent:
+    the corpus is English so we can't reply in Urdu anyway, and we want to
+    keep the conversation in the same language family the user picked. The
+    LLM prompt's script-ban rules will keep the reply in Latin letters.
+    """
     if language in ("roman_urdu", "mixed", "en"):
         return language
+    if language in ("ur", "urdu", "hi", "hindi"):
+        return "roman_urdu"
     return "en"

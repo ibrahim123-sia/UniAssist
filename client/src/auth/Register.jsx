@@ -110,20 +110,20 @@ const Register = () => {
     <div
       className={`min-h-screen transition-colors duration-300 ${
         theme === "dark"
-          ? "bg-[#0F1626]"
-          : "bg-linear-to-br from-[#EEF1FA] via-[#F5F6F8] to-[#EEF1FA]"
+          ? "bg-[#131A2C]"
+          : "bg-linear-to-br from-[#ECEFF7] via-[#F5F6F8] to-[#ECEFF7]"
       }`}
     >
       {/* Theme Toggle */}
       <button
         onClick={() => dispatch(toggleTheme())}
-        className="fixed top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 p-2 sm:p-3 rounded-full bg-white dark:bg-[#17203A] shadow-lg hover:shadow-xl transition-all duration-300 z-50 border border-transparent dark:border-[#273350]"
+        className="fixed top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 p-2 sm:p-3 rounded-full bg-white dark:bg-[#1A2238] shadow-lg hover:shadow-xl transition-all duration-300 z-50 border border-transparent dark:border-[#2A3550]"
         aria-label="Toggle theme"
       >
         {theme === "dark" ? (
           <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-[#E0B467]" />
         ) : (
-          <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-[#1E2E6E]" />
+          <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-[#1B2D5C]" />
         )}
       </button>
 
@@ -132,17 +132,16 @@ const Register = () => {
         {/* Logo Section */}
         <div className="flex flex-col items-center mb-6 sm:mb-8 lg:mb-10">
           <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-            <div className="p-2 sm:p-3 bg-[#1E2E6E] dark:bg-[#1E2A47] rounded-xl">
+            <div className="p-2 sm:p-3 bg-[#1B2D5C] dark:bg-[#232C46] rounded-xl">
               <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
             </div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#222222] dark:text-[#ECEEF3]">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#222222] dark:text-[#E8EAF1]">
               UniAssist
-              <span className="text-[#D0321E] dark:text-[#E57A63]">.ai</span>
             </h1>
           </div>
           <p
             className={`text-sm sm:text-base lg:text-lg text-center mb-2 ${
-              theme === "dark" ? "text-[#A9B2C7]" : "text-[#5A6372]"
+              theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
             }`}
           >
             Join thousands of MAJU students using AI to simplify university life
@@ -155,16 +154,16 @@ const Register = () => {
           <div
             className={`backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8 border ${
               theme === "dark"
-                ? "bg-[#17203A]/90 border-[#273350]"
+                ? "bg-[#1A2238]/90 border-[#2A3550]"
                 : "bg-white/90 border-[#E2E5EA]"
             }`}
           >
-            <h2 className="text-xl sm:text-2xl font-bold text-[#222222] dark:text-[#ECEEF3] mb-2">
+            <h2 className="text-xl sm:text-2xl font-bold text-[#222222] dark:text-[#E8EAF1] mb-2">
               {step === 1 ? "Create Account" : "Verify Email"}
             </h2>
             <p
               className={`text-sm sm:text-base mb-6 ${
-                theme === "dark" ? "text-[#A9B2C7]" : "text-[#5A6372]"
+                theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
               }`}
             >
               {step === 1
@@ -181,7 +180,7 @@ const Register = () => {
                 <div>
                   <label
                     className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                      theme === "dark" ? "text-[#A9B2C7]" : "text-[#222222]"
+                      theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
                     }`}
                   >
                     Full Name
@@ -192,9 +191,9 @@ const Register = () => {
                       type="text"
                       value={name}
                       onChange={(e) => setName(e.target.value)}
-                      className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2E6E] dark:focus:ring-[#6E8BE0] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
+                      className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
                         theme === "dark"
-                          ? "bg-[#121A2E] border-[#273350] text-[#ECEEF3]"
+                          ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
                           : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
                       }`}
                       placeholder="John Doe"
@@ -207,7 +206,7 @@ const Register = () => {
                 <div>
                   <label
                     className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                      theme === "dark" ? "text-[#A9B2C7]" : "text-[#222222]"
+                      theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
                     }`}
                   >
                     University Email
@@ -218,9 +217,9 @@ const Register = () => {
                       type="email"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2E6E] dark:focus:ring-[#6E8BE0] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
+                      className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
                         theme === "dark"
-                          ? "bg-[#121A2E] border-[#273350] text-[#ECEEF3]"
+                          ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
                           : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
                       }`}
                       placeholder="student@maju.edu.pk"
@@ -233,7 +232,7 @@ const Register = () => {
                 <div>
                   <label
                     className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                      theme === "dark" ? "text-[#A9B2C7]" : "text-[#222222]"
+                      theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
                     }`}
                   >
                     Password
@@ -244,9 +243,9 @@ const Register = () => {
                       type={showPassword ? "text" : "password"}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      className={`w-full pl-9 sm:pl-10 pr-9 sm:pr-12 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2E6E] dark:focus:ring-[#6E8BE0] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
+                      className={`w-full pl-9 sm:pl-10 pr-9 sm:pr-12 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
                         theme === "dark"
-                          ? "bg-[#121A2E] border-[#273350] text-[#ECEEF3]"
+                          ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
                           : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
                       }`}
                       placeholder="••••••••"
@@ -255,7 +254,7 @@ const Register = () => {
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#5A6372] dark:text-[#A9B2C7] hover:text-[#222222] dark:hover:text-[#ECEEF3]"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#5A6372] dark:text-[#9CA7BD] hover:text-[#222222] dark:hover:text-[#E8EAF1]"
                     >
                       {showPassword ? (
                         <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -270,7 +269,7 @@ const Register = () => {
                 <div>
                   <label
                     className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                      theme === "dark" ? "text-[#A9B2C7]" : "text-[#222222]"
+                      theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
                     }`}
                   >
                     Confirm Password
@@ -281,9 +280,9 @@ const Register = () => {
                       type={showConfirmPassword ? "text" : "password"}
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
-                      className={`w-full pl-9 sm:pl-10 pr-9 sm:pr-12 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2E6E] dark:focus:ring-[#6E8BE0] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
+                      className={`w-full pl-9 sm:pl-10 pr-9 sm:pr-12 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
                         theme === "dark"
-                          ? "bg-[#121A2E] border-[#273350] text-[#ECEEF3]"
+                          ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
                           : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
                       }`}
                       placeholder="••••••••"
@@ -294,7 +293,7 @@ const Register = () => {
                       onClick={() =>
                         setShowConfirmPassword(!showConfirmPassword)
                       }
-                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#5A6372] dark:text-[#A9B2C7] hover:text-[#222222] dark:hover:text-[#ECEEF3]"
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#5A6372] dark:text-[#9CA7BD] hover:text-[#222222] dark:hover:text-[#E8EAF1]"
                     >
                       {showConfirmPassword ? (
                         <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -309,7 +308,7 @@ const Register = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full bg-[#1E2E6E] hover:bg-[#162356] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base"
+                  className="w-full bg-[#1B2D5C] hover:bg-[#142347] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base"
                 >
                   {loading ? (
                     <>
@@ -336,7 +335,7 @@ const Register = () => {
                 <div>
                   <label
                     className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                      theme === "dark" ? "text-[#A9B2C7]" : "text-[#222222]"
+                      theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
                     }`}
                   >
                     Verification Code
@@ -347,9 +346,9 @@ const Register = () => {
                     onChange={(e) =>
                       setOtp(e.target.value.replace(/\D/g, "").slice(0, 6))
                     }
-                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2E6E] dark:focus:ring-[#6E8BE0] focus:border-transparent text-center tracking-widest font-mono text-sm sm:text-base ${
+                    className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent text-center tracking-widest font-mono text-sm sm:text-base ${
                       theme === "dark"
-                        ? "bg-[#121A2E] border-[#273350] text-[#ECEEF3]"
+                        ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
                         : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
                     }`}
                     placeholder="000000"
@@ -358,7 +357,7 @@ const Register = () => {
                   />
                   <p
                     className={`mt-2 text-xs sm:text-sm ${
-                      theme === "dark" ? "text-[#A9B2C7]" : "text-[#5A6372]"
+                      theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
                     }`}
                   >
                     Enter the 6-digit code sent to {email}
@@ -372,7 +371,7 @@ const Register = () => {
                     onClick={() => setStep(1)}
                     className={`flex-1 py-2 sm:py-3 px-4 border rounded-xl hover:transition-colors text-sm sm:text-base ${
                       theme === "dark"
-                        ? "border-[#273350] text-[#A9B2C7] hover:bg-[#1E2A47]"
+                        ? "border-[#2A3550] text-[#9CA7BD] hover:bg-[#232C46]"
                         : "border-[#E2E5EA] text-[#222222] hover:bg-[#F5F6F8]"
                     }`}
                   >
@@ -384,8 +383,8 @@ const Register = () => {
                     disabled={loading}
                     className={`flex-1 py-2 sm:py-3 px-4 border rounded-xl hover:transition-colors text-sm sm:text-base ${
                       theme === "dark"
-                        ? "border-[#6E8BE0] text-[#6E8BE0] hover:bg-[#1E2A47]"
-                        : "border-[#1E2E6E] text-[#1E2E6E] hover:bg-[#EEF1FA]"
+                        ? "border-[#C8102E] text-[#C8102E] hover:bg-[#232C46]"
+                        : "border-[#1B2D5C] text-[#1B2D5C] hover:bg-[#ECEFF7]"
                     } disabled:opacity-50`}
                   >
                     {loading ? "Sending..." : "Resend OTP"}
@@ -393,7 +392,7 @@ const Register = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="flex-1 bg-[#1E2E6E] hover:bg-[#162356] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-colors disabled:opacity-50 text-sm sm:text-base"
+                    className="flex-1 bg-[#1B2D5C] hover:bg-[#142347] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-colors disabled:opacity-50 text-sm sm:text-base"
                   >
                     {loading ? (
                       <div className="w-4 h-4 sm:w-5 sm:h-5 border-t-2 border-white border-solid rounded-full animate-spin mx-auto"></div>
@@ -406,16 +405,16 @@ const Register = () => {
             )}
 
             {/* Login Link */}
-            <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-[#E2E5EA] dark:border-[#273350]">
+            <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-[#E2E5EA] dark:border-[#2A3550]">
               <p
                 className={`text-center text-xs sm:text-sm ${
-                  theme === "dark" ? "text-[#A9B2C7]" : "text-[#5A6372]"
+                  theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
                 }`}
               >
                 Already have an account?{" "}
                 <Link
                   to="/login"
-                  className="text-[#D0321E] dark:text-[#E57A63] hover:text-[#B1291A] dark:hover:text-[#EE9480] font-semibold transition-colors"
+                  className="text-[#C8102E] dark:text-[#F4B860] hover:text-[#A50D26] dark:hover:text-[#EE9480] font-semibold transition-colors"
                 >
                   Sign in here
                 </Link>
@@ -425,7 +424,7 @@ const Register = () => {
 
           {/* Features Sidebar */}
           <div className="space-y-4 sm:space-y-6 lg:space-y-8">
-            <div className="bg-[#1E2E6E] dark:bg-[#1E2A47] rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8 text-white border-t-4 border-[#D0321E]">
+            <div className="bg-[#1B2D5C] dark:bg-[#232C46] rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8 text-white border-t-4 border-[#C8102E]">
               <h3 className="text-lg sm:text-xl lg:text-2xl font-bold mb-4 sm:mb-6">
                 Why Join UniAssist?
               </h3>
@@ -472,7 +471,7 @@ const Register = () => {
             <div
               className={`backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 border ${
                 theme === "dark"
-                  ? "bg-[#17203A]/90 border-[#273350]"
+                  ? "bg-[#1A2238]/90 border-[#2A3550]"
                   : "bg-white/90 border-[#E2E5EA]"
               }`}
             >
@@ -480,7 +479,7 @@ const Register = () => {
                 <Shield className="w-5 h-5 sm:w-6 sm:h-6 text-[#6FB58A]" />
                 <h4
                   className={`font-bold text-sm sm:text-base ${
-                    theme === "dark" ? "text-[#ECEEF3]" : "text-[#222222]"
+                    theme === "dark" ? "text-[#E8EAF1]" : "text-[#222222]"
                   }`}
                 >
                   Secure & Private
@@ -488,7 +487,7 @@ const Register = () => {
               </div>
               <p
                 className={`text-xs sm:text-sm ${
-                  theme === "dark" ? "text-[#A9B2C7]" : "text-[#5A6372]"
+                  theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
                 }`}
               >
                 Your academic data is encrypted and never shared with third
@@ -496,7 +495,7 @@ const Register = () => {
               </p>
             </div>
 
-            <div className="bg-[#D0321E] dark:bg-[#8A2314] rounded-2xl shadow-2xl p-4 sm:p-6 text-white">
+            <div className="bg-[#C8102E] dark:bg-[#8A2314] rounded-2xl shadow-2xl p-4 sm:p-6 text-white">
               <div className="flex items-center gap-2 sm:gap-3 mb-2 sm:mb-3">
                 <Clock className="w-5 h-5 sm:w-6 sm:h-6" />
                 <h4 className="font-bold text-sm sm:text-base">
@@ -511,17 +510,17 @@ const Register = () => {
             <div
               className={`hidden sm:block backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 border ${
                 theme === "dark"
-                  ? "bg-[#17203A]/90 border-[#273350]"
+                  ? "bg-[#1A2238]/90 border-[#2A3550]"
                   : "bg-white/90 border-[#E2E5EA]"
               }`}
             >
               <div className="flex items-center gap-2 mb-3">
-                <Laptop className="w-5 h-5 text-[#1E2E6E] dark:text-[#6E8BE0]" />
-                <Smartphone className="w-5 h-5 text-[#D0321E] dark:text-[#E57A63]" />
+                <Laptop className="w-5 h-5 text-[#1B2D5C] dark:text-[#C8102E]" />
+                <Smartphone className="w-5 h-5 text-[#C8102E] dark:text-[#F4B860]" />
               </div>
               <p
                 className={`text-xs sm:text-sm ${
-                  theme === "dark" ? "text-[#A9B2C7]" : "text-[#5A6372]"
+                  theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
                 }`}
               >
                 Access UniAssist from any device

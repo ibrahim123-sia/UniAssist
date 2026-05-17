@@ -34,14 +34,14 @@ const CreateIssue = () => {
   const [files, setFiles] = useState([]);
 
   const C = {
-    bg: isDark ? "#0F1626" : "#F5F6F8",
-    surface: isDark ? "#17203A" : "#FFFFFF",
-    input: isDark ? "#121A2E" : "#FFFFFF",
-    border: isDark ? "#273350" : "#E2E5EA",
-    text: isDark ? "#ECEEF3" : "#222222",
-    muted: isDark ? "#A9B2C7" : "#5A6372",
-    navy: isDark ? "#6E8BE0" : "#1E2E6E",
-    red: isDark ? "#E57A63" : "#D0321E",
+    bg: isDark ? "#131A2C" : "#F5F6F8",
+    surface: isDark ? "#1A2238" : "#FFFFFF",
+    input: isDark ? "#0E1525" : "#FFFFFF",
+    border: isDark ? "#2A3550" : "#E2E5EA",
+    text: isDark ? "#E8EAF1" : "#222222",
+    muted: isDark ? "#9CA7BD" : "#5A6372",
+    navy: isDark ? "#C8102E" : "#1B2D5C",
+    red: isDark ? "#F4B860" : "#C8102E",
   };
 
   useEffect(() => {

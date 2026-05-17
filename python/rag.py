@@ -25,14 +25,29 @@ import database
 
 LANGUAGE_INSTRUCTION = {
     "en": "Respond in clear, natural English.",
+    # Roman Urdu = Urdu typed with English letters. Llama 3.2:3b will happily
+    # output Devanagari (Hindi script) if the prompt says "Urdu" without an
+    # explicit script ban — Hindi/Urdu overlap heavily in its training data.
+    # The block below is intentionally repetitive and shows BOTH bad scripts
+    # alongside a good example so the constraint is unmissable.
     "roman_urdu": (
         "The student wrote in Roman Urdu (Urdu typed using English letters). "
-        "Respond in Roman Urdu using the same casual romanized style. "
-        "Do NOT use the Urdu script."
+        "You MUST reply in Roman Urdu using ONLY the English alphabet (Latin "
+        "letters a-z, A-Z). "
+        "STRICT RULES on the output script:\n"
+        "- DO NOT use Hindi / Devanagari characters (e.g. कैसे, अच्छा, हैं, क्या, मैं).\n"
+        "- DO NOT use Urdu / Arabic-script characters (e.g. کیسے, اچھا, ہیں, کیا).\n"
+        "- Every single character of your answer must be standard English "
+        "letters, digits, or punctuation — nothing outside basic ASCII.\n"
+        "GOOD example: 'Aap kaise hain? MAJU mein admission ke liye apply karein.'\n"
+        "BAD example (do NOT do this): 'आप कैसे हैं' or 'آپ کیسے ہیں'."
     ),
     "mixed": (
         "The student mixed English and Roman Urdu. Reply in the same mixed "
-        "style, keeping Roman Urdu phrases in Roman letters."
+        "style — English where they used English, Roman Urdu where they used "
+        "Roman Urdu. Roman Urdu phrases MUST stay in English/Latin letters. "
+        "DO NOT use Hindi/Devanagari (e.g. कैसे). DO NOT use Urdu/Arabic "
+        "script (e.g. کیسے). Use ONLY ASCII characters in the entire reply."
     ),
 }
 
@@ -138,6 +153,59 @@ def clean_answer(answer):
     return answer.strip()
 
 
+# Devanagari (Hindi) U+0900–U+097F + Arabic-script U+0600–U+06FF.
+# If the LLM emits any of these while we're trying to deliver Roman Urdu,
+# we treat it as a bad output and either retry or strip.
+_FORBIDDEN_SCRIPT_RE = re.compile(r"[؀-ۿऀ-ॿ]")
+
+
+def _has_forbidden_script(text):
+    return bool(_FORBIDDEN_SCRIPT_RE.search(text or ""))
+
+
+def _retry_in_roman_urdu(prompt, language):
+    """Re-call Ollama with a sterner instruction after a script slip-up.
+
+    Llama 3.2:3b sometimes ignores the "no Devanagari" rule on first try.
+    A retry with a more emphatic system message succeeds far more often
+    than tweaking temperature would.
+    """
+    client = _get_ollama_client()
+    sterner = (
+        "CRITICAL OVERRIDE: Your previous reply used Hindi (Devanagari) or "
+        "Urdu (Arabic-script) characters. That is FORBIDDEN. "
+        "Re-write the answer in Roman Urdu using ONLY standard English/Latin "
+        "letters (a–z, A–Z), digits, and punctuation. "
+        "Every character must be in ASCII range 0–127. No exceptions.\n\n"
+        + LANGUAGE_INSTRUCTION.get(language, LANGUAGE_INSTRUCTION["roman_urdu"])
+    )
+    try:
+        response = client.chat(
+            model=config.LLM_MODEL,
+            messages=[
+                {"role": "system", "content": sterner},
+                {"role": "user", "content": prompt},
+            ],
+            options={
+                "temperature": 0.1,  # tighter than default so it follows the rule
+                "num_predict": config.LLM_MAX_TOKENS,
+            },
+        )
+        return (response.get("message") or {}).get("content", "")
+    except Exception as exc:
+        print(f"  retry_in_roman_urdu failed: {exc}")
+        return ""
+
+
+def _strip_forbidden_script(text):
+    """Last resort: remove any Devanagari/Arabic-script runs from the text.
+
+    Better a slightly-truncated answer than one full of Hindi characters
+    when the user explicitly typed Roman Urdu.
+    """
+    return _FORBIDDEN_SCRIPT_RE.sub("", text or "").strip()
+
+
 # =============================================================
 # MAIN PIPELINE
 # =============================================================
@@ -209,4 +277,22 @@ def ask(question, language="en"):
 
     prompt = create_prompt(question, chunks, language=language)
     answer = get_llm_response(prompt, language=language)
-    return clean_answer(answer)
+    cleaned = clean_answer(answer)
+
+    # Layer-C script guard: if we asked for Roman Urdu / mixed and Llama
+    # emitted Devanagari (Hindi) or Urdu-Arabic characters, retry once
+    # with a sterner prompt. If still bad, strip the offending characters
+    # rather than ship a broken-script reply.
+    if language in ("roman_urdu", "mixed") and _has_forbidden_script(cleaned):
+        print(f"  Script slip-up in /ask reply; retrying ({language})")
+        retried = _retry_in_roman_urdu(prompt, language)
+        retried = clean_answer(retried)
+        if retried and not _has_forbidden_script(retried):
+            return retried
+        # Retry also failed — strip the bad characters from whichever
+        # response was longer so the user gets the most context possible.
+        candidate = retried if len(retried or "") > len(cleaned or "") else cleaned
+        stripped = _strip_forbidden_script(candidate)
+        return stripped or cleaned  # never return empty
+
+    return cleaned

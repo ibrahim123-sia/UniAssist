@@ -71,14 +71,14 @@ const App = () => {
         toastOptions={{
           duration: 3000,
           style: {
-            background: "#1E2A47",
-            color: "#ECEEF3",
-            border: "1px solid #273350",
+            background: "#232C46",
+            color: "#E8EAF1",
+            border: "1px solid #2A3550",
           },
           success: {
             duration: 3000,
             style: {
-              background: "#1E2E6E",
+              background: "#1B2D5C",
               color: "#fff",
             },
             iconTheme: { primary: "#6FB58A", secondary: "#fff" },
@@ -86,10 +86,10 @@ const App = () => {
           error: {
             duration: 4000,
             style: {
-              background: "#D0321E",
+              background: "#C8102E",
               color: "#fff",
             },
-            iconTheme: { primary: "#fff", secondary: "#D0321E" },
+            iconTheme: { primary: "#fff", secondary: "#C8102E" },
           },
         }}
       />
