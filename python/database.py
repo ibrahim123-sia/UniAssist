@@ -201,49 +201,153 @@ def build_database():
 # SEARCH - Finding relevant chunks for a question
 # =============================================================
 
-def search(question, collection, model, top_k=None):
+import re as _re
+
+_STOPWORDS = {
+    "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
+    "of", "in", "on", "at", "to", "for", "and", "or", "but", "with",
+    "from", "by", "as", "that", "this", "these", "those", "it", "its",
+    "what", "which", "who", "whom", "whose", "where", "when", "why", "how",
+    "do", "does", "did", "have", "has", "had", "can", "could", "should",
+    "would", "will", "may", "might", "i", "you", "we", "they", "he", "she",
+    "me", "my", "your", "our", "their", "his", "her",
+    "tell", "give", "list", "show", "please", "any", "some", "all",
+    "about", "into", "than", "then", "there", "here",
+    # Roman-Urdu stopwords (very common, low-signal)
+    "kya", "kia", "mein", "main", "hai", "hain", "ho", "hoon", "ka", "ki",
+    "ke", "se", "ko", "par", "pe", "or", "aur", "yeh", "ye", "wo", "wah",
+    "kaisay", "kaise",
+}
+
+
+def _meaningful_tokens(text):
+    """Pull useful keywords out of a free-form question.
+
+    Returns lowercased tokens of length >= 3 that aren't English/Roman-Urdu
+    stopwords. These drive the keyword-fallback pass in `search`.
     """
-    Search the vector database for chunks relevant to a question.
+    text = (text or "").lower()
+    # Treat hyphens/slashes as word separators but keep alphanumerics
+    text = _re.sub(r"[^a-z0-9\s\-/]+", " ", text)
+    raw = [t.strip("-/") for t in text.split() if t.strip("-/")]
+    return [t for t in raw if len(t) >= 3 and t not in _STOPWORDS]
 
-    This is the core of the RAG system: it finds the most relevant
-    pieces of information from all the scraped data.
 
-    HOW SIMILARITY WORKS:
-      ChromaDB returns "distances" (lower = more similar).
-      We convert these to "similarity scores" (higher = more similar)
-      using the formula: similarity = 1 - distance
+_keyword_cache = {"chunks": None, "ids": None, "metas": None, "version": None}
 
-    Args:
-        question:    The user's question (natural language)
-        collection:  The ChromaDB collection to search
-        model:       The embedding model (to encode the question)
-        top_k:       How many results to return (default from config)
 
-    Returns:
-        Tuple of (chunks, sources, similarity_scores)
-        - chunks:  List of text strings (the relevant content)
-        - sources: List of metadata dicts (with source URLs)
-        - scores:  List of floats (0-1, higher = more relevant)
+def _load_all_chunks(collection):
+    """Cache the full chunk list in RAM for keyword scans.
+
+    ChromaDB doesn't offer keyword search on its own. For ~4k chunks the
+    cost of holding the corpus in memory is negligible (~5MB). The cache
+    is invalidated when collection.count() changes — covers admin CRUD.
+    """
+    count = collection.count()
+    if _keyword_cache["version"] == count and _keyword_cache["chunks"] is not None:
+        return _keyword_cache["chunks"], _keyword_cache["ids"], _keyword_cache["metas"]
+
+    data = collection.get(include=["documents", "metadatas"])
+    _keyword_cache["chunks"] = data.get("documents", []) or []
+    _keyword_cache["ids"] = data.get("ids", []) or []
+    _keyword_cache["metas"] = data.get("metadatas", []) or [{} for _ in _keyword_cache["chunks"]]
+    _keyword_cache["version"] = count
+    return _keyword_cache["chunks"], _keyword_cache["ids"], _keyword_cache["metas"]
+
+
+def _keyword_search(question, collection, top_k):
+    """Score chunks by how many distinct query tokens they contain.
+
+    Cheap O(N) scan, but it's exactly what catches things semantic search
+    misses: course codes ("CS-201"), names, phone numbers, fee figures,
+    Roman-Urdu specific words that the English embedding glosses over.
+
+    Ties are broken by chunk length (shorter = more focused = preferred).
+    """
+    tokens = _meaningful_tokens(question)
+    if not tokens:
+        return [], [], []
+
+    chunks, ids, metas = _load_all_chunks(collection)
+    scored = []
+    for idx, text in enumerate(chunks):
+        if not text:
+            continue
+        low = text.lower()
+        hits = sum(1 for t in tokens if t in low)
+        if hits == 0:
+            continue
+        scored.append((hits, -len(text), idx))
+
+    if not scored:
+        return [], [], []
+
+    scored.sort(reverse=True)
+    out_chunks, out_metas, out_scores = [], [], []
+    for hits, _neglen, idx in scored[:top_k]:
+        out_chunks.append(chunks[idx])
+        out_metas.append(metas[idx] if idx < len(metas) else {})
+        # Normalise: hits / total_tokens gives 0..1
+        out_scores.append(hits / len(tokens))
+    return out_chunks, out_metas, out_scores
+
+
+def search(question, collection, model, top_k=None):
+    """Hybrid retrieval: semantic top-K merged with a keyword fallback.
+
+    Why hybrid?
+      - Semantic search (vector similarity) is great for paraphrased
+        questions ("what's the cost of CS?" finds "BSCS fee structure").
+      - But it under-weights *exact tokens* — course codes like "CS-201",
+        phone numbers, faculty names, fee figures. Those are caught by
+        the keyword pass instead.
+      - We dedupe by chunk text so a chunk found by both methods only
+        appears once but with a boosted combined score.
+
+    Returns (chunks, sources, scores) in descending relevance.
     """
     if top_k is None:
         top_k = config.TOP_K_RESULTS
 
-    # Convert the question to a vector (same model used for chunks)
+    # --- semantic pass --------------------------------------------------
     question_embedding = model.encode(question).tolist()
-
-    # Query ChromaDB for the most similar chunks
     results = collection.query(
         query_embeddings=[question_embedding],
         n_results=top_k,
         include=["documents", "metadatas", "distances"],
     )
+    sem_chunks = results["documents"][0] if results["documents"] else []
+    sem_metas = results["metadatas"][0] if results["metadatas"] else []
+    sem_dists = results["distances"][0] if results["distances"] else []
+    sem_scores = [(1 - d) for d in sem_dists]
 
-    # Extract results from ChromaDB's response format
-    chunks = results["documents"][0] if results["documents"] else []
-    sources = results["metadatas"][0] if results["metadatas"] else []
-    distances = results["distances"][0] if results["distances"] else []
+    # --- keyword pass ---------------------------------------------------
+    kw_k = getattr(config, "KEYWORD_BOOST_TOP_K", 4)
+    kw_chunks, kw_metas, kw_scores = _keyword_search(question, collection, top_k=kw_k)
 
-    # Convert distances to similarity scores (higher = better)
-    scores = [(1 - dist) for dist in distances] if distances else []
+    # --- merge with dedup -----------------------------------------------
+    # Identity key: first 120 chars of chunk text (good enough — chunks
+    # don't collide on the prefix in practice).
+    merged = {}
+    for c, m, s in zip(sem_chunks, sem_metas, sem_scores):
+        key = (c or "")[:120]
+        merged[key] = {"text": c, "meta": m, "score": s, "kw": 0.0}
+    for c, m, s in zip(kw_chunks, kw_metas, kw_scores):
+        key = (c or "")[:120]
+        if key in merged:
+            merged[key]["kw"] = s
+        else:
+            merged[key] = {"text": c, "meta": m, "score": 0.0, "kw": s}
 
+    # Combined score: semantic + 0.5 * keyword (semantic is primary,
+    # keyword is a tie-breaker / safety net)
+    ranked = sorted(
+        merged.values(),
+        key=lambda r: r["score"] + 0.5 * r["kw"],
+        reverse=True,
+    )[:top_k]
+
+    chunks = [r["text"] for r in ranked]
+    sources = [r["meta"] for r in ranked]
+    scores = [r["score"] + 0.5 * r["kw"] for r in ranked]
     return chunks, sources, scores

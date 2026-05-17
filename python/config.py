@@ -63,13 +63,23 @@ MIN_TEXT_LENGTH = 50            # Pages shorter than this are skipped
 # =============================================================
 # CHUNKING SETTINGS
 # =============================================================
-# Text is split into "chunks" before being stored in the database.
-# Chunk size affects how much context the AI sees per result.
-# Overlap ensures no information is lost at chunk boundaries.
+# Chunks are built structurally (heading -> paragraph), not by raw
+# character count. These act as soft bounds, not hard cuts.
+#   - TARGET_CHUNK_SIZE: pack paragraphs into a chunk until we hit this.
+#   - MAX_CHUNK_SIZE:    if a single section is bigger, split on paragraph
+#                        boundaries. A paragraph is never cut in half.
+#   - MIN_CHUNK_LENGTH:  chunks below this are merged with the next one
+#                        (so a one-line section doesn't become its own
+#                        useless chunk).
+#
+# Legacy CHUNK_SIZE / CHUNK_OVERLAP are kept as fallbacks for code that
+# still references them, but the new pipeline uses the structural sizes.
 
-CHUNK_SIZE = 1500               # Max characters per chunk
-CHUNK_OVERLAP = 250             # Characters of overlap between consecutive chunks
-MIN_CHUNK_LENGTH = 50           # Chunks shorter than this are discarded
+TARGET_CHUNK_SIZE = 900         # Soft target: aim for chunks ~this size
+MAX_CHUNK_SIZE = 1600           # Hard ceiling before forcing a paragraph split
+MIN_CHUNK_LENGTH = 120          # Below this -> merged with neighbour
+CHUNK_SIZE = TARGET_CHUNK_SIZE  # Back-compat alias
+CHUNK_OVERLAP = 150             # Used only by legacy splitters
 
 
 # =============================================================
@@ -102,16 +112,39 @@ BLACKLIST_URL_KEYWORDS = [
 UNWANTED_HTML_TAGS = [
     "script", "style", "nav", "footer", "header",
     "noscript", "aside", "sidebar", "share", "pagination",
+    "form", "iframe", "button",
 ]
 
 UNWANTED_CSS_CLASSES = [
     "share", "pagination", "navigation", "breadcrumb",
     "related-posts", "post-navigation", "widget",
     "comments", "social-share", "meta", "tags",
+    "recent-posts", "popular-posts", "post-meta",
+    "author-bio", "author-info", "post-author",
+    "site-footer", "site-header", "main-navigation",
+    "menu", "sub-menu", "search-form", "sidebar",
 ]
 
 UNWANTED_HTML_IDS = [
     "comments", "sidebar", "related-posts", "navigation",
+    "secondary", "site-navigation", "masthead", "colophon",
+    "search", "respond",
+]
+
+# WordPress-style URL fragments that mark "listing" pages (author archives,
+# tag clouds, paginated post lists). Pages whose URL contains any of these
+# are skipped — they're not real content, they're indexes of other content.
+LISTING_URL_PATTERNS = [
+    "/author/",
+    "/tag/",
+    "/category/",
+    "/page/",
+    "/feed",
+    "/search/",
+    "?s=",
+    "/comments/",
+    "/archive/",
+    "/archives/",
 ]
 
 # Text patterns removed from the final scraped content
@@ -153,7 +186,8 @@ LLM_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 LLM_TEMPERATURE = 0.3                       # Lower = more focused answers (0-1)
 LLM_MAX_TOKENS = 1000                       # Max length of generated answer (Ollama `num_predict`)
 LLM_REQUEST_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "300"))  # seconds; 3B on CPU is slow (cold start ~30-60s + generation)
-TOP_K_RESULTS = 3                            # Number of chunks to retrieve per question
+TOP_K_RESULTS = 6                            # Number of chunks to retrieve per question (was 3 — bumped for recall)
+KEYWORD_BOOST_TOP_K = 4                      # Extra chunks pulled by keyword fallback before merging
 
 
 # =============================================================

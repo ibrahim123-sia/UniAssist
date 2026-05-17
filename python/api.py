@@ -24,6 +24,7 @@ MODERATION:
 
 import os
 import io
+import re
 import uuid
 import tempfile
 from typing import Optional, List
@@ -396,46 +397,114 @@ async def delete_chunk(chunk_id: str, authorization: Optional[str] = Header(defa
 # ADMIN — DOCUMENT UPLOAD
 # =============================================================
 
-def _extract_text(filename: str, content: bytes) -> str:
+def _extract_structured_elements(filename: str, content: bytes) -> List[dict]:
+    """Pull structural elements (heading vs paragraph) from an uploaded file.
+
+    Returns a list of `{"tag": ..., "text": ...}` dicts the way `scraper.extract_structured`
+    does for HTML, so the same `chunk_elements` packer can be reused for admin uploads.
+
+    - PDFs: we walk pages, treating each page break as a fresh paragraph
+      group. Lines that are short + all-caps are promoted to H2 (best-effort
+      heading detection for typical academic/admin PDFs).
+    - DOCX: python-docx exposes paragraph styles. We map `Heading 1..4`
+      to h1..h4; everything else is a paragraph.
+    - TXT: blank lines split paragraphs; an all-caps short line becomes h2.
+    """
     name = (filename or "").lower()
+    elements: List[dict] = []
+
+    def is_probably_heading(line: str) -> bool:
+        s = line.strip()
+        if not s or len(s) > 90:
+            return False
+        if s.endswith((".", "?", "!", ":", ",")):
+            return False
+        letters = [c for c in s if c.isalpha()]
+        if not letters:
+            return False
+        upper_ratio = sum(1 for c in letters if c.isupper()) / len(letters)
+        return upper_ratio > 0.7
+
+    def push_paragraphs(text_block: str):
+        for chunk in re.split(r"\n{2,}", text_block):
+            chunk = chunk.strip()
+            if not chunk:
+                continue
+            # If the very first line of the block looks like a heading,
+            # split it off so it's tagged properly.
+            lines = chunk.split("\n", 1)
+            first = lines[0].strip()
+            rest = lines[1].strip() if len(lines) > 1 else ""
+            if is_probably_heading(first):
+                elements.append({"tag": "h2", "text": first})
+                if rest:
+                    elements.append({"tag": "p", "text": " ".join(rest.split())})
+            else:
+                elements.append({"tag": "p", "text": " ".join(chunk.split())})
+
     if name.endswith(".txt"):
-        return content.decode("utf-8", errors="ignore")
+        text = content.decode("utf-8", errors="ignore")
+        push_paragraphs(text)
+        return elements
+
     if name.endswith(".pdf"):
-        from pypdf import PdfReader  # local import so the lib is optional at boot
+        from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(content))
-        return "\n".join((page.extract_text() or "") for page in reader.pages)
+        for page in reader.pages:
+            page_text = page.extract_text() or ""
+            push_paragraphs(page_text)
+        return elements
+
     if name.endswith(".docx"):
-        import docx  # python-docx
+        import docx
         doc = docx.Document(io.BytesIO(content))
-        return "\n".join(p.text for p in doc.paragraphs)
+        for p in doc.paragraphs:
+            text = (p.text or "").strip()
+            if not text:
+                continue
+            style = (p.style.name if p.style else "") or ""
+            if style.startswith("Heading"):
+                # "Heading 1" .. "Heading 4" -> h1..h4
+                digit = next((c for c in style if c.isdigit()), "2")
+                level = min(int(digit), 4)
+                elements.append({"tag": f"h{level}", "text": text})
+            else:
+                elements.append({"tag": "p", "text": text})
+        return elements
+
     raise HTTPException(status_code=400, detail="Unsupported file type. Use PDF, DOCX, or TXT.")
 
 
+def _chunk_uploaded_document(filename: str, content: bytes) -> List[dict]:
+    """Return [{"text": ..., "heading": ...}, ...] using the same structural
+    pipeline the scraper uses. One chunk = one self-contained topic block.
+    """
+    elements = _extract_structured_elements(filename, content)
+    if not elements:
+        return []
+    from scraper import chunk_elements  # local import to avoid boot cost
+    return chunk_elements(elements, page_title=os.path.splitext(os.path.basename(filename or ""))[0])
+
+
 def _split_text(text: str, chunk_size: int = None, overlap: int = None) -> List[str]:
-    chunk_size = chunk_size or config.CHUNK_SIZE
+    """Legacy helper kept for any callers expecting flat-text splitting.
+
+    The admin upload endpoint goes through `_chunk_uploaded_document` now.
+    """
+    chunk_size = chunk_size or config.TARGET_CHUNK_SIZE
     overlap = overlap or config.CHUNK_OVERLAP
     text = (text or "").strip()
     if not text:
         return []
-    try:
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
-        splitter = RecursiveCharacterTextSplitter(
-            chunk_size=chunk_size,
-            chunk_overlap=overlap,
-            separators=["\n\n", "\n", ". ", " ", ""],
-        )
-        return [c.strip() for c in splitter.split_text(text) if c.strip()]
-    except ImportError:
-        # Fallback: naive splitter
-        chunks = []
-        start = 0
-        while start < len(text):
-            end = min(start + chunk_size, len(text))
-            chunks.append(text[start:end].strip())
-            if end == len(text):
-                break
-            start = end - overlap
-        return [c for c in chunks if c]
+    chunks = []
+    start = 0
+    while start < len(text):
+        end = min(start + chunk_size, len(text))
+        chunks.append(text[start:end].strip())
+        if end == len(text):
+            break
+        start = end - overlap
+    return [c for c in chunks if c]
 
 
 @app.post("/documents")
@@ -449,12 +518,8 @@ async def upload_document(
     if not content:
         raise HTTPException(status_code=400, detail="Empty file")
 
-    text = _extract_text(file.filename, content)
-    if not text.strip():
-        raise HTTPException(status_code=400, detail="No text could be extracted")
-
-    chunks = _split_text(text)
-    if not chunks:
+    structured = _chunk_uploaded_document(file.filename, content)
+    if not structured:
         raise HTTPException(status_code=400, detail="Document produced no chunks")
 
     col = _ensure_collection()
@@ -462,14 +527,18 @@ async def upload_document(
     src = source or file.filename or "upload"
 
     ids, docs, metas, embeds = [], [], [], []
-    for piece in chunks:
+    for piece in structured:
         cid = f"doc_{uuid.uuid4().hex[:12]}"
         ids.append(cid)
-        docs.append(piece)
-        metas.append({"source": src, "chunk_id": cid, "filename": file.filename})
-        embeds.append(model.encode(piece).tolist())
+        docs.append(piece["text"])
+        metas.append({
+            "source": src,
+            "chunk_id": cid,
+            "filename": file.filename or "",
+            "heading": piece.get("heading", ""),
+        })
+        embeds.append(model.encode(piece["text"]).tolist())
 
-    # ChromaDB accepts batch; if collection is large we should chunk this further
     col.add(ids=ids, documents=docs, metadatas=metas, embeddings=embeds)
 
     return {

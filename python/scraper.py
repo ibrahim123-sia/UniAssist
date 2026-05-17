@@ -3,71 +3,66 @@
 SCRAPER.PY - Web Scraping, Cleaning & Chunking Pipeline
 ========================================================
 
-This file handles the entire data collection process:
-  1. Discover URLs from website sitemaps
-  2. Scrape each page and extract clean text
-  3. Filter out garbage/binary content
-  4. Split long text into smaller chunks
+Pipeline:
+  Sitemap XML  ->  URLs  ->  Raw HTML  ->  Structured content  ->  Context-aware chunks  ->  JSON
 
-The scraper works with ANY website defined in config.py.
-Just add a new website config and run the pipeline.
-
-FLOW:
-  Sitemap XML → URLs → Raw HTML → Clean Text → Chunks → JSON files
+The key idea: chunks are units of *information*, not units of *characters*.
+Each chunk is one self-contained topic block (a heading + its paragraphs,
+or a coherent paragraph group when no heading is available). Garbage like
+WordPress author archive widgets is filtered both at the page level (URL
+patterns + DOM selectors) and at the chunk level (sentence + capital-word
+ratio heuristics).
 """
 
-import requests
-import json
-import re
 import os
-from bs4 import BeautifulSoup
+import re
+import json
+import concurrent.futures
+import requests
+from bs4 import BeautifulSoup, NavigableString, Tag
 from tqdm import tqdm
 
-# Import all settings from our config file
 import config
+
+# Tune scrape concurrency. jinnah.edu sits on shared hosting; 15-20
+# concurrent connections is the safe ceiling — higher risks rate-limits.
+SCRAPE_WORKERS = 16
 
 
 # =============================================================
-# URL DISCOVERY - Finding all pages to scrape
+# URL DISCOVERY
 # =============================================================
 
 def should_include_url(url, allowed_domain):
-    """
-    Decide whether a URL should be scraped or skipped.
+    """Decide whether a URL is worth scraping.
 
-    We skip URLs that point to images, PDFs, or other non-text files.
-    We only keep URLs that belong to the allowed domain.
-
-    Args:
-        url:             The URL to check
-        allowed_domain:  The domain this URL must belong to (e.g. "jinnah.edu")
-
-    Returns:
-        True if the URL should be scraped, False otherwise
+    Rejects: wrong domain, blacklisted extensions, listing pages (author
+    archives, tag indexes, paginated feeds — none of which contain
+    primary information).
     """
     url_lower = url.lower().strip()
 
-    # Rule 1: Must belong to the correct domain
     if allowed_domain not in url_lower:
         return False
 
-    # Rule 2: Skip blacklisted file extensions (images, PDFs, etc.)
     for ext in config.BLACKLIST_EXTENSIONS:
         if url_lower.endswith(ext):
             return False
 
-    # Rule 3: Skip URLs with blacklisted keywords (uploads, galleries, etc.)
     for keyword in config.BLACKLIST_URL_KEYWORDS:
         if keyword in url_lower:
             return False
 
-    # Rule 4: If it has a file extension that's not a web page, skip it
+    # New: skip WordPress-style listing pages entirely.
+    for pattern in config.LISTING_URL_PATTERNS:
+        if pattern in url_lower:
+            return False
+
     if not url_lower.endswith((".html", ".htm", ".php", ".aspx")):
         last_part = url_lower.split("/")[-1]
         if "." in last_part:
-            return False  # Has unknown extension — probably a file, not a page
+            return False
 
-    # Rule 5: Must be a valid HTTP/HTTPS URL
     if not url_lower.startswith(("http://", "https://")):
         return False
 
@@ -75,67 +70,35 @@ def should_include_url(url, allowed_domain):
 
 
 def get_urls_from_sitemap(sitemap_url, allowed_domain):
-    """
-    Extract all page URLs from a website's sitemap.
-
-    Most websites have a sitemap_index.xml that links to multiple
-    smaller sitemaps. We fetch each one and collect all URLs.
-
-    Args:
-        sitemap_url:     URL of the sitemap index XML
-        allowed_domain:  Only keep URLs from this domain
-
-    Returns:
-        List of unique, filtered URLs ready for scraping
-    """
     print(f"  Fetching sitemap: {sitemap_url}")
     response = requests.get(sitemap_url, timeout=config.REQUEST_TIMEOUT)
     soup = BeautifulSoup(response.text, "xml")
 
-    # A sitemap index contains links to other sitemaps
     sitemap_links = [loc.text for loc in soup.find_all("loc")]
     all_urls = []
 
     for link in sitemap_links:
-        # Each link could be a sub-sitemap or a direct page URL.
-        # We try to parse it as a sitemap first.
         try:
             res = requests.get(link, timeout=config.REQUEST_TIMEOUT)
             sub_soup = BeautifulSoup(res.text, "xml")
             page_urls = [loc.text for loc in sub_soup.find_all("loc")]
 
-            # If it had <loc> tags inside, it was a sitemap
             if page_urls:
                 for url in page_urls:
                     if should_include_url(url, allowed_domain):
                         all_urls.append(url)
             else:
-                # It was a direct URL, not a sub-sitemap
                 if should_include_url(link, allowed_domain):
                     all_urls.append(link)
         except Exception:
-            # If fetching a sub-sitemap fails, just add the link itself
             if should_include_url(link, allowed_domain):
                 all_urls.append(link)
 
-    # Remove duplicate URLs
-    unique_urls = list(set(all_urls))
-    return unique_urls
+    return list(set(all_urls))
 
 
 def get_all_urls():
-    """
-    Discover URLs from ALL websites defined in config.py.
-
-    This loops through each website in config.WEBSITES and
-    collects all their page URLs. This is what makes the system
-    flexible — add a new website to the config and it gets included.
-
-    Returns:
-        List of all unique URLs from all configured websites
-    """
     all_urls = []
-
     for website in config.WEBSITES:
         print(f"\nDiscovering URLs for: {website['name']}")
         urls = get_urls_from_sitemap(
@@ -145,245 +108,390 @@ def get_all_urls():
         print(f"  Found {len(urls)} URLs from {website['name']}")
         all_urls.extend(urls)
 
-    # Final deduplication across all websites
     unique_urls = list(set(all_urls))
     print(f"\nTotal unique URLs: {len(unique_urls)}")
     return unique_urls
 
 
 # =============================================================
-# PAGE SCRAPING - Extracting clean text from HTML
+# CONTENT EXTRACTION - only the article body, not the whole page
 # =============================================================
 
-def scrape_page(url):
+# CSS selectors that typically contain the main article content,
+# ordered by preference. We pick the first one that exists AND has
+# meaningful text.
+MAIN_CONTENT_SELECTORS = [
+    "article",
+    "main",
+    ".entry-content",
+    ".post-content",
+    ".page-content",
+    ".content-area",
+    "#content",
+    "#main-content",
+    "#primary",
+]
+
+
+def _strip_unwanted(root):
+    """Mutate `root` to remove tags / classes / ids we never want."""
+    if root is None:
+        return
+
+    for tag_name in config.UNWANTED_HTML_TAGS:
+        for el in root.find_all(tag_name):
+            el.decompose()
+
+    for class_name in config.UNWANTED_CSS_CLASSES:
+        for el in root.find_all(class_=re.compile(rf"\b{re.escape(class_name)}\b", re.I)):
+            el.decompose()
+
+    for el_id in config.UNWANTED_HTML_IDS:
+        el = root.find(id=el_id)
+        if el:
+            el.decompose()
+
+
+def _pick_main_content(soup):
+    """Return the BeautifulSoup node that holds the real article body.
+
+    Tries known content selectors in order, falling back to `<body>` if
+    nothing matches. Anything with < 200 chars of text is treated as a
+    near-empty wrapper and skipped.
     """
-    Fetch a web page and extract its text content.
+    for sel in MAIN_CONTENT_SELECTORS:
+        try:
+            if sel.startswith("."):
+                node = soup.find(class_=sel[1:])
+            elif sel.startswith("#"):
+                node = soup.find(id=sel[1:])
+            else:
+                node = soup.find(sel)
+        except Exception:
+            node = None
+        if node and len(node.get_text(" ", strip=True)) > 200:
+            return node
 
-    This does a 3-phase HTML cleanup:
-      Phase 1: Remove unwanted HTML tags (scripts, nav, footer, etc.)
-      Phase 2: Remove elements by CSS class name (share buttons, etc.)
-      Phase 3: Remove elements by HTML ID (sidebar, comments, etc.)
+    return soup.body or soup
 
-    After cleanup, we extract the visible text and remove
-    common footer/navigation patterns.
 
-    Args:
-        url: The page URL to scrape
+def extract_structured(url):
+    """Fetch a page and return a flat list of structural elements.
+
+    Each element is a dict {"tag": ..., "text": ...}. Tags we keep:
+      - h1..h4    (section headings)
+      - p         (paragraphs)
+      - li        (list items)
+      - td        (table cells — bios, fee tables, etc.)
+      - dt, dd    (definition lists)
 
     Returns:
-        Cleaned text content, or empty string if scraping failed
+        (title, elements)   or   (None, [])  on failure.
     """
     try:
         response = requests.get(url, timeout=config.REQUEST_TIMEOUT)
         soup = BeautifulSoup(response.text, "lxml")
+    except Exception as exc:
+        print(f"  Error fetching {url}: {exc}")
+        return None, []
 
-        # Phase 1: Remove unwanted HTML tags entirely
-        for tag_name in config.UNWANTED_HTML_TAGS:
-            for element in soup.find_all(tag_name):
-                element.decompose()
+    # Quick reject: pages whose <title> screams "archive" / "search results"
+    title_tag = soup.find("title")
+    page_title = title_tag.get_text(strip=True) if title_tag else ""
+    if page_title:
+        low = page_title.lower()
+        if any(w in low for w in ["archives -", "category:", "tag:", "author:", "search results"]):
+            return None, []
 
-        # Phase 2: Remove elements with unwanted CSS classes
-        for class_name in config.UNWANTED_CSS_CLASSES:
-            for element in soup.find_all(class_=class_name):
-                element.decompose()
+    main = _pick_main_content(soup)
+    _strip_unwanted(main)
 
-        # Phase 3: Remove elements with unwanted IDs
-        for element_id in config.UNWANTED_HTML_IDS:
-            element = soup.find(id=element_id)
-            if element:
-                element.decompose()
-
-        # Extract all visible text with spaces between elements
-        text = soup.get_text(separator=" ")
-
-        # Normalize whitespace (collapse multiple spaces into one)
+    keep_tags = ("h1", "h2", "h3", "h4", "p", "li", "td", "dt", "dd")
+    elements = []
+    for el in main.find_all(keep_tags):
+        text = el.get_text(" ", strip=True)
         text = " ".join(text.split())
+        if not text:
+            continue
+        if len(text) < 3:
+            continue
+        elements.append({"tag": el.name, "text": text})
 
-        # Remove common footer/navigation text patterns
-        for pattern in config.UNWANTED_TEXT_PATTERNS:
-            text = text.replace(pattern, "")
-
-        # Final whitespace cleanup
-        text = " ".join(text.split())
-
-        return text
-
-    except Exception as e:
-        print(f"  Error scraping {url}: {e}")
-        return ""
+    return page_title, elements
 
 
 # =============================================================
-# TEXT CLEANING - Filtering out garbage content
+# JUNK DETECTION - reject "list of names/dates" style chunks
 # =============================================================
 
-# Regex patterns to detect contact information
 EMAIL_REGEX = r"[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}"
 PHONE_REGEX = r"(\+?\d{1,3}[\s\-]?)?\d{7,15}"
+_MONTH = r"(?:January|February|March|April|May|June|July|August|September|October|November|December)"
+# Catch both "January 10, 2023" and "10 January 2023" / "11 December, 2025"
+DATE_REGEX = rf"\b(?:{_MONTH}\s+\d{{1,2}},?\s+\d{{4}}|\d{{1,2}}\s+{_MONTH},?\s+\d{{4}})\b"
+# Words that are entirely uppercase letters, length >= 2 (e.g. "MAHAM", "ATIQUE")
+ALLCAPS_WORD_REGEX = r"\b[A-Z]{2,}\b"
 
 
 def contains_important_info(text):
-    """
-    Check if text contains important information worth keeping.
-
-    Even if a page is short, we keep it if it has email addresses,
-    phone numbers, or important keywords like "admission" or "fee".
-
-    Args:
-        text: The text to check
-
-    Returns:
-        True if the text contains important information
-    """
-    # Check for email addresses
     if re.search(EMAIL_REGEX, text):
         return True
-
-    # Check for phone numbers
     if re.search(PHONE_REGEX, text):
         return True
-
-    # Check for important keywords
-    text_lower = text.lower()
-    for keyword in config.IMPORTANT_KEYWORDS:
-        if keyword in text_lower:
+    low = text.lower()
+    for kw in config.IMPORTANT_KEYWORDS:
+        if kw in low:
             return True
-
     return False
 
 
-def is_garbage_text(text):
-    """
-    Detect if text is actually binary/image data misread as text.
+def is_junk_chunk(text):
+    """Heuristic: does this look like real prose or a widget dump?
 
-    Sometimes web scraping accidentally reads binary files (images, PDFs)
-    as text, producing gibberish. This function catches those cases.
+    Real chunks have:
+      - actual sentences ending in periods
+      - few all-caps name tokens
+      - dates only where they belong (not 3+ per chunk)
+      - proper-noun ratio under control
 
-    Args:
-        text: The text to check
-
-    Returns:
-        True if the text appears to be garbage/binary data
+    Widget junk looks like:
+      "MAHAM ATIQUE Rashid_Mahmood AYESHA SHAHZAD January 10, 2023 ..."
+    — lots of ALL CAPS names, date stamps, no periods, just questions.
     """
     if not text:
         return True
 
-    # Count non-ASCII characters in the first 1000 chars
-    # Normal text has very few; binary data has many
-    sample = text[:1000]
-    weird_char_count = sum(1 for char in sample if ord(char) > 127)
+    stripped = text.strip()
+    if len(stripped) < 30:
+        return not contains_important_info(stripped)
 
-    # If more than 20% are non-ASCII, it's likely binary data
-    if len(sample) > 0 and (weird_char_count / len(sample)) > 0.2:
+    words = stripped.split()
+    word_count = len(words)
+
+    # Rule 1: 3+ date stamps and they make up a big chunk of the words ->
+    # "recent posts" widget.
+    date_hits = len(re.findall(DATE_REGEX, stripped))
+    if date_hits >= 3:
         return True
 
-    # Check for null bytes and unicode replacement characters
-    # These are strong indicators of binary data
-    binary_patterns = [r"\x00", r"\ufffd"]
-    for pattern in binary_patterns:
-        if re.search(pattern, text[:500]):
+    # Rule 2: many ALL-CAPS words clustered together = name list.
+    allcaps_hits = len(re.findall(ALLCAPS_WORD_REGEX, stripped))
+    if allcaps_hits >= 4 and allcaps_hits * 8 > word_count:
+        return True
+
+    # Rule 3: counts of sentence-ending punctuation. We split periods
+    # vs questions/exclamations because post-title lists ("Why is X
+    # important?") fake the sentence count with question marks.
+    periods = stripped.count(".")
+    qbang = stripped.count("?") + stripped.count("!")
+    sentence_marks = periods + qbang
+
+    if sentence_marks == 0:
+        return not contains_important_info(stripped)
+
+    # Rule 4: 50+ words but no real periods = title list.
+    if word_count >= 50 and periods == 0:
+        return True
+
+    # Rule 5: sentence density too low for real prose.
+    if word_count > 60 and sentence_marks * 60 < word_count:
+        return True
+
+    # Rule 6: dominated by Title Case / proper nouns and short on periods.
+    if word_count >= 12:
+        capitalized = sum(
+            1 for w in words
+            if w and w[0].isalpha() and w[0].isupper()
+        )
+        if capitalized / word_count > 0.55 and periods <= 1:
             return True
-
-    # Very short text without important info is not useful
-    if len(text) < config.MIN_TEXT_LENGTH and not contains_important_info(text):
-        return True
 
     return False
 
 
+# =============================================================
+# STRUCTURAL CHUNKING - heading-aware, paragraph-safe
+# =============================================================
+
+HEADING_TAGS = {"h1", "h2", "h3", "h4"}
+
+
+def _split_paragraph(text, max_size):
+    """Break an over-long paragraph on sentence boundaries.
+
+    Used only when a single paragraph blows past MAX_CHUNK_SIZE — rare
+    in practice. We never cut mid-sentence; if no sentence boundary
+    exists in the window, we accept an oversized chunk rather than
+    butcher it.
+    """
+    if len(text) <= max_size:
+        return [text]
+
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    out = []
+    buf = ""
+    for s in sentences:
+        if len(buf) + len(s) + 1 > max_size and buf:
+            out.append(buf.strip())
+            buf = s
+        else:
+            buf = (buf + " " + s).strip() if buf else s
+    if buf:
+        out.append(buf.strip())
+    return out
+
+
+def chunk_elements(elements, page_title=None):
+    """Pack structural elements into context-coherent chunks.
+
+    Rules:
+      - A new chunk opens whenever an H1/H2/H3 is seen.
+      - Within a section, paragraphs are packed until TARGET_CHUNK_SIZE.
+      - The current heading is prepended to every chunk so the embedding
+        captures the topic ("Admission Requirements\n\n<paragraph>").
+      - A chunk smaller than MIN_CHUNK_LENGTH is merged into the next one.
+      - A single paragraph longer than MAX_CHUNK_SIZE is sentence-split.
+    """
+    chunks = []
+    section_heading = None
+    buf = []
+    buf_size = 0
+
+    def flush():
+        nonlocal buf, buf_size
+        if not buf:
+            return
+        text = "\n\n".join(buf).strip()
+        if len(text) >= config.MIN_CHUNK_LENGTH or contains_important_info(text):
+            chunks.append({"heading": section_heading or page_title or "", "text": text})
+        buf = []
+        buf_size = 0
+
+    for el in elements:
+        tag = el["tag"]
+        text = el["text"]
+
+        if tag in HEADING_TAGS:
+            flush()
+            section_heading = text
+            # Heading itself isn't a chunk yet — it'll be the topic line
+            # of the next chunk we open.
+            buf = [text]
+            buf_size = len(text)
+            continue
+
+        # Oversized single paragraph -> sentence split, each piece its
+        # own chunk (still tagged with the section heading)
+        if len(text) > config.MAX_CHUNK_SIZE:
+            flush()
+            for piece in _split_paragraph(text, config.MAX_CHUNK_SIZE):
+                topic = section_heading or page_title or ""
+                body = f"{topic}\n\n{piece}" if topic else piece
+                chunks.append({"heading": topic, "text": body.strip()})
+            continue
+
+        # Would adding this element bust the target? Flush first.
+        if buf_size + len(text) > config.TARGET_CHUNK_SIZE and buf_size >= config.MIN_CHUNK_LENGTH:
+            flush()
+            if section_heading:
+                buf = [section_heading, text]
+                buf_size = len(section_heading) + len(text)
+            else:
+                buf = [text]
+                buf_size = len(text)
+            continue
+
+        buf.append(text)
+        buf_size += len(text)
+
+    flush()
+
+    # Final pass: drop chunks that look like junk widgets
+    cleaned = []
+    for c in chunks:
+        if is_junk_chunk(c["text"]):
+            continue
+        cleaned.append(c)
+    return cleaned
+
+
+# =============================================================
+# LEGACY API - kept so existing callers don't break
+# =============================================================
+
+def scrape_page(url):
+    """Return a single flat string of the cleaned page (legacy).
+
+    New code should call `extract_structured()` instead, which preserves
+    heading/paragraph boundaries. This shim joins them with double
+    newlines so the result is at least readable.
+    """
+    _title, elements = extract_structured(url)
+    if not elements:
+        return ""
+    return "\n\n".join(e["text"] for e in elements)
+
+
+def is_garbage_text(text):
+    if not text:
+        return True
+    sample = text[:1000]
+    weird = sum(1 for c in sample if ord(c) > 127)
+    if len(sample) > 0 and (weird / len(sample)) > 0.2:
+        return True
+    if "\x00" in text[:500] or "�" in text[:500]:
+        return True
+    if len(text) < config.MIN_TEXT_LENGTH and not contains_important_info(text):
+        return True
+    return False
+
+
 def clean_text(text):
-    """
-    Main text cleaning function.
-
-    Applies garbage detection first, then checks minimum length.
-    Short pages with important info (contacts, fees) are kept.
-
-    Args:
-        text: Raw scraped text
-
-    Returns:
-        Cleaned text, or None if the text should be discarded
-    """
-    # Step 1: Reject garbage/binary content
+    """Legacy text-level filter. Prefer per-chunk `is_junk_chunk`."""
     if is_garbage_text(text):
         return None
-
-    # Step 2: Keep if long enough
     if len(text) >= config.MIN_TEXT_LENGTH:
         return text
-
-    # Step 3: Keep short text only if it has important info
     if contains_important_info(text):
         return text
-
     return None
 
 
-# =============================================================
-# TEXT CHUNKING - Splitting text into database-ready pieces
-# =============================================================
-
 def chunk_text(text):
+    """Legacy entry point: char-based chunking with sentence-safe ends.
+
+    Only used by old callers. The pipeline now goes
+    extract_structured -> chunk_elements which is much smarter.
     """
-    Split a long text into smaller overlapping chunks.
-
-    WHY CHUNKING?
-    The embedding model works best with smaller pieces of text.
-    If we feed it an entire web page, the meaning gets diluted.
-    Smaller chunks = more precise search results.
-
-    WHY OVERLAP?
-    Without overlap, a sentence at the boundary between two chunks
-    could be split in half and lose its meaning. Overlap ensures
-    every sentence appears fully in at least one chunk.
-
-    Args:
-        text: The full text to split
-
-    Returns:
-        List of text chunks (strings)
-    """
-    if not text or len(text.strip()) == 0:
+    if not text or not text.strip():
         return []
 
+    size = config.TARGET_CHUNK_SIZE
+    overlap = config.CHUNK_OVERLAP
     chunks = []
     start = 0
-
     while start < len(text):
-        # Calculate where this chunk ends
-        end = min(start + config.CHUNK_SIZE, len(text))
-
-        # Try to break at a sentence boundary (period, question mark, etc.)
-        # This avoids cutting sentences in half
+        end = min(start + size, len(text))
         if end < len(text):
-            original_end = end
-            while end > start and text[end] not in [".", "!", "?", "\n", " "]:
+            original = end
+            while end > start and text[end] not in [".", "!", "?", "\n"]:
                 end -= 1
-
-            # If we backed up too far (past half the chunk), use the original end
-            if end <= start + config.CHUNK_SIZE // 2:
-                end = original_end
-
+            if end <= start + size // 2:
+                end = original
         chunk = text[start:end].strip()
-
-        # Only keep chunks that are long enough to be useful
-        if chunk and len(chunk) > config.MIN_CHUNK_LENGTH:
+        if chunk and len(chunk) >= config.MIN_CHUNK_LENGTH and not is_junk_chunk(chunk):
             chunks.append(chunk)
-
-        # Start the next chunk with some overlap from this one
-        start = end - config.CHUNK_OVERLAP
-        if start <= end:
-            start = end  # Safety: prevent infinite loop
-
+        start = end - overlap
+        if start <= 0 or start >= end:
+            start = end
     return chunks
 
 
 # =============================================================
-# DATA PERSISTENCE - Saving and loading data files
+# PERSISTENCE
 # =============================================================
 
 def save_urls(urls):
-    """Save discovered URLs to a text file (one URL per line)."""
     os.makedirs(config.DATA_DIR, exist_ok=True)
     with open(config.URLS_FILE, "w", encoding="utf-8") as f:
         for url in urls:
@@ -392,29 +500,25 @@ def save_urls(urls):
 
 
 def save_pages(pages):
-    """Save cleaned page data to JSON."""
     with open(config.CLEAN_PAGES_FILE, "w", encoding="utf-8") as f:
         json.dump(pages, f, indent=2, ensure_ascii=False)
     print(f"  Saved {len(pages)} pages to {config.CLEAN_PAGES_FILE}")
 
 
 def save_chunks(chunks):
-    """Save text chunks to JSON."""
     with open(config.CHUNKS_FILE, "w", encoding="utf-8") as f:
         json.dump(chunks, f, indent=2, ensure_ascii=False)
     print(f"  Saved {len(chunks)} chunks to {config.CHUNKS_FILE}")
 
 
 def load_urls():
-    """Load previously saved URLs from file."""
     if os.path.exists(config.URLS_FILE):
         with open(config.URLS_FILE, "r", encoding="utf-8") as f:
-            return [line.strip() for line in f.readlines() if line.strip()]
+            return [line.strip() for line in f if line.strip()]
     return []
 
 
 def load_pages():
-    """Load previously saved cleaned pages from JSON."""
     if os.path.exists(config.CLEAN_PAGES_FILE):
         with open(config.CLEAN_PAGES_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -422,7 +526,6 @@ def load_pages():
 
 
 def load_chunks():
-    """Load previously saved chunks from JSON."""
     if os.path.exists(config.CHUNKS_FILE):
         with open(config.CHUNKS_FILE, "r", encoding="utf-8") as f:
             return json.load(f)
@@ -430,76 +533,79 @@ def load_chunks():
 
 
 # =============================================================
-# PIPELINE - Orchestrating the full scraping process
+# PIPELINE
 # =============================================================
 
 def run_full_pipeline():
-    """
-    Run the complete scraping pipeline from start to finish.
-
-    Steps:
-      1. Discover URLs from all configured website sitemaps
-      2. Scrape each page and extract clean text
-      3. Split text into chunks for the vector database
-
-    This is the main function you run when setting up or refreshing data.
-    """
+    """Fresh scrape: URLs -> structured pages -> context-aware chunks."""
     print("=" * 60)
-    print("SCRAPING PIPELINE - FULL RUN")
+    print("SCRAPING PIPELINE - FULL RUN (structural)")
     print("=" * 60)
 
-    # Ensure data directory exists
     os.makedirs(config.DATA_DIR, exist_ok=True)
 
-    # Step 1: Discover all URLs
     print("\nStep 1: Discovering URLs from sitemaps...")
     urls = get_all_urls()
     save_urls(urls)
 
-    # Step 2: Scrape and clean each page
-    print(f"\nStep 2: Scraping {len(urls)} pages...")
-    clean_pages = []
-    for url in tqdm(urls, desc="Scraping"):
+    print(f"\nStep 2: Extracting structured content from {len(urls)} pages (workers={SCRAPE_WORKERS})...")
+    pages = []
+    skipped = 0
+
+    def _fetch_one(url):
         try:
-            raw_text = scrape_page(url)
-            cleaned = clean_text(raw_text)
-            if cleaned:
-                clean_pages.append({"url": url, "content": cleaned})
-        except Exception:
-            continue  # Skip pages that fail
+            title, elements = extract_structured(url)
+        except Exception as exc:
+            return url, None, [], str(exc)
+        return url, title, elements, None
 
-    save_pages(clean_pages)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=SCRAPE_WORKERS) as pool:
+        futures = {pool.submit(_fetch_one, u): u for u in urls}
+        for fut in tqdm(concurrent.futures.as_completed(futures), total=len(futures), desc="Scraping"):
+            url, title, elements, err = fut.result()
+            if err or not elements:
+                skipped += 1
+                continue
+            if not any(len(e["text"]) > 40 for e in elements):
+                skipped += 1
+                continue
+            pages.append({"url": url, "title": title or "", "elements": elements})
 
-    # Step 3: Chunk the cleaned text
-    print(f"\nStep 3: Chunking {len(clean_pages)} pages...")
+    save_pages(pages)
+    print(f"  Kept {len(pages)} pages, skipped {skipped}")
+
+    print(f"\nStep 3: Building context-aware chunks from {len(pages)} pages...")
     all_chunks = []
-    for page in tqdm(clean_pages, desc="Chunking"):
-        page_chunks = chunk_text(page["content"])
-        for chunk in page_chunks:
-            all_chunks.append({"text": chunk, "source": page["url"]})
+    for page in tqdm(pages, desc="Chunking"):
+        page_chunks = chunk_elements(page["elements"], page_title=page.get("title"))
+        for c in page_chunks:
+            all_chunks.append({
+                "text": c["text"],
+                "source": page["url"],
+                "heading": c.get("heading", ""),
+                "page_title": page.get("title", ""),
+            })
 
     save_chunks(all_chunks)
 
-    # Print summary
     print("\n" + "=" * 60)
-    print("PIPELINE COMPLETE!")
-    print(f"  URLs discovered:  {len(urls)}")
-    print(f"  Pages scraped:    {len(clean_pages)}")
-    print(f"  Chunks created:   {len(all_chunks)}")
+    print("PIPELINE COMPLETE")
+    print(f"  URLs:    {len(urls)}")
+    print(f"  Pages:   {len(pages)}")
+    print(f"  Chunks:  {len(all_chunks)}")
     if all_chunks:
         avg = sum(len(c["text"]) for c in all_chunks) / len(all_chunks)
-        print(f"  Avg chunk size:   {avg:.0f} characters")
+        print(f"  Avg size: {avg:.0f} chars")
     print("=" * 60)
-
     return all_chunks
 
 
 def run_rechunk():
-    """
-    Re-chunk existing scraped data without re-scraping.
+    """Re-chunk without re-fetching. Reads pages.json, rebuilds chunks.json.
 
-    Useful when you change CHUNK_SIZE or CHUNK_OVERLAP in config.py
-    and want to regenerate chunks from already-scraped pages.
+    Supports both the new structured page format (pages have `elements`)
+    and the legacy flat-text format (pages have `content`) — useful when
+    you upgrade the chunker but haven't re-scraped yet.
     """
     print("=" * 60)
     print("RE-CHUNKING EXISTING DATA")
@@ -510,16 +616,37 @@ def run_rechunk():
         print("No existing pages found. Run 'scrape' first.")
         return
 
-    print(f"  Loaded {len(pages)} existing pages")
+    print(f"  Loaded {len(pages)} pages")
 
     all_chunks = []
     for page in tqdm(pages, desc="Chunking"):
-        page_chunks = chunk_text(page["content"])
-        for chunk in page_chunks:
-            all_chunks.append({"text": chunk, "source": page["url"]})
+        if "elements" in page and page["elements"]:
+            page_chunks = chunk_elements(page["elements"], page_title=page.get("title"))
+            for c in page_chunks:
+                all_chunks.append({
+                    "text": c["text"],
+                    "source": page["url"],
+                    "heading": c.get("heading", ""),
+                    "page_title": page.get("title", ""),
+                })
+        else:
+            # Legacy: flat string in `content`. Best-effort: split on
+            # double newlines and re-treat each block as a paragraph.
+            content = page.get("content", "")
+            if not content:
+                continue
+            paragraphs = [p.strip() for p in re.split(r"\n{2,}", content) if p.strip()]
+            elements = [{"tag": "p", "text": p} for p in paragraphs]
+            page_chunks = chunk_elements(elements, page_title=page.get("title", ""))
+            for c in page_chunks:
+                all_chunks.append({
+                    "text": c["text"],
+                    "source": page["url"],
+                    "heading": c.get("heading", ""),
+                    "page_title": page.get("title", ""),
+                })
 
     save_chunks(all_chunks)
-
     print(f"\n  Total chunks: {len(all_chunks)}")
     if all_chunks:
         avg = sum(len(c["text"]) for c in all_chunks) / len(all_chunks)
