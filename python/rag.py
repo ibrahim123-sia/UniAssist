@@ -39,15 +39,42 @@ LANGUAGE_INSTRUCTION = {
         "- DO NOT use Urdu / Arabic-script characters (e.g. کیسے, اچھا, ہیں, کیا).\n"
         "- Every single character of your answer must be standard English "
         "letters, digits, or punctuation — nothing outside basic ASCII.\n"
-        "GOOD example: 'Aap kaise hain? MAJU mein admission ke liye apply karein.'\n"
-        "BAD example (do NOT do this): 'आप कैसे हैं' or 'آپ کیسے ہیں'."
+        "STRICT RULES on VOCABULARY — use Urdu words (Persian/Arabic-origin), "
+        "NOT Hindi words (Sanskrit-origin). Roman Urdu is NOT the same as "
+        "Roman Hindi. Common Hindi words to AVOID and their Urdu replacements:\n"
+        "- 'sampark' (Hindi) -> use 'raabta' (e.g. 'raabta karne ke liye')\n"
+        "- 'vah' / 'yah' (Hindi) -> use 'woh' / 'yeh'\n"
+        "- 'dhanyavad' (Hindi) -> use 'shukriya'\n"
+        "- 'kripya' (Hindi) -> use 'meherbani' or 'baraye meherbani'\n"
+        "- 'prashn' (Hindi) -> use 'sawaal'\n"
+        "- 'uttar' (Hindi) -> use 'jawaab'\n"
+        "- 'samay' (Hindi) -> use 'waqt'\n"
+        "- 'karya' (Hindi) -> use 'kaam'\n"
+        "- 'vidyarthi' / 'chhatra' (Hindi) -> use 'talib-e-ilm' or just 'student'\n"
+        "- 'adhyapak' (Hindi) -> use 'ustaad' or 'professor'\n"
+        "- 'vishwavidyalaya' (Hindi) -> use 'university' or 'jamia'\n"
+        "- 'pradhan' / 'mukhya' (Hindi) -> use 'sadar' or 'aham'\n"
+        "- 'avashyak' (Hindi) -> use 'zaroori'\n"
+        "- 'praapt' (Hindi) -> use 'haasil'\n"
+        "- 'arambh' (Hindi) -> use 'shuru'\n"
+        "- 'samapt' (Hindi) -> use 'khatam'\n"
+        "GOOD example: 'Unse raabta karne ke liye unhein email karein. Woh "
+        "professor hain aur unka kaam ahem hai.'\n"
+        "BAD example (Hindi vocab — do NOT do this): 'Unse sampark karne ke "
+        "liye email karein. Vah professor hain aur unka karya mukhya hai.'\n"
+        "BAD example (wrong script — do NOT do this): 'आप कैसे हैं' or 'آپ کیسے ہیں'."
     ),
     "mixed": (
         "The student mixed English and Roman Urdu. Reply in the same mixed "
         "style — English where they used English, Roman Urdu where they used "
         "Roman Urdu. Roman Urdu phrases MUST stay in English/Latin letters. "
         "DO NOT use Hindi/Devanagari (e.g. कैसे). DO NOT use Urdu/Arabic "
-        "script (e.g. کیسے). Use ONLY ASCII characters in the entire reply."
+        "script (e.g. کیسے). Use ONLY ASCII characters in the entire reply. "
+        "For the Roman Urdu parts, use Urdu vocabulary (Persian/Arabic-origin), "
+        "NOT Hindi/Sanskrit vocabulary. Examples: use 'raabta' not 'sampark', "
+        "'woh' not 'vah', 'shukriya' not 'dhanyavad', 'sawaal' not 'prashn', "
+        "'jawaab' not 'uttar', 'waqt' not 'samay', 'kaam' not 'karya', "
+        "'zaroori' not 'avashyak', 'shuru' not 'arambh'."
     ),
 }
 
@@ -161,6 +188,54 @@ _FORBIDDEN_SCRIPT_RE = re.compile(r"[؀-ۿऀ-ॿ]")
 
 def _has_forbidden_script(text):
     return bool(_FORBIDDEN_SCRIPT_RE.search(text or ""))
+
+
+# Hindi (Sanskrit-origin) words that Llama 3.2:3b leaks into Roman Urdu
+# replies, mapped to their Urdu (Persian/Arabic-origin) equivalents.
+# Only words that are unambiguously Hindi-only and have a clean 1:1 Urdu
+# replacement — anything genre-dependent (e.g. "naam") is left alone.
+_HINDI_TO_URDU = {
+    "sampark": "raabta",
+    "vah": "woh",
+    "yah": "yeh",
+    "dhanyavad": "shukriya",
+    "kripya": "meherbani se",
+    "prashn": "sawaal",
+    "uttar": "jawaab",
+    "samay": "waqt",
+    "karya": "kaam",
+    "vidyarthi": "talib-e-ilm",
+    "chhatra": "talib-e-ilm",
+    "adhyapak": "ustaad",
+    "vishwavidyalaya": "university",
+    "pradhan": "sadar",
+    "mukhya": "aham",
+    "avashyak": "zaroori",
+    "praapt": "haasil",
+    "arambh": "shuru",
+    "samapt": "khatam",
+}
+
+# Whole-word, case-insensitive, capitalization-preserving.
+_HINDI_WORD_RE = re.compile(
+    r"\b(" + "|".join(re.escape(w) for w in _HINDI_TO_URDU) + r")\b",
+    re.IGNORECASE,
+)
+
+
+def _replace_hindi_words(text):
+    """Swap Hindi-origin words for Urdu equivalents, preserving capitalization."""
+    if not text:
+        return text
+
+    def _sub(match):
+        original = match.group(0)
+        replacement = _HINDI_TO_URDU[original.lower()]
+        if original[0].isupper():
+            return replacement[0].upper() + replacement[1:]
+        return replacement
+
+    return _HINDI_WORD_RE.sub(_sub, text)
 
 
 def _retry_in_roman_urdu(prompt, language):
@@ -288,11 +363,19 @@ def ask(question, language="en"):
         retried = _retry_in_roman_urdu(prompt, language)
         retried = clean_answer(retried)
         if retried and not _has_forbidden_script(retried):
-            return retried
-        # Retry also failed — strip the bad characters from whichever
-        # response was longer so the user gets the most context possible.
-        candidate = retried if len(retried or "") > len(cleaned or "") else cleaned
-        stripped = _strip_forbidden_script(candidate)
-        return stripped or cleaned  # never return empty
+            cleaned = retried
+        else:
+            # Retry also failed — strip the bad characters from whichever
+            # response was longer so the user gets the most context possible.
+            candidate = retried if len(retried or "") > len(cleaned or "") else cleaned
+            cleaned = _strip_forbidden_script(candidate) or cleaned
+
+    # Layer-D vocabulary guard: even with the right script, Llama 3.2:3b
+    # often picks Sanskrit-origin Hindi words ("sampark", "vah", "karya")
+    # over Persian/Arabic-origin Urdu ones ("raabta", "woh", "kaam").
+    # We do a plain word-substitution pass — cheaper and more deterministic
+    # than another retry round.
+    if language in ("roman_urdu", "mixed"):
+        cleaned = _replace_hindi_words(cleaned)
 
     return cleaned
