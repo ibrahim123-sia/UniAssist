@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { useDispatch, useSelector } from "react-redux";
 import axios from "../../utils/axios";
 import { setChats, setSelectedChat } from "../../redux/slices/chatSlice";
@@ -508,20 +509,23 @@ const ChatPage = () => {
       type: mode,
     };
 
-    setMessages((prev) => [...prev, userMsg]);
-    setPrompt("");
-    setLoading(true);
-
-    // Force a scroll to the new user bubble before the network round-trip
-    // so the student visibly sees their message land in the conversation.
-    requestAnimationFrame(() => {
-      if (containRef.current) {
-        containRef.current.scrollTo({
-          top: containRef.current.scrollHeight,
-          behavior: "smooth",
-        });
-      }
+    // flushSync forces React to commit BEFORE we hit `await axios.post`.
+    // Without it, React 18's auto-batching can defer the render until after
+    // the network response resolves on fast LLM replies — which is exactly
+    // why the user bubble seemed to appear "after" the assistant reply.
+    flushSync(() => {
+      setMessages((prev) => [...prev, userMsg]);
+      setLoading(true);
     });
+    setPrompt("");
+
+    // Now that the DOM has the new bubble, scroll it into view.
+    if (containRef.current) {
+      containRef.current.scrollTo({
+        top: containRef.current.scrollHeight,
+        behavior: "smooth",
+      });
+    }
 
     try {
       const { data } = await axios.post(

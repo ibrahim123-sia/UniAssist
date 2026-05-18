@@ -129,10 +129,10 @@ def create_prompt(question, relevant_chunks, language="en"):
     lang_hint = _LANGUAGE_HINT.get(language, _LANGUAGE_HINT["en"])
     no_info = NO_INFO_FALLBACK.get(language, NO_INFO_FALLBACK["en"])
 
-    prompt = f"""CONTEXT FROM MAJU WEBSITE:
+    prompt = f"""CONTEXT FROM MAJU WEBSITE (only for the current question — earlier turns of this conversation are in the chat history above):
 {context}
 
-STUDENT'S QUESTION: {question}
+STUDENT'S CURRENT QUESTION: {question}
 
 HOW TO ANSWER — first decide which type of question this is, then follow that branch:
 
@@ -142,18 +142,31 @@ A) GREETING or SMALL-TALK ("hi", "salam", "aoa", "thanks", "how are you"):
 B) IDENTITY QUESTION ("who are you", "what model are you", "are you ChatGPT/Gemini/AI"):
    Say you are MAJU Assistant — the virtual helpdesk for Muhammad Ali Jinnah University. Do NOT name any AI model, company, or technology. 1-2 sentences.
 
-C) OFF-TOPIC or NON-MAJU QUESTION (other universities, weather, math, coding help, opinions, general world knowledge):
+C) META / CONVERSATION QUESTION about THIS chat itself — examples:
+   - "what did I just ask?" / "mne abhi kia kaha"
+   - "do you remember my last question?" / "tmhe pta h mne kia pocha"
+   - "which program / topic are you discussing?" / "ye kis program ka bata rahe ho" / "kis ke baare mein baat ho rahi hai"
+   - "summarize our chat" / "hamari baat-cheet ka khulasa"
+   - "tell me more" / "aur batao"
+   - "explain that again" / "phir se samjhao"
+   - "translate your last reply"
+   For ANY of these, answer using the chat history above (the prior user/assistant turns). IGNORE the CONTEXT block — the retrieval may have pulled unrelated chunks; trust the conversation history instead. If there is no prior conversation, say so warmly.
+
+D) OFF-TOPIC or NON-MAJU QUESTION (other universities, weather, math, coding help, opinions, general world knowledge):
    Politely decline and steer them back to MAJU topics in 1-2 sentences. Do not attempt to answer from your own knowledge.
 
-D) MAJU-RELATED QUESTION (admissions, fees, programs, courses, faculty, schedules, campus, contact, policies):
-   - Use ONLY the context above. NEVER invent fees, deadlines, emails, phone numbers, course names, faculty names, or policies.
+E) MAJU-RELATED QUESTION (admissions, fees, programs, courses, faculty, schedules, campus, contact, policies):
+   - For follow-ups like "and its fee?", "or fee?", "what about for BSCS?", "tell me more" — first resolve pronouns and missing subjects using the chat history above (e.g. if the prior turn was about BSCS, "or fee?" means "BSCS fee"). Then answer using BOTH the CONTEXT and the topic from history.
+   - If the CONTEXT looks unrelated to the topic the user is following up on (e.g. user was asking about BSCS but context has PhD chunks), DO NOT switch topic — say what the context covers about the requested topic, or say you don't have details for that specific program.
+   - Use ONLY the CONTEXT for facts. NEVER invent fees, deadlines, emails, phone numbers, course names, faculty names, or policies.
    - If the context fully answers, give a direct answer.
    - If the context partially answers, share what's covered and briefly note what's missing — do not refuse over one missing detail.
-   - If the question is too ambiguous to answer from the context (e.g. doesn't specify program or semester), ask ONE short clarifying question instead of guessing.
-   - If the context does not cover the question at all, reply exactly with: {no_info}
+   - If the question is too ambiguous to answer (even after using history to resolve references), ask ONE short clarifying question instead of guessing.
+   - If neither the context nor the chat history can answer, reply exactly with: {no_info}
 
 ALWAYS (applies to every branch):
 - {lang_hint}
+- CONSISTENCY: Never contradict what you have already said in the chat history above. If a previous assistant turn stated a fact (e.g. "tuition is 9,000 per credit hour"), and the user follows up about that fact, your answer MUST be consistent with your prior statement — do not claim "not mentioned" for something you just said.
 - Quote fees, dates, emails, phone numbers, and other facts EXACTLY as they appear in the context.
 - Start with the answer directly. No "Sure!", "Of course!", "Here is", "Based on the context", or sign-offs.
 - Never mention sources, source numbers, "[1]", "[2]", or add a "Sources:" / "References:" section.
@@ -299,6 +312,14 @@ _PREAMBLE_PATTERNS = [
     r"according to the (?:context|information|provided context)[:,\s\-]*",
     r"as (?:per|stated in) the (?:context|information)[:,\s\-]*",
     r"the answer (?:is|to your question is)[:,\s\-]*",
+    # "It seems / sounds / looks like ..." sympathy preambles. We strip up
+    # to the next comma or period, because these phrases usually paraphrase
+    # the user's question before the actual answer ("It seems like you're
+    # having trouble with X, ..." — drop everything up to that comma).
+    r"it (?:seems|sounds|looks)(?: like)?[^,.\n]*[,.][\s\-]*",
+    r"i (?:see|understand)(?: that)?[^,.\n]*[,.][\s\-]*",
+    r"i (?:can|will) (?:help|try to help)[^,.\n]*[,.][\s\-]*",
+    r"thanks? for (?:asking|your question)[!,.\s]*",
 ]
 _PREAMBLE_RE = re.compile(
     r"^\s*(?:" + "|".join(_PREAMBLE_PATTERNS) + r")",
@@ -478,6 +499,32 @@ def _initialize():
     _warm_llm()
 
 
+def _build_retrieval_query(question, history):
+    """Combine the current question with the most recent user turn so
+    follow-ups like "or fee" still retrieve topic-relevant chunks.
+
+    Why: "or fee" alone embeds to "fees in general" and retrieves the
+    generic fee chunk. Prepending the prior user turn ("bscs admission")
+    biases the embedding back toward the actual topic being discussed.
+
+    Only the LATEST prior user message is added — older turns dilute the
+    embedding without much benefit, and the prior assistant reply often
+    contains too much off-topic detail to be useful here.
+    """
+    if not history:
+        return question
+    prior_user = None
+    for msg in reversed(history):
+        if not isinstance(msg, dict):
+            continue
+        if msg.get("role") == "user" and isinstance(msg.get("content"), str):
+            prior_user = msg["content"].strip()
+            break
+    if not prior_user or prior_user.lower() == question.strip().lower():
+        return question
+    return f"{prior_user}\n{question}"
+
+
 def ask(question, language="en", history=None):
     """Run the full RAG pipeline for a student question.
 
@@ -486,14 +533,16 @@ def ask(question, language="en", history=None):
     (English embeddings handle Roman-Urdu queries acceptably for our corpus).
 
     `history` (optional): prior chat turns as [{role, content}, ...] oldest
-    first. Passed through to the LLM so the model can resolve follow-ups
-    in context. Retrieval still uses the current question only — keeping
-    retrieval stateless avoids stale-context recall on topic shifts.
+    first. Used for two things: (1) passed to the LLM so it can resolve
+    follow-ups conversationally, and (2) the latest prior user turn is
+    prepended to the retrieval query so follow-ups like "or fee" still
+    pull topic-relevant chunks instead of generic ones.
     """
     _initialize()
 
+    retrieval_query = _build_retrieval_query(question, history)
     chunks, _sources, _scores = database.search(
-        question=question,
+        question=retrieval_query,
         collection=_collection,
         model=_model,
         top_k=config.TOP_K_RESULTS,

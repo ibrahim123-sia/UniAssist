@@ -222,6 +222,10 @@ async def ask_question(request: QuestionRequest):
         [{"role": h.role, "content": h.content} for h in request.history]
         if request.history else None
     )
+    if history_payload:
+        print(f"  /ask received {len(history_payload)} prior turns ({lang})")
+    else:
+        print(f"  /ask no history attached ({lang})")
     answer = rag.ask(request.question, language=lang, history=history_payload)
     return AnswerResponse(answer=answer, flagged=False, language=detected["language"])
 

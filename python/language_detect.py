@@ -45,11 +45,20 @@ ROMAN_URDU_FUNCTION_WORDS = {
     # Verbs / copulas
     "hai", "hain", "tha", "thi", "thay", "hoga", "hogi", "honge",
     "hota", "hoti", "hote", "hua", "hui", "huye", "huwa",
+    # Bare/short forms: "ho" = 2nd-person "are" (e.g. "tm kon ho"),
+    # "hu"/"hun"/"houn" = 1st-person "am". Risk of English collision
+    # is low — "ho" as an English interjection is rare in chat.
+    "ho", "hu", "hun", "houn", "hoo",
     "karna", "karta", "karti", "karte", "karo", "karenge", "karunga", "karoge",
     "kiya", "kiye", "kr", "krna", "krta", "krte",
     "jata", "jati", "jate", "jaye", "jaunga", "jaungi", "jana", "gaya", "gayi", "gaye",
     "ata", "ati", "ate", "aya", "ayi", "aye", "ana", "aana",
     "raha", "rahi", "rahe", "rehna", "rehta", "rehti", "rehte",
+    # SMS-short forms — students drop vowels constantly ("horha" for ho raha,
+    # "nh" for nahi, "rha" for raha). Without these, sentences that are
+    # mostly Roman Urdu score zero because every RU word is vowel-dropped.
+    "rha", "rhi", "rhe", "hora", "horha", "horaha", "hoorha", "hrha",
+    "horahi", "horahe", "horhi", "horhe", "horhay",
     "diya", "diye", "dena", "deta", "deti", "dete",
     "liya", "lena", "leta", "leti", "lete",
     "sakta", "sakti", "sakte", "saktay", "sakey",
@@ -58,8 +67,13 @@ ROMAN_URDU_FUNCTION_WORDS = {
 
     # Pronouns / determiners
     "mein", "hum", "tum", "aap", "woh", "yeh",
+    # Common short / SMS-style spellings — Pakistani students very often
+    # drop vowels in chat ("tm" for tum, "ap" for aap, "mjhe" for mujhe).
+    # Adding these fixes detection of ultra-short queries like "tm kon ho".
+    "tm", "ap", "tu", "tjhe", "tujhe", "tujh", "mujh", "mjhe", "mje", "mjh",
     "iska", "iski", "iske", "uska", "uski", "uske", "inka", "inki", "inke",
     "unka", "unki", "unke", "mera", "meri", "mere", "tera", "teri", "tere",
+    "mra", "mri", "mre",  # SMS short forms of mera/meri/mere
     "humara", "humari", "humare", "tumhara", "tumhari", "tumhare",
     "apna", "apni", "apne", "khud",
 
@@ -68,7 +82,8 @@ ROMAN_URDU_FUNCTION_WORDS = {
     "tak", "lia", "liye", "liey", "wala", "wali", "wale",
     "bhi", "toh", "phir", "fir", "abhi", "kab", "kahan", "kaha",
     "kyun", "kyon", "kiu", "kiun", "kese", "kaise", "kya", "kia", "kuch", "kuchh",
-    "nahi", "nahin", "nhi", "haan", "jee",
+    "kon", "kaun", "kn",  # "who" — common in short queries like "tm kon ho"
+    "nahi", "nahin", "nhi", "nh", "naa", "haan", "haa", "ji", "jee",
     "magar", "lekin", "agar", "jab", "warna", "kyunki", "kyonke",
     "bohat", "bahut", "bht", "thora", "thori", "thore", "zyada", "zayada",
     "acha", "achha", "acchi", "accha", "theek", "thik", "sahi", "ghalat",
