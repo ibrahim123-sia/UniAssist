@@ -184,9 +184,14 @@ BATCH_SIZE = 100                        # Chunks processed at a time during buil
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
 LLM_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
 LLM_TEMPERATURE = 0.3                       # Lower = more focused answers (0-1)
-LLM_MAX_TOKENS = 1000                       # Max length of generated answer (Ollama `num_predict`)
+# Generation time on CPU scales linearly with output tokens; 400 covers typical
+# answers (~150-300 tokens) without forcing the model to ramble to 1000.
+LLM_MAX_TOKENS = 400                        # Max length of generated answer (Ollama `num_predict`)
 LLM_REQUEST_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "300"))  # seconds; 3B on CPU is slow (cold start ~30-60s + generation)
-TOP_K_RESULTS = 6                            # Number of chunks to retrieve per question (was 3 — bumped for recall)
+# Pass to Ollama's `keep_alive` so the model stays in RAM between requests.
+# Default is 5 min — every cold-after-idle request then pays the ~30-60s reload.
+LLM_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "24h")
+TOP_K_RESULTS = 4                            # Number of chunks to retrieve per question (smaller prompt = faster prefill)
 KEYWORD_BOOST_TOP_K = 4                      # Extra chunks pulled by keyword fallback before merging
 
 

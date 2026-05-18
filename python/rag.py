@@ -153,6 +153,7 @@ def get_llm_response(prompt, language="en"):
                 "temperature": config.LLM_TEMPERATURE,
                 "num_predict": config.LLM_MAX_TOKENS,
             },
+            keep_alive=config.LLM_KEEP_ALIVE,
         )
     except ollama.ResponseError as exc:
         if "not found" in str(exc).lower():
@@ -265,6 +266,7 @@ def _retry_in_roman_urdu(prompt, language):
                 "temperature": 0.1,  # tighter than default so it follows the rule
                 "num_predict": config.LLM_MAX_TOKENS,
             },
+            keep_alive=config.LLM_KEEP_ALIVE,
         )
         return (response.get("message") or {}).get("content", "")
     except Exception as exc:
@@ -308,6 +310,7 @@ def _warm_llm():
             model=config.LLM_MODEL,
             messages=[{"role": "user", "content": "ok"}],
             options={"num_predict": 1, "temperature": 0.0},
+            keep_alive=config.LLM_KEEP_ALIVE,
         )
         _llm_warmed = True
         print(f"  LLM warmed: {config.LLM_MODEL}")
