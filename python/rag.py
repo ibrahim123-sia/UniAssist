@@ -6,9 +6,9 @@ RAG.PY - Retrieval-Augmented Generation Pipeline
 Pipeline:
   Question -> Vector Search -> Relevant Chunks -> LLM Prompt -> Answer
 
-LLM backend: local Ollama daemon running `llama3.2:3b`.
-Start Ollama from the tray app (Windows) or `ollama serve` and run
-`ollama pull llama3.2:3b` once before booting this service.
+LLM backend is selected by `config.USE_LOCAL_LLM`:
+  true  -> local Ollama daemon (default)
+  false -> Groq cloud API (requires GROQ_API_KEY)
 """
 
 import re
@@ -79,40 +79,85 @@ LANGUAGE_INSTRUCTION = {
 }
 
 
-def create_prompt(question, relevant_chunks, language="en"):
-    """Build the RAG prompt with optional language directive.
+# Short, in-prompt language reminder. The full constraint block (script + vocab
+# rules) is already in the system message via LANGUAGE_INSTRUCTION — repeating
+# the 700-char version here split the 3B model's attention. One pointed line is
+# enough as a reminder at the answering step.
+_LANGUAGE_HINT = {
+    "en": "Reply in clear, natural English.",
+    "roman_urdu": (
+        "Reply in Roman Urdu (Latin letters a-z only — no Devanagari/Arabic "
+        "script). Use Urdu vocabulary (raabta, woh, shukriya, sawaal, jawaab, "
+        "kaam) — NOT Hindi (sampark, vah, dhanyavad, prashn, uttar, karya)."
+    ),
+    "mixed": (
+        "Reply in the same English + Roman Urdu mix the student used. "
+        "Roman Urdu parts: Latin letters only, Urdu vocabulary (raabta, woh, "
+        "shukriya) — NOT Hindi (sampark, vah, dhanyavad)."
+    ),
+}
 
-    The context blocks are numbered so the LLM can mentally pivot between
-    them, but we instruct it not to surface those numbers in the answer.
-    The "partial info" clause is intentional: short of nothing-found, we
-    want the model to *use what it has* rather than punt to "no info"
-    when it sees a relevant-looking chunk that doesn't fully answer.
+# Localized "I don't have that info" fallbacks used both as a guidance phrase
+# inside the prompt AND as the no-chunks return value in `ask`. Keeping them
+# in one place avoids the bug where a Roman-Urdu student got an English "I
+# don't have information about that" reply.
+NO_INFO_FALLBACK = {
+    "en": "I don't have information about that in my database.",
+    "roman_urdu": "Mujhe iss baare mein database mein koi maloomat nahi mili.",
+    "mixed": "I don't have information about that in my database.",
+}
+
+
+def create_prompt(question, relevant_chunks, language="en"):
+    """Build the RAG prompt around four answer-states.
+
+    The prompt is organized around what *kind* of question the student
+    is asking rather than a flat rule list, because the local 3B model
+    handles "pick one state" much better than "weigh nine rules". The
+    four states are:
+
+      A) greeting / small-talk           -> warm reply, ignore context
+      B) identity question               -> "I'm MAJU Assistant"
+      C) off-topic / non-MAJU question   -> polite decline + redirect
+      D) MAJU question                   -> answer from context
+
+    The context blocks are numbered so the LLM can mentally pivot
+    between them, but we instruct it not to surface those numbers.
     """
     blocks = [f"[Source {i+1}]\n{chunk}" for i, chunk in enumerate(relevant_chunks)]
     context = "\n\n---\n\n".join(blocks)
-    lang_line = LANGUAGE_INSTRUCTION.get(language, LANGUAGE_INSTRUCTION["en"])
+    lang_hint = _LANGUAGE_HINT.get(language, _LANGUAGE_HINT["en"])
+    no_info = NO_INFO_FALLBACK.get(language, NO_INFO_FALLBACK["en"])
 
-    prompt = f"""You are a helpful assistant for Muhammad Ali Jinnah University (MAJU).
-Answer the student's question using the context below.
-
-CONTEXT FROM UNIVERSITY WEBSITE:
+    prompt = f"""CONTEXT FROM MAJU WEBSITE:
 {context}
 
 STUDENT'S QUESTION: {question}
 
-INSTRUCTIONS:
-1. {lang_line}
-2. Answer clearly and concisely.
-3. Base your answer on the context above. If only part of the question
-   is covered, answer that part fully and briefly note what is not
-   covered — DO NOT refuse to answer just because some detail is missing.
-4. Only say "I don't have information about that" if the context is
-   completely unrelated to the question.
-5. DO NOT mention sources, source numbers, or citations like [1] or [2].
-6. DO NOT add a "Sources:" or "References:" section at the end.
-7. If the context has contact info (emails, phones), include it naturally.
-8. If the context has fees or numbers, be precise.
-9. Write as a university representative — natural, helpful, direct.
+HOW TO ANSWER — first decide which type of question this is, then follow that branch:
+
+A) GREETING or SMALL-TALK ("hi", "salam", "aoa", "thanks", "how are you"):
+   Respond warmly in 1-2 sentences as MAJU Assistant and invite them to ask about MAJU. Ignore the context above.
+
+B) IDENTITY QUESTION ("who are you", "what model are you", "are you ChatGPT/Gemini/AI"):
+   Say you are MAJU Assistant — the virtual helpdesk for Muhammad Ali Jinnah University. Do NOT name any AI model, company, or technology. 1-2 sentences.
+
+C) OFF-TOPIC or NON-MAJU QUESTION (other universities, weather, math, coding help, opinions, general world knowledge):
+   Politely decline and steer them back to MAJU topics in 1-2 sentences. Do not attempt to answer from your own knowledge.
+
+D) MAJU-RELATED QUESTION (admissions, fees, programs, courses, faculty, schedules, campus, contact, policies):
+   - Use ONLY the context above. NEVER invent fees, deadlines, emails, phone numbers, course names, faculty names, or policies.
+   - If the context fully answers, give a direct answer.
+   - If the context partially answers, share what's covered and briefly note what's missing — do not refuse over one missing detail.
+   - If the question is too ambiguous to answer from the context (e.g. doesn't specify program or semester), ask ONE short clarifying question instead of guessing.
+   - If the context does not cover the question at all, reply exactly with: {no_info}
+
+ALWAYS (applies to every branch):
+- {lang_hint}
+- Quote fees, dates, emails, phone numbers, and other facts EXACTLY as they appear in the context.
+- Start with the answer directly. No "Sure!", "Of course!", "Here is", "Based on the context", or sign-offs.
+- Never mention sources, source numbers, "[1]", "[2]", or add a "Sources:" / "References:" section.
+- Tone: warm, helpful, and professional — like a friendly student services officer. Be concise; use bullet lists only when the answer is genuinely a list (programs, requirements, steps).
 
 ANSWER:"""
 
@@ -120,10 +165,11 @@ ANSWER:"""
 
 
 # =============================================================
-# LLM INTEGRATION (Ollama)
+# LLM INTEGRATION (Ollama local / Groq cloud)
 # =============================================================
 
 _ollama_client = None
+_groq_client = None
 
 
 def _get_ollama_client():
@@ -133,52 +179,153 @@ def _get_ollama_client():
     return _ollama_client
 
 
-def get_llm_response(prompt, language="en"):
-    """Send a prompt to the local Ollama daemon and return the assistant text."""
-    client = _get_ollama_client()
-    system_msg = (
-        "You are a helpful university assistant. "
-        "Provide answers without citations or source references. "
-        + LANGUAGE_INSTRUCTION.get(language, LANGUAGE_INSTRUCTION["en"])
-    )
+def _get_groq_client():
+    global _groq_client
+    if _groq_client is None:
+        if not config.GROQ_API_KEY:
+            raise RuntimeError(
+                "USE_LOCAL_LLM=false but GROQ_API_KEY is not set. "
+                "Add it to python/.env or flip USE_LOCAL_LLM back to true."
+            )
+        from groq import Groq  # imported lazily so local-only installs don't need the dep
+        _groq_client = Groq(api_key=config.GROQ_API_KEY, timeout=config.LLM_REQUEST_TIMEOUT)
+    return _groq_client
 
-    try:
+
+def _llm_chat(messages, temperature, max_tokens):
+    """Backend-agnostic chat call. Returns the assistant text or raises.
+
+    Routes to local Ollama or cloud Groq based on `config.USE_LOCAL_LLM`.
+    """
+    if config.USE_LOCAL_LLM:
+        client = _get_ollama_client()
         response = client.chat(
-            model=config.LLM_MODEL,
-            messages=[
-                {"role": "system", "content": system_msg},
-                {"role": "user", "content": prompt},
-            ],
+            model=config.OLLAMA_MODEL,
+            messages=messages,
             options={
-                "temperature": config.LLM_TEMPERATURE,
-                "num_predict": config.LLM_MAX_TOKENS,
+                "temperature": temperature,
+                "num_predict": max_tokens,
             },
             keep_alive=config.LLM_KEEP_ALIVE,
         )
+        return (response.get("message") or {}).get("content", "")
+
+    client = _get_groq_client()
+    response = client.chat.completions.create(
+        model=config.GROQ_MODEL,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return (response.choices[0].message.content or "") if response.choices else ""
+
+
+def _sanitize_history(history):
+    """Coerce a history payload into the [{role, content}, ...] shape Ollama
+    expects. Drops anything that isn't a user/assistant turn or that lacks
+    string content. Caps at the most recent 6 messages as a safety net even
+    if the caller forgot to trim — keeps the prompt small on a 3B model.
+    """
+    if not history:
+        return []
+    cleaned = []
+    for msg in history:
+        if not isinstance(msg, dict):
+            continue
+        role = msg.get("role")
+        content = msg.get("content")
+        if role not in ("user", "assistant"):
+            continue
+        if not isinstance(content, str) or not content.strip():
+            continue
+        cleaned.append({"role": role, "content": content})
+    return cleaned[-6:]
+
+
+def get_llm_response(prompt, language="en", history=None):
+    """Send a prompt to the configured LLM backend and return the assistant text.
+
+    `history` (optional): prior turns of the conversation as
+    [{"role": "user"|"assistant", "content": str}, ...], oldest first.
+    They are inserted between the system message and the current RAG
+    prompt so the model can resolve follow-ups ("and its fee?") without
+    re-explaining context. The RAG prompt itself still gets fresh
+    retrieved chunks for THIS question — retrieval is not history-aware.
+    """
+    system_msg = (
+        "You are MAJU Assistant — the official virtual helpdesk for Muhammad "
+        "Ali Jinnah University (MAJU) in Karachi, Pakistan. You help current "
+        "and prospective students with admissions, fees, programs, courses, "
+        "faculty, schedules, contact details, and campus information. "
+        "You are warm, supportive, professional, and accurate — you never "
+        "invent facts and never give citations or source references. "
+        "You never reveal what AI model, company, or technology built you; "
+        "you are simply MAJU Assistant.\n\n"
+        + LANGUAGE_INSTRUCTION.get(language, LANGUAGE_INSTRUCTION["en"])
+    )
+    messages = [{"role": "system", "content": system_msg}]
+    messages.extend(_sanitize_history(history))
+    messages.append({"role": "user", "content": prompt})
+
+    try:
+        return _llm_chat(messages, config.LLM_TEMPERATURE, config.LLM_MAX_TOKENS)
     except ollama.ResponseError as exc:
         if "not found" in str(exc).lower():
             return (
-                f"Error: model `{config.LLM_MODEL}` is not installed in Ollama. "
-                f"Run: `ollama pull {config.LLM_MODEL}`"
+                f"Error: model `{config.OLLAMA_MODEL}` is not installed in Ollama. "
+                f"Run: `ollama pull {config.OLLAMA_MODEL}`"
             )
         return f"Error from Ollama: {exc}"
     except Exception as exc:
-        return (
-            f"Error: cannot reach Ollama at {config.OLLAMA_HOST}. "
-            f"Is the daemon running? ({exc})"
-        )
+        if config.USE_LOCAL_LLM:
+            return (
+                f"Error: cannot reach Ollama at {config.OLLAMA_HOST}. "
+                f"Is the daemon running? ({exc})"
+            )
+        return f"Error from Groq ({config.GROQ_MODEL}): {exc}"
 
-    return (response.get("message") or {}).get("content", "")
+
+# Llama 3.2:3b reliably opens replies with one of these throat-clearing
+# phrases despite a "no preamble" rule. Strip whichever one shows up at
+# the very start (case-insensitive, optional trailing comma/colon/dash).
+_PREAMBLE_PATTERNS = [
+    r"sure[!,.\s]*",
+    r"of course[!,.\s]*",
+    r"certainly[!,.\s]*",
+    r"absolutely[!,.\s]*",
+    r"great question[!,.\s]*",
+    r"here(?:'s| is)(?: the answer)?[:,\s\-]*",
+    r"based on the (?:context|information|provided context|provided information)[:,\s\-]*",
+    r"according to the (?:context|information|provided context)[:,\s\-]*",
+    r"as (?:per|stated in) the (?:context|information)[:,\s\-]*",
+    r"the answer (?:is|to your question is)[:,\s\-]*",
+]
+_PREAMBLE_RE = re.compile(
+    r"^\s*(?:" + "|".join(_PREAMBLE_PATTERNS) + r")",
+    re.IGNORECASE,
+)
 
 
 def clean_answer(answer):
-    """Strip citation markers + trailing 'Sources:' blocks that sometimes slip through."""
+    """Strip preambles, citation markers, and trailing 'Sources:' blocks."""
+    if not answer:
+        return ""
     answer = re.sub(r"\[\d+\]", "", answer)
     answer = re.sub(r"(?i)(sources?:.*?)(?=\n\n|\Z)", "", answer, flags=re.DOTALL)
     answer = re.sub(
         r"(?i)\n\n(?:📎\s*)?(?:source|references?):.*", "", answer, flags=re.DOTALL
     )
-    return answer.strip()
+    # Strip up to two stacked preambles ("Sure! Based on the context, ...").
+    for _ in range(2):
+        new = _PREAMBLE_RE.sub("", answer, count=1)
+        if new == answer:
+            break
+        answer = new
+    answer = answer.strip()
+    # Re-capitalize the first letter if a preamble strip left it lowercase.
+    if answer and answer[0].islower():
+        answer = answer[0].upper() + answer[1:]
+    return answer
 
 
 # Devanagari (Hindi) U+0900–U+097F + Arabic-script U+0600–U+06FF.
@@ -239,14 +386,14 @@ def _replace_hindi_words(text):
     return _HINDI_WORD_RE.sub(_sub, text)
 
 
-def _retry_in_roman_urdu(prompt, language):
+def _retry_in_roman_urdu(prompt, language, history=None):
     """Re-call Ollama with a sterner instruction after a script slip-up.
 
     Llama 3.2:3b sometimes ignores the "no Devanagari" rule on first try.
     A retry with a more emphatic system message succeeds far more often
-    than tweaking temperature would.
+    than tweaking temperature would. History is preserved so the model
+    keeps conversational continuity even on the retry.
     """
-    client = _get_ollama_client()
     sterner = (
         "CRITICAL OVERRIDE: Your previous reply used Hindi (Devanagari) or "
         "Urdu (Arabic-script) characters. That is FORBIDDEN. "
@@ -256,19 +403,14 @@ def _retry_in_roman_urdu(prompt, language):
         + LANGUAGE_INSTRUCTION.get(language, LANGUAGE_INSTRUCTION["roman_urdu"])
     )
     try:
-        response = client.chat(
-            model=config.LLM_MODEL,
-            messages=[
-                {"role": "system", "content": sterner},
-                {"role": "user", "content": prompt},
-            ],
-            options={
-                "temperature": 0.1,  # tighter than default so it follows the rule
-                "num_predict": config.LLM_MAX_TOKENS,
-            },
-            keep_alive=config.LLM_KEEP_ALIVE,
+        messages = [{"role": "system", "content": sterner}]
+        messages.extend(_sanitize_history(history))
+        messages.append({"role": "user", "content": prompt})
+        return _llm_chat(
+            messages,
+            temperature=0.1,  # tighter than default so it follows the rule
+            max_tokens=config.LLM_MAX_TOKENS,
         )
-        return (response.get("message") or {}).get("content", "")
     except Exception as exc:
         print(f"  retry_in_roman_urdu failed: {exc}")
         return ""
@@ -295,25 +437,26 @@ _llm_warmed = False
 
 
 def _warm_llm():
-    """Pre-load the model into Ollama's RAM so the first real /ask is fast.
+    """Pre-load the local model into Ollama's RAM so the first real /ask is fast.
 
     Ollama lazy-loads weights on the first request to a model, which can take
     30-60s for a 3B on CPU. Calling once at boot trades startup time for
-    predictable per-request latency.
+    predictable per-request latency. No-op when Groq is the backend (cloud
+    models don't need warmup).
     """
     global _llm_warmed
-    if _llm_warmed:
+    if _llm_warmed or not config.USE_LOCAL_LLM:
         return
     try:
         client = _get_ollama_client()
         client.chat(
-            model=config.LLM_MODEL,
+            model=config.OLLAMA_MODEL,
             messages=[{"role": "user", "content": "ok"}],
             options={"num_predict": 1, "temperature": 0.0},
             keep_alive=config.LLM_KEEP_ALIVE,
         )
         _llm_warmed = True
-        print(f"  LLM warmed: {config.LLM_MODEL}")
+        print(f"  LLM warmed: {config.OLLAMA_MODEL}")
     except Exception as exc:
         print(f"  LLM warmup skipped: {exc}")
 
@@ -328,16 +471,24 @@ def _initialize():
     if _model is None:
         _model = database.get_embedding_model()
         print(f"  Embedding model loaded: {config.EMBEDDING_MODEL}")
-    print(f"  LLM: {config.LLM_MODEL} via {config.OLLAMA_HOST}")
+    if config.USE_LOCAL_LLM:
+        print(f"  LLM: {config.OLLAMA_MODEL} via Ollama @ {config.OLLAMA_HOST}")
+    else:
+        print(f"  LLM: {config.GROQ_MODEL} via Groq cloud API")
     _warm_llm()
 
 
-def ask(question, language="en"):
+def ask(question, language="en", history=None):
     """Run the full RAG pipeline for a student question.
 
     `language` should be one of "en", "roman_urdu", "mixed" — it controls the
     language of the generated answer. The retrieval step is language-agnostic
     (English embeddings handle Roman-Urdu queries acceptably for our corpus).
+
+    `history` (optional): prior chat turns as [{role, content}, ...] oldest
+    first. Passed through to the LLM so the model can resolve follow-ups
+    in context. Retrieval still uses the current question only — keeping
+    retrieval stateless avoids stale-context recall on topic shifts.
     """
     _initialize()
 
@@ -349,12 +500,10 @@ def ask(question, language="en"):
     )
 
     if not chunks:
-        if language == "roman_urdu":
-            return "Mujhe iss baare mein database mein koi information nahi mili."
-        return "I don't have information about that in my database."
+        return NO_INFO_FALLBACK.get(language, NO_INFO_FALLBACK["en"])
 
     prompt = create_prompt(question, chunks, language=language)
-    answer = get_llm_response(prompt, language=language)
+    answer = get_llm_response(prompt, language=language, history=history)
     cleaned = clean_answer(answer)
 
     # Layer-C script guard: if we asked for Roman Urdu / mixed and Llama
@@ -363,7 +512,7 @@ def ask(question, language="en"):
     # rather than ship a broken-script reply.
     if language in ("roman_urdu", "mixed") and _has_forbidden_script(cleaned):
         print(f"  Script slip-up in /ask reply; retrying ({language})")
-        retried = _retry_in_roman_urdu(prompt, language)
+        retried = _retry_in_roman_urdu(prompt, language, history=history)
         retried = clean_answer(retried)
         if retried and not _has_forbidden_script(retried):
             cleaned = retried

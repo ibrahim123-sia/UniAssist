@@ -129,10 +129,19 @@ def verify_admin(authorization: Optional[str] = Header(default=None)) -> dict:
 # MODELS
 # =============================================================
 
+class HistoryMessage(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
 class QuestionRequest(BaseModel):
     question: str
     user_id: Optional[str] = None
     chat_id: Optional[str] = None
+    # Prior turns of the same chat, oldest first. The Node API trims this
+    # to the last few messages before sending; Python just forwards it to
+    # the LLM as conversational context (does NOT use it for retrieval).
+    history: Optional[List[HistoryMessage]] = None
 
 
 class AnswerResponse(BaseModel):
@@ -209,7 +218,11 @@ async def ask_question(request: QuestionRequest):
             language=detected["language"],
         )
 
-    answer = rag.ask(request.question, language=lang)
+    history_payload = (
+        [{"role": h.role, "content": h.content} for h in request.history]
+        if request.history else None
+    )
+    answer = rag.ask(request.question, language=lang, history=history_payload)
     return AnswerResponse(answer=answer, flagged=False, language=detected["language"])
 
 

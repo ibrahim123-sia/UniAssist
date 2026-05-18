@@ -26,6 +26,10 @@ async function getPythonBackendResponse(question, context = {}) {
         question,
         user_id: context.userId ? String(context.userId) : undefined,
         chat_id: context.chatId ? String(context.chatId) : undefined,
+        // Conversation memory: prior turns of this chat, oldest → newest.
+        // Lets the LLM resolve follow-ups like "and its fee?" without
+        // re-explaining the topic each turn.
+        history: Array.isArray(context.history) ? context.history : undefined,
       }),
       timeout: 30000,
     });
@@ -40,6 +44,22 @@ async function getPythonBackendResponse(question, context = {}) {
     console.error("❌ Error calling Python backend:", error.message);
     throw new Error(`Failed to get response from Python backend: ${error.message}`);
   }
+}
+
+// How many prior messages to send to the LLM as conversational context.
+// 6 = 3 full turns. Tuned to keep token usage low on a local 3B model
+// while still resolving short follow-up references.
+const HISTORY_TURN_LIMIT = 6;
+
+// Build the trimmed history payload from a Chat document. Only role/content
+// is sent — voice metadata, email fields, timestamps etc. are stripped to
+// keep the prompt small and the schema simple on the Python side.
+function buildHistoryPayload(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return [];
+  const recent = messages.slice(-HISTORY_TURN_LIMIT);
+  return recent
+    .filter((m) => m && m.role && m.content)
+    .map((m) => ({ role: m.role, content: String(m.content) }));
 }
 
 // Helper function to save base64 audio to temporary file
@@ -185,6 +205,11 @@ export const textMessageController = async (req, res) => {
       });
     }
 
+    // Snapshot prior history BEFORE pushing the new user message — the
+    // history we send to Python must not contain the question we're about
+    // to ask (it would be a duplicate of `prompt`).
+    const history = buildHistoryPayload(chat.messages);
+
     // Add user message
     const userMessage = {
       type: "text",
@@ -196,10 +221,10 @@ export const textMessageController = async (req, res) => {
     await chat.save();
 
     // Get response from Python backend
-    console.log(`🤖 Sending to Python backend: "${prompt}"`);
+    console.log(`🤖 Sending to Python backend: "${prompt}" (history: ${history.length} msgs)`);
     let replyContent;
     try {
-      replyContent = await getPythonBackendResponse(prompt, { userId, chatId });
+      replyContent = await getPythonBackendResponse(prompt, { userId, chatId, history });
     } catch (error) {
       console.error("Failed to get response from Python backend:", error.message);
       replyContent = "Sorry, I'm unable to connect to the university knowledge base at the moment. Please try again later.";
@@ -411,6 +436,9 @@ export const voiceMessageController = async (req, res) => {
 
     console.log("✅ Transcription completed:", transcribedText);
 
+    // Snapshot history BEFORE we push the transcribed user message.
+    const history = buildHistoryPayload(chat.messages);
+
     // Create user voice message
     const userMessage = {
       type: "voice",
@@ -426,15 +454,15 @@ export const voiceMessageController = async (req, res) => {
       },
       timestamp: Date.now(),
     };
-    
+
     // Add user voice message to chat
     chat.messages.push(userMessage);
-    
+
     // Get response from Python backend
-    console.log(`🤖 Sending voice transcription to Python backend: "${transcribedText}"`);
+    console.log(`🤖 Sending voice transcription to Python backend: "${transcribedText}" (history: ${history.length} msgs)`);
     let aiResponse = "";
     try {
-      aiResponse = await getPythonBackendResponse(transcribedText, { userId, chatId });
+      aiResponse = await getPythonBackendResponse(transcribedText, { userId, chatId, history });
     } catch (error) {
       console.error("Python backend Error:", error.message);
       aiResponse = "I received your voice message, but I'm having trouble accessing the knowledge base. Please try again or use text input.";

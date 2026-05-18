@@ -177,12 +177,37 @@ BATCH_SIZE = 100                        # Chunks processed at a time during buil
 # =============================================================
 # LLM (LARGE LANGUAGE MODEL) SETTINGS
 # =============================================================
-# We now run Llama 3.2:3b locally through the Ollama daemon.
-# Start the daemon with `ollama serve` (or the Ollama tray app on Windows).
-# Pull the model once with: `ollama pull llama3.2:3b`
+# Two backends are supported and switched via USE_LOCAL_LLM:
+#   true  -> local Ollama daemon (default, no cloud calls)
+#   false -> Groq cloud API (requires GROQ_API_KEY)
+#
+# Local setup: `ollama serve` (or Ollama tray on Windows), then
+# `ollama pull llama3.2:3b` once before booting this service.
+
+USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM", "true").strip().lower() in ("1", "true", "yes", "on")
+
+# Convenience presets: set OLLAMA_MODEL_SIZE=1b or 3b to pick a Llama 3.2 variant
+# without typing the full model id. OLLAMA_MODEL still wins if explicitly set to
+# something custom (e.g. mistral, qwen, etc.).
+_OLLAMA_SIZE_PRESETS = {
+    "1b": "llama3.2:1b",
+    "3b": "llama3.2:3b",
+}
+_ollama_size = os.getenv("OLLAMA_MODEL_SIZE", "").strip().lower()
 
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "http://localhost:11434")
-LLM_MODEL = os.getenv("OLLAMA_MODEL", "llama3.2:3b")
+OLLAMA_MODEL = (
+    os.getenv("OLLAMA_MODEL")
+    or _OLLAMA_SIZE_PRESETS.get(_ollama_size)
+    or "llama3.2:3b"
+)
+
+GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_MODEL = "llama-3.3-70b-versatile"
+
+# Active model name used by callers/logging — picks the backend's model.
+LLM_MODEL = OLLAMA_MODEL if USE_LOCAL_LLM else GROQ_MODEL
+
 LLM_TEMPERATURE = 0.3                       # Lower = more focused answers (0-1)
 # Generation time on CPU scales linearly with output tokens; 400 covers typical
 # answers (~150-300 tokens) without forcing the model to ramble to 1000.

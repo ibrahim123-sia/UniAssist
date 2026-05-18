@@ -494,36 +494,46 @@ const ChatPage = () => {
 
   const handleTextSubmit = async (e) => {
     e.preventDefault();
-    if (!prompt.trim() || !selectedChat) return;
+    const trimmed = prompt.trim();
+    if (!trimmed || !selectedChat || loading) return;
+
+    // Build the optimistic user message FIRST so the render that flushes
+    // after this handler yields (await axios.post) already includes it.
+    // Previously `content: prompt` was read after `setPrompt("")` which,
+    // while technically a closure read, was fragile and hard to read.
+    const userMsg = {
+      role: "user",
+      content: trimmed,
+      timestamp: Date.now(),
+      type: mode,
+    };
+
+    setMessages((prev) => [...prev, userMsg]);
+    setPrompt("");
+    setLoading(true);
+
+    // Force a scroll to the new user bubble before the network round-trip
+    // so the student visibly sees their message land in the conversation.
+    requestAnimationFrame(() => {
+      if (containRef.current) {
+        containRef.current.scrollTo({
+          top: containRef.current.scrollHeight,
+          behavior: "smooth",
+        });
+      }
+    });
 
     try {
-      setLoading(true);
-      const promptCopy = prompt;
-      setPrompt("");
-
-      // Add user message
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "user",
-          content: prompt,
-          timestamp: Date.now(),
-          type: mode,
-        },
-      ]);
-
-      // Call API
       const { data } = await axios.post(
         `/api/message/${mode}`,
         {
           chatId: selectedChat._id,
-          prompt,
+          prompt: trimmed,
         },
         { headers: { Authorization: token } }
       );
 
       if (data.success) {
-        // Add AI response
         const reply = {
           ...data.reply,
           timestamp: Date.now(),
@@ -531,10 +541,18 @@ const ChatPage = () => {
         setMessages((prev) => [...prev, reply]);
       } else {
         toast.error(data.message);
-        setPrompt(promptCopy);
+        // Roll back: remove the optimistic message and restore the input.
+        setMessages((prev) =>
+          prev.filter((m) => m !== userMsg && m.timestamp !== userMsg.timestamp)
+        );
+        setPrompt(trimmed);
       }
     } catch (error) {
       toast.error(error.response?.data?.message || error.message);
+      setMessages((prev) =>
+        prev.filter((m) => m !== userMsg && m.timestamp !== userMsg.timestamp)
+      );
+      setPrompt(trimmed);
     } finally {
       setLoading(false);
     }
