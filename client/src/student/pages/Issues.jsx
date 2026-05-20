@@ -26,13 +26,13 @@ const Issues = () => {
   const isDark = theme === "dark";
 
   const C = {
-    bg: isDark ? "#131A2C" : "#F5F6F8",
-    surface: isDark ? "#1A2238" : "#FFFFFF",
-    border: isDark ? "#2A3550" : "#E2E5EA",
-    text: isDark ? "#E8EAF1" : "#222222",
-    muted: isDark ? "#9CA7BD" : "#5A6372",
-    navy: isDark ? "#C8102E" : "#1B2D5C",
-    red: isDark ? "#F4B860" : "#C8102E",
+    bg: isDark ? "#0E1422" : "#F2F3F8",
+    surface: isDark ? "#16203A" : "#FFFFFF",
+    border: isDark ? "#2A3656" : "#D8DAE6",
+    text: isDark ? "#ECEEF5" : "#1F2330",
+    muted: isDark ? "#9AA5BD" : "#5A6372",
+    navy: isDark ? "#E63027" : "#1E2A66",
+    red: isDark ? "#C48A4A" : "#E63027",
   };
 
   useEffect(() => {
@@ -47,7 +47,7 @@ const Issues = () => {
 
   return (
     <div className="h-full overflow-y-auto" style={{ backgroundColor: C.bg, color: C.text }}>
-      <div className="max-w-5xl mx-auto p-6 md:p-8">
+      <div className="max-w-5xl mx-auto p-4 md:p-6">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div>
             <h1 className="text-2xl font-bold" style={{ color: C.text }}>My Issues</h1>
@@ -69,7 +69,7 @@ const Issues = () => {
             <button
               key={s}
               onClick={() => setFilter(s)}
-              className="px-3 py-1.5 rounded-full text-sm border transition-all"
+              className="px-2.5 py-1 rounded-full text-sm border transition-all"
               style={{
                 borderColor: filter === s ? C.navy : C.border,
                 backgroundColor: filter === s ? C.navy : "transparent",

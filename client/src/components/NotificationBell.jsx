@@ -21,13 +21,13 @@ const NotificationBell = () => {
   const isDark = theme === "dark";
 
   const C = {
-    surface: isDark ? "#1A2238" : "#FFFFFF",
-    surfaceAlt: isDark ? "#232C46" : "#F5F6F8",
-    border: isDark ? "#2A3550" : "#E2E5EA",
-    text: isDark ? "#E8EAF1" : "#222222",
-    muted: isDark ? "#9CA7BD" : "#5A6372",
-    navy: isDark ? "#C8102E" : "#1B2D5C",
-    red: isDark ? "#F4B860" : "#C8102E",
+    surface: isDark ? "#16203A" : "#FFFFFF",
+    surfaceAlt: isDark ? "#1E2A47" : "#F2F3F8",
+    border: isDark ? "#2A3656" : "#D8DAE6",
+    text: isDark ? "#ECEEF5" : "#1F2330",
+    muted: isDark ? "#9AA5BD" : "#5A6372",
+    navy: isDark ? "#E63027" : "#1E2A66",
+    red: isDark ? "#C48A4A" : "#E63027",
   };
 
   useEffect(() => {
@@ -85,7 +85,7 @@ const NotificationBell = () => {
 
       {open && (
         <div
-          className="absolute right-0 mt-2 w-80 max-h-96 overflow-hidden rounded-xl border shadow-lg z-50 flex flex-col"
+          className="absolute left-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-hidden rounded-xl border shadow-lg z-50 flex flex-col"
           style={{ backgroundColor: C.surface, borderColor: C.border, color: C.text }}
         >
           <div

@@ -13,26 +13,26 @@
  */
 export const getPalette = (isDark) => ({
   // Surfaces
-  bg: isDark ? "#131A2C" : "#FFFFFF",
-  surface: isDark ? "#1A2238" : "#FFFFFF",
-  surfaceAlt: isDark ? "#232C46" : "#F5F6F8",
-  input: isDark ? "#0E1525" : "#F5F6F8",
-  border: isDark ? "#2A3550" : "#E2E5EA",
+  bg: isDark ? "#0E1422" : "#FFFFFF",
+  surface: isDark ? "#16203A" : "#FFFFFF",
+  surfaceAlt: isDark ? "#1E2A47" : "#F2F3F8",
+  input: isDark ? "#0B1120" : "#F2F3F8",
+  border: isDark ? "#2A3656" : "#D8DAE6",
 
   // Type
-  text: isDark ? "#E8EAF1" : "#1F2330",
-  muted: isDark ? "#9CA7BD" : "#5A6372",
+  text: isDark ? "#ECEEF5" : "#1F2330",
+  muted: isDark ? "#9AA5BD" : "#5A6372",
 
   // Brand primary — MAJU navy in light, MAJU red in dark
-  navy: isDark ? "#C8102E" : "#1B2D5C",
-  navyHover: isDark ? "#A50D26" : "#142347",
+  navy: isDark ? "#E63027" : "#1E2A66",
+  navyHover: isDark ? "#C81E15" : "#16204D",
 
-  // Secondary accent — MAJU red in light, sandstone amber in dark
-  red: isDark ? "#F4B860" : "#C8102E",
+  // Secondary accent — MAJU red in light, brushed copper in dark
+  red: isDark ? "#C48A4A" : "#E63027",
 
   // Status colors
   green: isDark ? "#6FB58A" : "#2F8A56",
-  amber: isDark ? "#E0B467" : "#B8860B",
+  amber: isDark ? "#C48A4A" : "#B8860B",
 });
 
 export const usePalette = () => {

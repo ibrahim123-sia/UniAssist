@@ -9,41 +9,42 @@
 
 @theme{
     /* ===== MAJU brand — light theme =====
-       Aligned with Muhammad Ali Jinnah University's official identity:
-       deep navy as primary, brick red as accent, white surface.
-       Hexes are the institutional standards used across MAJU collateral. */
-    --color-maju-navy: #1B2D5C;
-    --color-maju-navy-700: #142347;
-    --color-maju-navy-50: #ECEFF7;
-    --color-maju-red: #C8102E;
-    --color-maju-red-700: #A50D26;
-    --color-maju-red-50: #FBE9EC;
+       Values sampled directly from jinnah.edu hero, navbar, and section
+       blocks. Royal navy for primary identity, vivid red for accents and
+       CTAs, lavender-tinted off-white for section surfaces. */
+    --color-maju-navy: #1E2A66;
+    --color-maju-navy-700: #16204D;
+    --color-maju-navy-50: #E7E8F0;
+    --color-maju-red: #E63027;
+    --color-maju-red-700: #C81E15;
+    --color-maju-red-50: #FCE6E4;
 
     /* Light surfaces */
     --color-maju-bg: #FFFFFF;
-    --color-maju-surface: #F5F6F8;
+    --color-maju-surface: #F2F3F8;
     --color-maju-text: #1F2330;
     --color-maju-muted: #5A6372;
-    --color-maju-border: #E2E5EA;
+    --color-maju-border: #D8DAE6;
 
-    /* ===== Founder's Block at dusk — dark theme =====
-       Inspired by MAJU's red-brick architecture seen at sunset.
-       Navy lineage carries from the light theme; MAJU red replaces the
-       generic blue accent so primary actions read as MAJU-branded.
-       A warm sandstone amber lifts hover/badge states. */
-    --color-night-bg: #131A2C;
-    --color-night-surface: #1A2238;
-    --color-night-elevated: #232C46;
-    --color-night-input: #0E1525;
-    --color-night-border: #2A3550;
-    --color-night-text: #E8EAF1;
-    --color-night-muted: #9CA7BD;
-    --color-night-accent: #C8102E;
-    --color-night-highlight: #F4B860;
-    --color-night-bubble-user: #2F3A5C;
+    /* ===== MAJU Campus After Dark — dark theme =====
+       Deep institutional navy backgrounds keep the brand legible in dark
+       mode. MAJU red stays as the action color for continuity with light.
+       The brushed-copper accent (#C48A4A) is the distinguishing element —
+       it evokes brass nameplates and academic regalia rather than the
+       generic blue/teal/purple of typical dark UIs. */
+    --color-night-bg: #0E1422;
+    --color-night-surface: #16203A;
+    --color-night-elevated: #1E2A47;
+    --color-night-input: #0B1120;
+    --color-night-border: #2A3656;
+    --color-night-text: #ECEEF5;
+    --color-night-muted: #9AA5BD;
+    --color-night-accent: #E63027;
+    --color-night-highlight: #C48A4A;
+    --color-night-bubble-user: #1E2A47;
 
     /* Back-compat alias */
-    --color-primary: #1B2D5C;
+    --color-primary: #1E2A66;
 }
 
 html, body{

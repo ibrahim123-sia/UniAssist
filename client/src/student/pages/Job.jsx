@@ -124,7 +124,7 @@ const Jobs = () => {
   
   const jobFields = [
     { id: 'all', name: 'All Fields', icon: BriefcaseIcon, color: 'bg-gray-100 dark:bg-gray-800', textColor: 'text-gray-800 dark:text-gray-300' },
-    { id: 'web', name: 'Web Development', icon: TagIcon, color: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-[#1B2D5C] dark:text-[#C8102E]', 
+    { id: 'web', name: 'Web Development', icon: TagIcon, color: 'bg-blue-50 dark:bg-blue-900/20', textColor: 'text-[#1E2A66] dark:text-[#E63027]', 
       keywords: ['web', 'frontend', 'backend', 'full stack', 'react', 'angular', 'vue', 'javascript', 'node', 'php', 'laravel', 'django', 'ruby', 'developer'],
       programs: ['bscs', 'bsse', 'bsai', 'bsbc'] 
     },
@@ -727,7 +727,7 @@ const Jobs = () => {
           </p>
           <button
             onClick={fetchJobs}
-            className="bg-[#1B2D5C] hover:bg-[#142347] text-white font-medium py-2 px-6 rounded-lg transition-colors"
+            className="bg-[#1E2A66] hover:bg-[#16204D] text-white font-medium py-2 px-6 rounded-lg transition-colors"
           >
             Retry Loading
           </button>
@@ -745,7 +745,7 @@ const Jobs = () => {
             <div>
               <div className="flex items-center justify-between">
                 <div>
-                  <h1 className="text-2xl lg:text-3xl font-bold text-[#1B2D5C] dark:text-[#C8102E]">
+                  <h1 className="text-2xl lg:text-3xl font-bold text-[#1E2A66] dark:text-[#E63027]">
                     Job Opportunities
                   </h1>
                   <p className={`mt-1 text-sm ${theme === 'dark' ? 'text-gray-400' : 'text-gray-600'}`}>
@@ -860,7 +860,7 @@ const Jobs = () => {
                 </h2>
                 <button
                   onClick={clearAllFilters}
-                  className={`text-sm ${theme === 'dark' ? 'text-[#C8102E] hover:text-[#8AA3E8]' : 'text-[#1B2D5C] hover:text-[#142347]'}`}
+                  className={`text-sm ${theme === 'dark' ? 'text-[#E63027] hover:text-[#8AA3E8]' : 'text-[#1E2A66] hover:text-[#16204D]'}`}
                 >
                   Clear all
                 </button>
@@ -879,7 +879,7 @@ const Jobs = () => {
                       onClick={() => setDateFilter(option.id)}
                       className={`px-3 py-1.5 rounded-lg text-sm transition-all ${
                         dateFilter === option.id
-                          ? 'bg-[#1B2D5C] text-white'
+                          ? 'bg-[#1E2A66] text-white'
                           : theme === 'dark'
                           ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                           : 'bg-gray-100 hover:bg-gray-200 text-gray-700'
@@ -913,7 +913,7 @@ const Jobs = () => {
                           className={`w-full flex items-center justify-between p-3 rounded-lg transition-all ${
                             activeField === field.id
                               ? field.id === 'all'
-                                ? 'bg-[#1B2D5C] text-white'
+                                ? 'bg-[#1E2A66] text-white'
                                 : `${field.color} ${field.textColor} border border-current`
                               : theme === 'dark'
                               ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
@@ -947,7 +947,7 @@ const Jobs = () => {
                   {uniqueCompanies.length > 5 && (
                     <button
                       onClick={() => setShowMoreCompanies(!showMoreCompanies)}
-                      className={`text-xs ${theme === 'dark' ? 'text-[#C8102E] hover:text-[#8AA3E8]' : 'text-[#1B2D5C] hover:text-[#142347]'}`}
+                      className={`text-xs ${theme === 'dark' ? 'text-[#E63027] hover:text-[#8AA3E8]' : 'text-[#1E2A66] hover:text-[#16204D]'}`}
                     >
                       {showMoreCompanies ? 'Show Less' : 'Show More'}
                     </button>
@@ -958,7 +958,7 @@ const Jobs = () => {
                     onClick={() => setActiveCompany('all')}
                     className={`w-full p-3 rounded-lg text-left transition-colors ${
                       activeCompany === 'all'
-                        ? 'bg-[#1B2D5C] text-white'
+                        ? 'bg-[#1E2A66] text-white'
                         : theme === 'dark'
                         ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                         : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
@@ -977,7 +977,7 @@ const Jobs = () => {
                           onClick={() => setActiveCompany(company)}
                           className={`w-full p-3 rounded-lg text-left transition-colors truncate ${
                             activeCompany === company
-                              ? 'bg-[#1B2D5C] text-white'
+                              ? 'bg-[#1E2A66] text-white'
                               : theme === 'dark'
                               ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                               : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
@@ -1010,7 +1010,7 @@ const Jobs = () => {
                   {uniqueLocations.length > 5 && (
                     <button
                       onClick={() => setShowMoreLocations(!showMoreLocations)}
-                      className={`text-xs ${theme === 'dark' ? 'text-[#C8102E] hover:text-[#8AA3E8]' : 'text-[#1B2D5C] hover:text-[#142347]'}`}
+                      className={`text-xs ${theme === 'dark' ? 'text-[#E63027] hover:text-[#8AA3E8]' : 'text-[#1E2A66] hover:text-[#16204D]'}`}
                     >
                       {showMoreLocations ? 'Show Less' : 'Show More'}
                     </button>
@@ -1021,7 +1021,7 @@ const Jobs = () => {
                     onClick={() => setActiveLocation('all')}
                     className={`w-full p-3 rounded-lg text-left transition-colors ${
                       activeLocation === 'all'
-                        ? 'bg-[#1B2D5C] text-white'
+                        ? 'bg-[#1E2A66] text-white'
                         : theme === 'dark'
                         ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                         : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
@@ -1040,7 +1040,7 @@ const Jobs = () => {
                           onClick={() => setActiveLocation(location)}
                           className={`w-full p-3 rounded-lg text-left transition-colors truncate ${
                             activeLocation === location
-                              ? 'bg-[#1B2D5C] text-white'
+                              ? 'bg-[#1E2A66] text-white'
                               : theme === 'dark'
                               ? 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                               : 'bg-gray-50 hover:bg-gray-100 text-gray-700'
@@ -1110,7 +1110,7 @@ const Jobs = () => {
                 )}
                 <button
                   onClick={clearAllFilters}
-                  className={`ml-auto text-sm font-medium ${theme === 'dark' ? 'text-[#C8102E] hover:text-[#8AA3E8]' : 'text-[#1B2D5C] hover:text-[#142347]'}`}
+                  className={`ml-auto text-sm font-medium ${theme === 'dark' ? 'text-[#E63027] hover:text-[#8AA3E8]' : 'text-[#1E2A66] hover:text-[#16204D]'}`}
                 >
                   Clear all
                 </button>
@@ -1144,7 +1144,7 @@ const Jobs = () => {
               </p>
               <button
                 onClick={clearAllFilters}
-                className="px-6 py-3 bg-[#1B2D5C] hover:bg-[#142347] text-white font-medium rounded-lg transition-colors"
+                className="px-6 py-3 bg-[#1E2A66] hover:bg-[#16204D] text-white font-medium rounded-lg transition-colors"
               >
                 {jobs.length === 0 ? 'Refresh Jobs' : 'Show All Jobs'}
               </button>
@@ -1154,7 +1154,7 @@ const Jobs = () => {
               {/* Quick Stats */}
               <div className={`mb-8 grid grid-cols-2 md:grid-cols-4 gap-4`}>
                 <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                  <div className="text-2xl font-bold text-[#1B2D5C] dark:text-[#C8102E]">{filteredJobs.length}</div>
+                  <div className="text-2xl font-bold text-[#1E2A66] dark:text-[#E63027]">{filteredJobs.length}</div>
                   <div className="text-sm text-gray-500">Matching Jobs</div>
                 </div>
                 <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
@@ -1162,7 +1162,7 @@ const Jobs = () => {
                   <div className="text-sm text-gray-500">New This Week</div>
                 </div>
                 <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
-                  <div className="text-2xl font-bold text-[#C8102E] dark:text-[#F4B860]">{jobStats.software}</div>
+                  <div className="text-2xl font-bold text-[#E63027] dark:text-[#C48A4A]">{jobStats.software}</div>
                   <div className="text-sm text-gray-500">Software Roles</div>
                 </div>
                 <div className={`p-4 rounded-xl border ${theme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
@@ -1256,7 +1256,7 @@ const Jobs = () => {
                             href={job.applyLink}
                             target="_blank"
                             rel="noopener noreferrer"
-                            className="w-full bg-[#1B2D5C] hover:bg-[#142347] text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all hover:shadow-md"
+                            className="w-full bg-[#1E2A66] hover:bg-[#16204D] text-white font-medium py-3 px-4 rounded-lg flex items-center justify-center gap-2 transition-all hover:shadow-md"
                           >
                             <ExternalLinkIcon className="w-4 h-4" />
                             Apply Now

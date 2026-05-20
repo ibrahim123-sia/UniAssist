@@ -20,7 +20,6 @@ import {
   X,
   Moon,
   Sun,
-  GraduationCap,
   Briefcase,
   AlertCircle,
   Inbox,
@@ -58,15 +57,15 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
 
   // palette tokens
   const C = {
-    bg: isDark ? "#131A2C" : "#FFFFFF",
-    surface: isDark ? "#1A2238" : "#FFFFFF",
-    surfaceAlt: isDark ? "#232C46" : "#F5F6F8",
-    input: isDark ? "#0E1525" : "#F5F6F8",
-    border: isDark ? "#2A3550" : "#E2E5EA",
-    text: isDark ? "#E8EAF1" : "#222222",
-    muted: isDark ? "#9CA7BD" : "#5A6372",
-    navy: isDark ? "#C8102E" : "#1B2D5C",
-    red: isDark ? "#F4B860" : "#C8102E",
+    bg: isDark ? "#0E1422" : "#FFFFFF",
+    surface: isDark ? "#16203A" : "#FFFFFF",
+    surfaceAlt: isDark ? "#1E2A47" : "#F2F3F8",
+    input: isDark ? "#0B1120" : "#F2F3F8",
+    border: isDark ? "#2A3656" : "#D8DAE6",
+    text: isDark ? "#ECEEF5" : "#1F2330",
+    muted: isDark ? "#9AA5BD" : "#5A6372",
+    navy: isDark ? "#E63027" : "#1E2A66",
+    red: isDark ? "#C48A4A" : "#E63027",
   };
 
   // Close sidebar when clicking outside on mobile
@@ -186,7 +185,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     return (
       <Link
         to={to}
-        className="w-full flex items-center gap-3 p-2.5 rounded-lg transition-all text-sm"
+        className="w-full flex items-center gap-3 p-2 rounded-lg transition-all text-sm"
         style={{
           color: C.text,
           backgroundColor: active ? C.surfaceAlt : "transparent",
@@ -218,7 +217,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
       {/* Sidebar */}
       <aside
         ref={sidebarRef}
-        className={`flex flex-col h-screen w-72 z-50 border-r transition-all duration-300 fixed md:relative
+        className={`flex flex-col h-screen w-64 z-50 border-r transition-all duration-300 fixed md:relative
         ${isMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
         style={{
           backgroundColor: C.surface,
@@ -238,23 +237,23 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
 
         {/* Logo Section */}
         <Link to={isStaff ? "/staff/dashboard" : isAdmin ? "/admin/dashboard" : "/chat"}>
-          <div className="p-6 border-b flex items-center gap-3" style={{ borderColor: C.border }}>
+          <div className="p-4 border-b flex items-center gap-3" style={{ borderColor: C.border }}>
             <div
-              className="w-11 h-11 rounded-lg flex items-center justify-center relative"
+              className="w-10 h-10 rounded-lg flex items-center justify-center relative"
               style={{ backgroundColor: C.navy }}
             >
-              <GraduationCap className="w-6 h-6 text-white" />
+              <span className="text-white font-bold text-lg leading-none">M</span>
               <span
-                className="absolute -bottom-1 left-2 right-2 h-0.5 rounded-full"
+                className="absolute bottom-1 left-2 right-2 h-0.5 rounded-full"
                 style={{ backgroundColor: C.red }}
               />
             </div>
             <div>
-              <h1 className="text-xl font-bold" style={{ color: C.text }}>
+              <h1 className="text-lg font-bold leading-tight" style={{ color: C.text }}>
                 UniAssist
               </h1>
-              <p className="text-xs" style={{ color: C.muted }}>
-                MAJU Assistant
+              <p className="text-[11px]" style={{ color: C.muted }}>
+                MAJU Student Assistant
               </p>
             </div>
           </div>
@@ -302,7 +301,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
               onClick={handleNewChat}
               className="w-full text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm cursor-pointer"
               style={{ backgroundColor: C.navy }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isDark ? "#8AA3E8" : "#142347")}
+              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isDark ? "#C81E15" : "#16204D")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.navy)}
             >
               <Plus className="w-4 h-4" />
@@ -479,7 +478,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         {!isStudent && !isAdmin && <div className="flex-1" />}
 
         {/* Quick Actions / Nav */}
-        <div className="p-2 border-t space-y-1" style={{ borderColor: C.border }}>
+        <div className="p-1.5 border-t space-y-1" style={{ borderColor: C.border }}>
           {isStudent && (
             <>
               <NavLink
@@ -520,7 +519,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           )}
         </div>
 
-        <div className="p-3 border-t" style={{ borderColor: C.border }}>
+        <div className="p-1.5 border-t" style={{ borderColor: C.border }}>
           <div
             className="flex items-center justify-between rounded-lg px-3 py-2 mb-2"
             style={{ backgroundColor: C.surfaceAlt }}

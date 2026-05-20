@@ -566,32 +566,34 @@ const ChatPage = () => {
     <div
       className={`flex-1 flex flex-col h-full overflow-hidden ${
         theme === "dark"
-          ? "bg-[#131A2C]"
-          : "bg-linear-to-b from-blue-50 via-white to-gray-50"
+          ? "bg-[#0E1422]"
+          : "bg-linear-to-b from-[#E7E8F0] via-white to-[#F2F3F8]"
       }`}
     >
       {/* Chat Container */}
-      <div className="flex-1 flex flex-col p-4 md:p-6 overflow-hidden">
+      <div className="flex-1 flex flex-col py-4 md:py-6 overflow-hidden">
         {/* Welcome Message when no chats */}
         {messages.length === 0 && !selectedChat && (
+          <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
           <div
-            className={`mb-4 p-4 md:p-6 rounded-xl ${
+            className={`mb-4 p-4 md:p-6 rounded-xl border ${
               theme === "dark"
-                ? "bg-linear-to-r from-gray-800 to-gray-900 border border-gray-700"
-                : "bg-linear-to-r from-blue-50 to-indigo-50 border border-blue-100"
+                ? "bg-linear-to-r from-[#16203A] to-[#1E2A47] border-[#2A3656]"
+                : "bg-linear-to-r from-[#E7E8F0] to-[#F2F3F8] border-[#D8DAE6]"
             }`}
           >
             <div className="flex flex-col md:flex-row items-center gap-4">
-              <div className="p-3 bg-linear-to-r from-[#1B2D5C] to-[#1B2D5C] rounded-xl">
-                <Sparkles className="w-8 h-8 text-white" />
+              <div className="w-12 h-12 rounded-xl flex items-center justify-center relative bg-[#1E2A66] shrink-0">
+                <Sparkles className="w-6 h-6 text-white" />
+                <span className="absolute bottom-1 left-2 right-2 h-0.5 rounded-full bg-[#E63027]" />
               </div>
               <div className="flex-1 text-center md:text-left">
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-2">
+                <h2 className="text-lg font-bold text-[#1F2330] dark:text-[#ECEEF5] mb-2">
                   Welcome to UniAssist!
                 </h2>
                 <p
                   className={`text-sm ${
-                    theme === "dark" ? "text-gray-300" : "text-gray-600"
+                    theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
                   }`}
                 >
                   Your intelligent assistant for MAJU. Ask questions,
@@ -600,23 +602,25 @@ const ChatPage = () => {
               </div>
             </div>
           </div>
+          </div>
         )}
 
         {/* Chat Messages Area */}
         <div
           ref={containRef}
-          className="flex-1 mb-3 overflow-y-auto overscroll-contain scroll-smooth px-1"
+          className="flex-1 mb-3 overflow-y-auto overscroll-contain scroll-smooth"
         >
+          <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
           {messages.length === 0 ? (
             <div className="h-full flex flex-col items-center justify-center min-h-[60vh]">
               <div className="text-center max-w-md">
-                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-linear-to-r from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 flex items-center justify-center">
-                  <MessageSquare className="w-8 h-8 text-[#1B2D5C] dark:text-[#C8102E]" />
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#E7E8F0] dark:bg-[#1E2A47] flex items-center justify-center">
+                  <MessageSquare className="w-8 h-8 text-[#1E2A66] dark:text-[#E63027]" />
                 </div>
-                <p className="text-xl md:text-3xl text-center text-gray-400 dark:text-gray-300 mb-2">
+                <p className="text-xl md:text-3xl text-center text-[#5A6372] dark:text-[#9AA5BD] mb-2">
                   Ask me Anything
                 </p>
-                <p className="text-sm text-gray-500 dark:text-gray-400">
+                <p className="text-sm text-[#5A6372] dark:text-[#9AA5BD]">
                   Start a conversation or choose a topic below
                 </p>
               </div>
@@ -632,30 +636,31 @@ const ChatPage = () => {
             <div className="flex justify-center py-4">
               <div className="flex flex-col items-center gap-2">
                 <div className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"></div>
+                  <div className="w-2 h-2 rounded-full bg-[#E63027] animate-bounce"></div>
                   <div
-                    className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"
+                    className="w-2 h-2 rounded-full bg-[#E63027] animate-bounce"
                     style={{ animationDelay: "0.1s" }}
                   ></div>
                   <div
-                    className="w-2 h-2 rounded-full bg-blue-500 animate-bounce"
+                    className="w-2 h-2 rounded-full bg-[#E63027] animate-bounce"
                     style={{ animationDelay: "0.2s" }}
                   ></div>
                 </div>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-[#5A6372] dark:text-[#9AA5BD]">
                   Processing...
                 </p>
               </div>
             </div>
           )}
+          </div>
         </div>
 
         {/* Suggested Topics */}
         {messages.length === 0 && !isRecording && (
-          <div className="mb-3">
+          <div className="w-full max-w-4xl mx-auto px-4 md:px-6 mb-3">
             <p
               className={`text-xs mb-2 ${
-                theme === "dark" ? "text-gray-400" : "text-gray-600"
+                theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
               }`}
             >
               Quick Start Topics:
@@ -668,10 +673,10 @@ const ChatPage = () => {
                     setPrompt(topic.text);
                     if (topic.text.includes("email")) setMode("email");
                   }}
-                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all flex-1 min-w-[45%] md:flex-initial md:min-w-0 ${
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all flex-1 min-w-[45%] md:flex-initial md:min-w-0 ${
                     theme === "dark"
-                      ? "bg-gray-800 hover:bg-gray-700 text-gray-300 border border-gray-700"
-                      : "bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 shadow-sm"
+                      ? "bg-[#16203A] hover:bg-[#1E2A47] text-[#ECEEF5] border border-[#2A3656]"
+                      : "bg-white hover:bg-[#F2F3F8] text-[#1F2330] border border-[#D8DAE6] shadow-sm"
                   }`}
                 >
                   {topic.icon}
@@ -683,24 +688,25 @@ const ChatPage = () => {
         )}
 
         {/* Voice Recording UI */}
+        <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
         {isRecording ? (
           <div
             className={`p-4 rounded-xl border ${
               theme === "dark"
-                ? "bg-linear-to-r from-blue-900/20 to-indigo-900/20 border-blue-700/30"
-                : "bg-linear-to-r from-blue-50 to-indigo-50 border-blue-200"
+                ? "bg-[#16203A] border-[#2A3656]"
+                : "bg-[#FCE6E4] border-[#D8DAE6]"
             } shadow-sm`}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center">
+                <div className="w-10 h-10 rounded-full bg-[#E63027] flex items-center justify-center animate-pulse">
                   <Mic className="w-5 h-5 text-white" />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-red-600 dark:text-red-400">
+                  <div className="text-xl font-bold text-[#E63027] dark:text-[#E63027]">
                     {formatTime(recordingTime)}
                   </div>
-                  <div className="text-xs text-gray-500 dark:text-gray-400">
+                  <div className="text-xs text-[#5A6372] dark:text-[#9AA5BD]">
                     Recording voice message...
                   </div>
                 </div>
@@ -710,7 +716,7 @@ const ChatPage = () => {
                 <button
                   type="button"
                   onClick={cancelRecording}
-                  className="px-4 py-2 text-sm text-gray-600 dark:text-gray-400 hover:text-red-600 dark:hover:text-red-400 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-all"
+                  className="px-4 py-2 text-sm text-[#5A6372] dark:text-[#9AA5BD] hover:text-[#E63027] rounded-lg hover:bg-white/60 dark:hover:bg-[#1E2A47] transition-all"
                 >
                   Cancel
                 </button>
@@ -718,7 +724,7 @@ const ChatPage = () => {
                 <button
                   type="button"
                   onClick={stopRecording}
-                  className="px-5 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-medium"
+                  className="px-5 py-2 bg-[#E63027] hover:bg-[#C81E15] text-white rounded-lg text-sm font-medium transition-colors"
                 >
                   Send
                 </button>
@@ -729,10 +735,10 @@ const ChatPage = () => {
           /* Normal Input Form */
           <form
             onSubmit={handleTextSubmit}
-            className={`p-2 rounded-xl border ${
+            className={`p-1 rounded-xl border ${
               theme === "dark"
-                ? "bg-[#1A2238] border-[#2A3550]"
-                : "bg-white border-[#E2E5EA] shadow-sm"
+                ? "bg-[#16203A] border-[#2A3656]"
+                : "bg-white border-[#D8DAE6] shadow-sm"
             }`}
           >
             <div className="flex gap-1.5">
@@ -748,7 +754,7 @@ const ChatPage = () => {
                       : "Type your query or record voice..."
                   }
                   required
-                  className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400 text-sm rounded-lg border border-[#E2E5EA] dark:border-[#2A3550] focus:border-[#1B2D5C] dark:focus:border-[#C8102E] focus:ring-1 focus:ring-[#1B2D5C]/20 dark:focus:ring-[#C8102E]/20"
+                  className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-[#1F2330] dark:text-[#ECEEF5] placeholder-[#5A6372] dark:placeholder-[#9AA5BD] text-sm rounded-lg border border-[#D8DAE6] dark:border-[#2A3656] focus:border-[#1E2A66] dark:focus:border-[#E63027] focus:ring-1 focus:ring-[#1E2A66]/20 dark:focus:ring-[#E63027]/20"
                   disabled={isRecording || isProcessingVoice}
                 />
 
@@ -758,7 +764,7 @@ const ChatPage = () => {
                     type="button"
                     onClick={startRecording}
                     disabled={!selectedChat}
-                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md text-[#1B2D5C] dark:text-[#C8102E] hover:text-[#C8102E] dark:hover:text-[#F4B860] hover:bg-[#ECEFF7] dark:hover:bg-[#232C46] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md text-[#1E2A66] dark:text-[#E63027] hover:text-[#E63027] dark:hover:text-[#C48A4A] hover:bg-[#E7E8F0] dark:hover:bg-[#1E2A47] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     title="Record voice message"
                   >
                     <Mic className="w-4 h-4" />
@@ -782,8 +788,8 @@ const ChatPage = () => {
                   !selectedChat ||
                   isRecording ||
                   isProcessingVoice
-                    ? "bg-gray-300 dark:bg-gray-700 cursor-not-allowed"
-                    : "bg-linear-to-r from-[#1B2D5C] to-[#1B2D5C] hover:from-[#142347] hover:to-[#142347]"
+                    ? "bg-[#D8DAE6] dark:bg-[#2A3656] cursor-not-allowed"
+                    : "bg-linear-to-r from-[#1E2A66] to-[#1E2A66] hover:from-[#16204D] hover:to-[#16204D]"
                 }`}
               >
                 {loading ? (
@@ -798,12 +804,12 @@ const ChatPage = () => {
             <div className="flex items-center gap-1 mt-1.5 px-1">
               <div
                 className={`w-1.5 h-1.5 rounded-full ${
-                  mode === "email" ? "bg-blue-500" : "bg-emerald-500"
+                  mode === "email" ? "bg-[#1E2A66]" : "bg-[#3BAA75]"
                 }`}
               ></div>
               <span
                 className={`text-[10px] ${
-                  theme === "dark" ? "text-gray-400" : "text-gray-500"
+                  theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
                 }`}
               >
                 {mode === "email" ? "Email Mode" : "Chat Mode"}
@@ -811,6 +817,7 @@ const ChatPage = () => {
             </div>
           </form>
         )}
+        </div>
       </div>
     </div>
   );

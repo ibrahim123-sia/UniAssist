@@ -11,7 +11,6 @@ import {
   Lock,
   Eye,
   EyeOff,
-  GraduationCap,
   ArrowRight,
   Shield,
   Mail as MailIcon,
@@ -107,8 +106,8 @@ const Login = () => {
     <div
       className={`min-h-screen transition-colors duration-300 ${
         theme === "dark"
-          ? "bg-[#131A2C]"
-          : "bg-linear-to-br from-[#ECEFF7] via-[#F5F6F8] to-[#ECEFF7]"
+          ? "bg-[#0E1422]"
+          : "bg-linear-to-br from-[#E7E8F0] via-[#F2F3F8] to-[#E7E8F0]"
       }`}
     >
       {/* Responsive Container */}
@@ -116,29 +115,30 @@ const Login = () => {
         {/* Theme Toggle - Responsive positioning */}
         <button
           onClick={toggleTheme}
-          className="fixed top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 p-2 sm:p-3 rounded-full bg-white dark:bg-[#1A2238] shadow-lg hover:shadow-xl transition-all duration-300 z-50 border border-transparent dark:border-[#2A3550]"
+          className="fixed top-4 right-4 sm:top-6 sm:right-6 lg:top-8 lg:right-8 p-2 sm:p-3 rounded-full bg-white dark:bg-[#16203A] shadow-lg hover:shadow-xl transition-all duration-300 z-50 border border-transparent dark:border-[#2A3656]"
           aria-label="Toggle theme"
         >
           {theme === "dark" ? (
             <Sun className="w-4 h-4 sm:w-5 sm:h-5 text-[#E0B467]" />
           ) : (
-            <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-[#1B2D5C]" />
+            <Moon className="w-4 h-4 sm:w-5 sm:h-5 text-[#1E2A66]" />
           )}
         </button>
 
         {/* Logo Section - Responsive */}
         <div className="flex flex-col items-center mb-4 sm:mb-8 lg:mb-8">
           <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-            <div className="p-2 sm:p-3 bg-[#1B2D5C] dark:bg-[#232C46] rounded-xl">
-              <GraduationCap className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
+            <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-xl flex items-center justify-center relative bg-[#1E2A66] dark:bg-[#1E2A47]">
+              <span className="text-white font-bold text-2xl sm:text-3xl leading-none">M</span>
+              <span className="absolute -bottom-1 left-2 right-2 h-0.5 rounded-full bg-[#E63027]" />
             </div>
-            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#222222] dark:text-[#E8EAF1]">
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-[#1F2330] dark:text-[#ECEEF5]">
               UniAssist
             </h1>
           </div>
           <p
             className={`text-sm sm:text-base lg:text-lg text-center ${
-              theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
+              theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
             }`}
           >
             Your AI-Powered Companion for University Life at MAJU
@@ -150,19 +150,19 @@ const Login = () => {
           <div
             className={`backdrop-blur-sm rounded-2xl shadow-2xl p-4 sm:p-6 lg:p-8 border ${
               theme === "dark"
-                ? "bg-[#1A2238]/90 border-[#2A3550]"
-                : "bg-white/90 border-[#E2E5EA]"
+                ? "bg-[#16203A]/90 border-[#2A3656]"
+                : "bg-white/90 border-[#D8DAE6]"
             }`}
           >
             {resetStep === 0 ? (
               <>
                 {/* Login Form */}
-                <h2 className="text-xl sm:text-2xl font-bold text-[#222222] dark:text-[#E8EAF1] mb-2">
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1F2330] dark:text-[#ECEEF5] mb-2">
                   Welcome Back
                 </h2>
                 <p
                   className={`text-sm sm:text-base mb-6 ${
-                    theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
+                    theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
                   }`}
                 >
                   Sign in to your UniAssist account
@@ -176,7 +176,7 @@ const Login = () => {
                   <div>
                     <label
                       className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                        theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
+                        theme === "dark" ? "text-[#9AA5BD]" : "text-[#1F2330]"
                       }`}
                     >
                       University Email
@@ -187,10 +187,10 @@ const Login = () => {
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent transition-all duration-300 placeholder-gray-400 text-sm sm:text-base ${
+                        className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2A66] dark:focus:ring-[#E63027] focus:border-transparent transition-all duration-300 placeholder-gray-400 text-sm sm:text-base ${
                           theme === "dark"
-                            ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
-                            : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
+                            ? "bg-[#0B1120] border-[#2A3656] text-[#ECEEF5]"
+                            : "bg-[#F2F3F8] border-[#D8DAE6] text-[#1F2330]"
                         }`}
                         placeholder="student@maju.edu.pk"
                         required
@@ -202,7 +202,7 @@ const Login = () => {
                   <div>
                     <label
                       className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                        theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
+                        theme === "dark" ? "text-[#9AA5BD]" : "text-[#1F2330]"
                       }`}
                     >
                       Password
@@ -213,10 +213,10 @@ const Login = () => {
                         type={showPassword ? "text" : "password"}
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
-                        className={`w-full pl-9 sm:pl-10 pr-10 sm:pr-12 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
+                        className={`w-full pl-9 sm:pl-10 pr-10 sm:pr-12 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2A66] dark:focus:ring-[#E63027] focus:border-transparent transition-all duration-300 text-sm sm:text-base ${
                           theme === "dark"
-                            ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
-                            : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
+                            ? "bg-[#0B1120] border-[#2A3656] text-[#ECEEF5]"
+                            : "bg-[#F2F3F8] border-[#D8DAE6] text-[#1F2330]"
                         }`}
                         placeholder="••••••••"
                         required
@@ -224,7 +224,7 @@ const Login = () => {
                       <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#5A6372] dark:text-[#9CA7BD] hover:text-[#222222] dark:hover:text-[#E8EAF1]"
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[#5A6372] dark:text-[#9AA5BD] hover:text-[#1F2330] dark:hover:text-[#ECEEF5]"
                       >
                         {showPassword ? (
                           <EyeOff className="w-4 h-4 sm:w-5 sm:h-5" />
@@ -241,7 +241,7 @@ const Login = () => {
                     <button
                       type="button"
                       onClick={() => setResetStep(1)}
-                      className="cursor-pointer text-xs sm:text-sm text-[#1B2D5C] dark:text-[#C8102E] hover:text-[#142347] dark:hover:text-[#8AA3E8] transition-colors text-left sm:text-right"
+                      className="cursor-pointer text-xs sm:text-sm text-[#1E2A66] dark:text-[#E63027] hover:text-[#16204D] dark:hover:text-[#8AA3E8] transition-colors text-left sm:text-right"
                     >
                       Forgot password?
                     </button>
@@ -251,7 +251,7 @@ const Login = () => {
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full bg-[#1B2D5C] hover:bg-[#142347] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base"
+                    className="w-full bg-[#1E2A66] hover:bg-[#16204D] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 text-sm sm:text-base"
                   >
                     {loading ? (
                       <>
@@ -269,16 +269,16 @@ const Login = () => {
                 </form>
 
                 {/* Register Link */}
-                <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-[#E2E5EA] dark:border-[#2A3550]">
+                <div className="mt-6 sm:mt-8 pt-4 sm:pt-6 border-t border-[#D8DAE6] dark:border-[#2A3656]">
                   <p
                     className={`text-center text-xs sm:text-sm ${
-                      theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
+                      theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
                     }`}
                   >
                     Don't have an account?{" "}
                     <Link
                       to="/register"
-                      className="text-[#C8102E] dark:text-[#F4B860] hover:text-[#A50D26] dark:hover:text-[#EE9480] font-semibold transition-colors"
+                      className="text-[#E63027] dark:text-[#C48A4A] hover:text-[#C81E15] dark:hover:text-[#D4625A] font-semibold transition-colors"
                     >
                       Create account
                     </Link>
@@ -288,12 +288,12 @@ const Login = () => {
             ) : resetStep === 1 ? (
               // Forgot Password Step 1
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-[#222222] dark:text-[#E8EAF1] mb-2">
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1F2330] dark:text-[#ECEEF5] mb-2">
                   Reset Password
                 </h2>
                 <p
                   className={`text-sm sm:text-base mb-4 sm:mb-6 ${
-                    theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
+                    theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
                   }`}
                 >
                   Enter your email to receive a verification code
@@ -302,7 +302,7 @@ const Login = () => {
                   <div className="mb-4 sm:mb-6">
                     <label
                       className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                        theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
+                        theme === "dark" ? "text-[#9AA5BD]" : "text-[#1F2330]"
                       }`}
                     >
                       Email Address
@@ -313,10 +313,10 @@ const Login = () => {
                         type="email"
                         value={resetEmail}
                         onChange={(e) => setResetEmail(e.target.value)}
-                        className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent text-sm sm:text-base ${
+                        className={`w-full pl-9 sm:pl-10 pr-3 sm:pr-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2A66] dark:focus:ring-[#E63027] focus:border-transparent text-sm sm:text-base ${
                           theme === "dark"
-                            ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
-                            : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
+                            ? "bg-[#0B1120] border-[#2A3656] text-[#ECEEF5]"
+                            : "bg-[#F2F3F8] border-[#D8DAE6] text-[#1F2330]"
                         }`}
                         placeholder="student@maju.edu.pk"
                         required
@@ -329,8 +329,8 @@ const Login = () => {
                       onClick={() => setResetStep(0)}
                       className={`flex-1 py-2 sm:py-3 px-4 border rounded-xl hover:transition-colors text-sm sm:text-base ${
                         theme === "dark"
-                          ? "border-[#2A3550] text-[#9CA7BD] hover:bg-[#232C46]"
-                          : "border-[#E2E5EA] text-[#5A6372] hover:bg-[#F5F6F8]"
+                          ? "border-[#2A3656] text-[#9AA5BD] hover:bg-[#1E2A47]"
+                          : "border-[#D8DAE6] text-[#5A6372] hover:bg-[#F2F3F8]"
                       }`}
                     >
                       Back
@@ -338,7 +338,7 @@ const Login = () => {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 bg-[#1B2D5C] hover:bg-[#142347] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-colors disabled:opacity-50 text-sm sm:text-base"
+                      className="flex-1 bg-[#1E2A66] hover:bg-[#16204D] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-colors disabled:opacity-50 text-sm sm:text-base"
                     >
                       {loading ? "Sending..." : "Send OTP"}
                     </button>
@@ -348,12 +348,12 @@ const Login = () => {
             ) : (
               // Forgot Password Step 2
               <div>
-                <h2 className="text-xl sm:text-2xl font-bold text-[#222222] dark:text-[#E8EAF1] mb-2">
+                <h2 className="text-xl sm:text-2xl font-bold text-[#1F2330] dark:text-[#ECEEF5] mb-2">
                   Create New Password
                 </h2>
                 <p
                   className={`text-sm sm:text-base mb-4 sm:mb-6 ${
-                    theme === "dark" ? "text-[#9CA7BD]" : "text-[#5A6372]"
+                    theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
                   }`}
                 >
                   Enter the OTP and your new password
@@ -364,7 +364,7 @@ const Login = () => {
                     <div>
                       <label
                         className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                          theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
+                          theme === "dark" ? "text-[#9AA5BD]" : "text-[#1F2330]"
                         }`}
                       >
                         Verification Code
@@ -377,10 +377,10 @@ const Login = () => {
                             e.target.value.replace(/\D/g, "").slice(0, 6)
                           )
                         }
-                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent text-center tracking-widest font-mono text-sm sm:text-base ${
+                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2A66] dark:focus:ring-[#E63027] focus:border-transparent text-center tracking-widest font-mono text-sm sm:text-base ${
                           theme === "dark"
-                            ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
-                            : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
+                            ? "bg-[#0B1120] border-[#2A3656] text-[#ECEEF5]"
+                            : "bg-[#F2F3F8] border-[#D8DAE6] text-[#1F2330]"
                         }`}
                         placeholder="123456"
                         maxLength="6"
@@ -392,7 +392,7 @@ const Login = () => {
                     <div>
                       <label
                         className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                          theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
+                          theme === "dark" ? "text-[#9AA5BD]" : "text-[#1F2330]"
                         }`}
                       >
                         New Password
@@ -402,10 +402,10 @@ const Login = () => {
                           type={showNewPassword ? "text" : "password"}
                           value={newPassword}
                           onChange={(e) => setNewPassword(e.target.value)}
-                          className={`w-full px-3 sm:px-4 pr-9 sm:pr-12 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent text-sm sm:text-base ${
+                          className={`w-full px-3 sm:px-4 pr-9 sm:pr-12 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2A66] dark:focus:ring-[#E63027] focus:border-transparent text-sm sm:text-base ${
                             theme === "dark"
-                              ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
-                              : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
+                              ? "bg-[#0B1120] border-[#2A3656] text-[#ECEEF5]"
+                              : "bg-[#F2F3F8] border-[#D8DAE6] text-[#1F2330]"
                           }`}
                           required
                         />
@@ -427,7 +427,7 @@ const Login = () => {
                     <div>
                       <label
                         className={`block text-xs sm:text-sm font-medium mb-1 sm:mb-2 ${
-                          theme === "dark" ? "text-[#9CA7BD]" : "text-[#222222]"
+                          theme === "dark" ? "text-[#9AA5BD]" : "text-[#1F2330]"
                         }`}
                       >
                         Confirm Password
@@ -436,10 +436,10 @@ const Login = () => {
                         type="password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1B2D5C] dark:focus:ring-[#C8102E] focus:border-transparent text-sm sm:text-base ${
+                        className={`w-full px-3 sm:px-4 py-2 sm:py-3 rounded-xl focus:ring-2 focus:ring-[#1E2A66] dark:focus:ring-[#E63027] focus:border-transparent text-sm sm:text-base ${
                           theme === "dark"
-                            ? "bg-[#0E1525] border-[#2A3550] text-[#E8EAF1]"
-                            : "bg-[#F5F6F8] border-[#E2E5EA] text-[#222222]"
+                            ? "bg-[#0B1120] border-[#2A3656] text-[#ECEEF5]"
+                            : "bg-[#F2F3F8] border-[#D8DAE6] text-[#1F2330]"
                         }`}
                         required
                       />
@@ -453,8 +453,8 @@ const Login = () => {
                       onClick={() => setResetStep(1)}
                       className={`flex-1 py-2 sm:py-3 px-4 border rounded-xl hover:transition-colors text-sm sm:text-base ${
                         theme === "dark"
-                          ? "border-[#2A3550] text-[#9CA7BD] hover:bg-[#232C46]"
-                          : "border-[#E2E5EA] text-[#5A6372] hover:bg-[#F5F6F8]"
+                          ? "border-[#2A3656] text-[#9AA5BD] hover:bg-[#1E2A47]"
+                          : "border-[#D8DAE6] text-[#5A6372] hover:bg-[#F2F3F8]"
                       }`}
                     >
                       Back
@@ -462,7 +462,7 @@ const Login = () => {
                     <button
                       type="submit"
                       disabled={loading}
-                      className="flex-1 bg-[#1B2D5C] hover:bg-[#142347] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-colors disabled:opacity-50 text-sm sm:text-base"
+                      className="flex-1 bg-[#1E2A66] hover:bg-[#16204D] text-white font-semibold py-2 sm:py-3 px-4 rounded-xl transition-colors disabled:opacity-50 text-sm sm:text-base"
                     >
                       {loading ? "Resetting..." : "Reset Password"}
                     </button>
@@ -472,7 +472,7 @@ const Login = () => {
             )}
 
             {/* Security Badge */}
-            <div className="mt-4 sm:mt-6 flex items-center justify-center gap-2 text-xs sm:text-sm text-[#5A6372] dark:text-[#9CA7BD]">
+            <div className="mt-4 sm:mt-6 flex items-center justify-center gap-2 text-xs sm:text-sm text-[#5A6372] dark:text-[#9AA5BD]">
               <Shield className="w-3 h-3 sm:w-4 sm:h-4" />
               <span>Your data is securely encrypted</span>
             </div>
@@ -482,37 +482,37 @@ const Login = () => {
           <div className="mt-4 sm:mt-6 lg:mt-8 grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
             <div
               className={`text-center p-3 sm:p-4 rounded-xl ${
-                theme === "dark" ? "bg-[#1A2238]/60 border border-[#2A3550]" : "bg-white/60 border border-[#E2E5EA]"
+                theme === "dark" ? "bg-[#16203A]/60 border border-[#2A3656]" : "bg-white/60 border border-[#D8DAE6]"
               } backdrop-blur-sm`}
             >
-              <div className="text-lg sm:text-xl lg:text-2xl font-bold text-[#1B2D5C] dark:text-[#C8102E]">
+              <div className="text-lg sm:text-xl lg:text-2xl font-bold text-[#1E2A66] dark:text-[#E63027]">
                 24/7
               </div>
-              <div className="text-xs sm:text-sm text-[#5A6372] dark:text-[#9CA7BD]">
+              <div className="text-xs sm:text-sm text-[#5A6372] dark:text-[#9AA5BD]">
                 Support
               </div>
             </div>
             <div
               className={`text-center p-3 sm:p-4 rounded-xl ${
-                theme === "dark" ? "bg-[#1A2238]/60 border border-[#2A3550]" : "bg-white/60 border border-[#E2E5EA]"
+                theme === "dark" ? "bg-[#16203A]/60 border border-[#2A3656]" : "bg-white/60 border border-[#D8DAE6]"
               } backdrop-blur-sm`}
             >
-              <div className="text-lg sm:text-xl lg:text-2xl font-bold text-[#C8102E] dark:text-[#F4B860]">
+              <div className="text-lg sm:text-xl lg:text-2xl font-bold text-[#E63027] dark:text-[#C48A4A]">
                 AI
               </div>
-              <div className="text-xs sm:text-sm text-[#5A6372] dark:text-[#9CA7BD]">
+              <div className="text-xs sm:text-sm text-[#5A6372] dark:text-[#9AA5BD]">
                 Powered
               </div>
             </div>
             <div
               className={`text-center p-3 sm:p-4 rounded-xl ${
-                theme === "dark" ? "bg-[#1A2238]/60 border border-[#2A3550]" : "bg-white/60 border border-[#E2E5EA]"
+                theme === "dark" ? "bg-[#16203A]/60 border border-[#2A3656]" : "bg-white/60 border border-[#D8DAE6]"
               } backdrop-blur-sm`}
             >
-              <div className="text-lg sm:text-xl lg:text-2xl font-bold text-[#1B2D5C] dark:text-[#C8102E]">
+              <div className="text-lg sm:text-xl lg:text-2xl font-bold text-[#1E2A66] dark:text-[#E63027]">
                 Secure
               </div>
-              <div className="text-xs sm:text-sm text-[#5A6372] dark:text-[#9CA7BD]">
+              <div className="text-xs sm:text-sm text-[#5A6372] dark:text-[#9AA5BD]">
                 Privacy
               </div>
             </div>

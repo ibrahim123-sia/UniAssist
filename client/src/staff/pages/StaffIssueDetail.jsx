@@ -221,15 +221,15 @@ const StaffIssueDetail = () => {
   const seenVersionRef = useRef(null);
 
   const C = {
-    bg: isDark ? "#131A2C" : "#F5F6F8",
-    surface: isDark ? "#1A2238" : "#FFFFFF",
-    surfaceAlt: isDark ? "#232C46" : "#F5F6F8",
-    input: isDark ? "#0E1525" : "#FFFFFF",
-    border: isDark ? "#2A3550" : "#E2E5EA",
-    text: isDark ? "#E8EAF1" : "#222222",
-    muted: isDark ? "#9CA7BD" : "#5A6372",
-    navy: isDark ? "#C8102E" : "#1B2D5C",
-    red: isDark ? "#F4B860" : "#C8102E",
+    bg: isDark ? "#0E1422" : "#F2F3F8",
+    surface: isDark ? "#16203A" : "#FFFFFF",
+    surfaceAlt: isDark ? "#1E2A47" : "#F2F3F8",
+    input: isDark ? "#0B1120" : "#FFFFFF",
+    border: isDark ? "#2A3656" : "#D8DAE6",
+    text: isDark ? "#ECEEF5" : "#1F2330",
+    muted: isDark ? "#9AA5BD" : "#5A6372",
+    navy: isDark ? "#E63027" : "#1E2A66",
+    red: isDark ? "#C48A4A" : "#E63027",
     amber: isDark ? "#E0B467" : "#B8860B",
   };
 
