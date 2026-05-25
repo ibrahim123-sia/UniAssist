@@ -13,6 +13,7 @@ import Events from "./student/pages/Events";
 import Issues from "./student/pages/Issues";
 import CreateIssue from "./student/pages/CreateIssue";
 import IssueDetail from "./student/pages/IssueDetail";
+import Scholarship from "./student/pages/Scholarship";
 import StaffIssues from "./staff/pages/StaffIssues";
 import StaffIssueDetail from "./staff/pages/StaffIssueDetail";
 import StaffDashboard from "./staff/pages/StaffDashboard";
@@ -118,6 +119,11 @@ const App = () => {
           <Route path="events" element={
             <ProtectedRoute roles={["student"]}>
               <Events />
+            </ProtectedRoute>
+          } />
+          <Route path="scholarships" element={
+            <ProtectedRoute roles={["student"]}>
+              <Scholarship />
             </ProtectedRoute>
           } />
           <Route path="issues" element={

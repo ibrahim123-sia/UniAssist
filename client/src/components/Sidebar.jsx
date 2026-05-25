@@ -30,6 +30,7 @@ import {
   HelpCircle,
   Database,
   Activity,
+  GraduationCap,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import moment from "moment";
@@ -488,16 +489,10 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 accent={C.red}
               />
               <NavLink
-                to="/jobs"
-                icon={<Briefcase className="w-4 h-4" />}
-                label="Job Opportunities"
+                to="/scholarships"
+                icon={<GraduationCap className="w-4 h-4" />}
+                label="Scholarships"
                 accent={C.navy}
-              />
-              <NavLink
-                to="/events"
-                icon={<Calendar className="w-4 h-4" />}
-                label="University Events"
-                accent={C.red}
               />
             </>
           )}
