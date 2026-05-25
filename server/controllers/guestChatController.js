@@ -16,8 +16,19 @@ const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || "http://localhost:8
 const guestSessions = new Map();
 const GUEST_SESSION_EXPIRY = 60 * 60 * 1000; // 1 hour
 
+const HISTORY_TURN_LIMIT = 6;
+
+// Build the trimmed history payload from guest messages. Only role/content is sent.
+function buildHistoryPayload(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return [];
+  const recent = messages.slice(-HISTORY_TURN_LIMIT);
+  return recent
+    .filter((m) => m && m.role && m.content)
+    .map((m) => ({ role: m.role, content: String(m.content) }));
+}
+
 // Helper function to call Python backend
-async function getPythonBackendResponse(question) {
+async function getPythonBackendResponse(question, context = {}) {
   try {
     console.log(`📡 Calling Python backend at: ${PYTHON_BACKEND_URL}/ask`);
     
@@ -26,7 +37,12 @@ async function getPythonBackendResponse(question) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({
+        question,
+        user_id: context.sessionId ? String(context.sessionId) : undefined,
+        chat_id: context.sessionId ? String(context.sessionId) : undefined,
+        history: Array.isArray(context.history) ? context.history : undefined,
+      }),
       timeout: 30000, // 30 second timeout
     });
 
@@ -215,6 +231,11 @@ export const guestTextChatController = async (req, res) => {
     // Get or create guest session
     const session = getOrCreateGuestSession(sessionId);
     
+    // Snapshot prior history BEFORE pushing the new user message — the
+    // history we send to Python must not contain the question we're about
+    // to ask (it would be a duplicate of `message`).
+    const history = buildHistoryPayload(session.messages);
+    
     // Add user message to session
     session.messages.push({
       type: "text",
@@ -224,10 +245,10 @@ export const guestTextChatController = async (req, res) => {
     });
 
     // Get response from Python backend
-    console.log(`🤖 Guest sending to Python backend: "${message}"`);
+    console.log(`🤖 Guest sending to Python backend: "${message}" (history: ${history.length} msgs)`);
     let botReply;
     try {
-      botReply = await getPythonBackendResponse(message);
+      botReply = await getPythonBackendResponse(message, { sessionId, history });
     } catch (error) {
       console.error("Failed to get response from Python backend:", error.message);
       botReply = "Sorry, I'm unable to connect to the university knowledge base at the moment. Please try again later.";
@@ -355,6 +376,11 @@ export const guestVoiceChatController = async (req, res) => {
 
     console.log("✅ Guest transcription completed:", transcribedText);
 
+    // Snapshot prior history BEFORE pushing the new user voice message — the
+    // history we send to Python must not contain the question we're about
+    // to ask (it would be a duplicate of `transcribedText`).
+    const history = buildHistoryPayload(session.messages);
+
     // Create user voice message
     const userMessage = {
       type: "voice",
@@ -375,10 +401,10 @@ export const guestVoiceChatController = async (req, res) => {
     session.messages.push(userMessage);
 
     // Get response from Python backend
-    console.log(`🤖 Guest voice sending to Python backend: "${transcribedText}"`);
+    console.log(`🤖 Guest voice sending to Python backend: "${transcribedText}" (history: ${history.length} msgs)`);
     let aiResponse = "";
     try {
-      aiResponse = await getPythonBackendResponse(transcribedText);
+      aiResponse = await getPythonBackendResponse(transcribedText, { sessionId, history });
     } catch (error) {
       console.error("Python backend Error:", error.message);
       aiResponse = "I received your voice message, but I'm having trouble accessing the knowledge base. Please try again or use text input.";
@@ -446,6 +472,9 @@ export const guestEmailController = async (req, res) => {
     // Get or create guest session
     const session = getOrCreateGuestSession(sessionId);
     
+    // Snapshot prior history BEFORE pushing the new user email message
+    const history = buildHistoryPayload(session.messages);
+    
     // Add user message to session
     session.messages.push({
       type: "email",
@@ -465,11 +494,11 @@ export const guestEmailController = async (req, res) => {
     Subject: ${subject || "No subject"}
     Please format the email professionally with salutation, body, and closing.`;
     
-    console.log(`📧 Guest sending email request to Python backend: "${emailPrompt}"`);
+    console.log(`📧 Guest sending email request to Python backend: "${emailPrompt}" (history: ${history.length} msgs)`);
     
     let aiResponse;
     try {
-      aiResponse = await getPythonBackendResponse(emailPrompt);
+      aiResponse = await getPythonBackendResponse(emailPrompt, { sessionId, history });
     } catch (error) {
       console.error("Failed to get email response from Python backend:", error.message);
       aiResponse = "Sorry, I'm unable to draft emails at the moment. Please try again later.";

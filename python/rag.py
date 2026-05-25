@@ -112,17 +112,15 @@ def create_prompt(question, relevant_chunks, language="en"):
     """Build the RAG prompt around four answer-states.
 
     The prompt is organized around what *kind* of question the student
-    is asking rather than a flat rule list, because the local 3B model
+    is asking rather than a flat rule list, because the model
     handles "pick one state" much better than "weigh nine rules". The
     four states are:
 
       A) greeting / small-talk           -> warm reply, ignore context
       B) identity question               -> "I'm MAJU Assistant"
-      C) off-topic / non-MAJU question   -> polite decline + redirect
-      D) MAJU question                   -> answer from context
-
-    The context blocks are numbered so the LLM can mentally pivot
-    between them, but we instruct it not to surface those numbers.
+      C) meta / conversation question    -> trust chat history, ignore context
+      D) off-topic / non-MAJU question   -> polite decline + redirect
+      E) MAJU question                   -> answer from context
     """
     blocks = [f"[Source {i+1}]\n{chunk}" for i, chunk in enumerate(relevant_chunks)]
     context = "\n\n---\n\n".join(blocks)
@@ -161,12 +159,15 @@ E) MAJU-RELATED QUESTION (admissions, fees, programs, courses, faculty, schedule
    - Use ONLY the CONTEXT for facts. NEVER invent fees, deadlines, emails, phone numbers, course names, faculty names, or policies.
    - If the context fully answers, give a direct answer.
    - If the context partially answers, share what's covered and briefly note what's missing — do not refuse over one missing detail.
-   - If the question is too ambiguous to answer (even after using history to resolve references), ask ONE short clarifying question instead of guessing.
+   - If the context does not contain the specific answer but lists a relevant office contact (email, phone, or office location) for admissions, registration, or finance, share that contact info rather than returning the fallback "{no_info}".
+   - If the student is describing a personal issue or complaint (e.g. registry error, payment issue, IT portal problem), let them know they can log in and register an official ticket/issue in the student portal under the SFC, HOD, or IT departments.
    - If neither the context nor the chat history can answer, reply exactly with: {no_info}
 
 ALWAYS (applies to every branch):
 - {lang_hint}
-- CONSISTENCY: Never contradict what you have already said in the chat history above. If a previous assistant turn stated a fact (e.g. "tuition is 9,000 per credit hour"), and the user follows up about that fact, your answer MUST be consistent with your prior statement — do not claim "not mentioned" for something you just said.
+- Formatting: Bold (**email addresses**, **phone numbers**, **fee figures**, and **deadlines/dates**) so they stand out clearly.
+- Roman Urdu Phrasing: Keep the language natural and student-friendly. Use common English loanwords directly in Roman Urdu (e.g., use "fee", "admission", "department", "office", "course" instead of translating them to formal Urdu equivalents like "akhrajaat", "dakhla", "shoba").
+- CONSISTENCY: Never contradict what you have already said in the chat history above. If a previous assistant turn stated a fact (e.g. "tuition is 9,000 per credit hour"), and the user follows up about that fact, your answer MUST be consistent with your prior statement.
 - Quote fees, dates, emails, phone numbers, and other facts EXACTLY as they appear in the context.
 - Start with the answer directly. No "Sure!", "Of course!", "Here is", "Based on the context", or sign-offs.
 - Never mention sources, source numbers, "[1]", "[2]", or add a "Sources:" / "References:" section.

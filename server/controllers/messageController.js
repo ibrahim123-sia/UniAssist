@@ -280,6 +280,9 @@ export const emailMessageController = async (req, res) => {
       });
     }
 
+    // Snapshot prior history BEFORE pushing the new user email message
+    const history = buildHistoryPayload(chat.messages);
+
     // Add user message
     const userMessage = {
       type: "email",
@@ -302,11 +305,11 @@ export const emailMessageController = async (req, res) => {
     Subject: ${subject || "No subject"}
     Please format the email professionally with salutation, body, and closing.`;
     
-    console.log(`📧 Sending email request to Python backend: "${emailPrompt}"`);
+    console.log(`📧 Sending email request to Python backend: "${emailPrompt}" (history: ${history.length} msgs)`);
 
     let replyContent;
     try {
-      replyContent = await getPythonBackendResponse(emailPrompt, { userId, chatId });
+      replyContent = await getPythonBackendResponse(emailPrompt, { userId, chatId, history });
     } catch (error) {
       console.error("Failed to get email response from Python backend:", error.message);
       replyContent = "Sorry, I'm unable to draft emails at the moment. Please try again later.";

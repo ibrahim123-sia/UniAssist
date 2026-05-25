@@ -202,6 +202,7 @@ def build_database():
 # =============================================================
 
 import re as _re
+import math as _math
 
 _STOPWORDS = {
     "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",
@@ -227,10 +228,59 @@ def _meaningful_tokens(text):
     stopwords. These drive the keyword-fallback pass in `search`.
     """
     text = (text or "").lower()
+    # Normalize course codes like cs-3413 or cs 3413 to cs3413
+    text = _re.sub(r"\b([a-z]+)[\s\-]+(\d+)\b", r"\1\2", text)
     # Treat hyphens/slashes as word separators but keep alphanumerics
     text = _re.sub(r"[^a-z0-9\s\-/]+", " ", text)
     raw = [t.strip("-/") for t in text.split() if t.strip("-/")]
     return [t for t in raw if len(t) >= 3 and t not in _STOPWORDS]
+
+
+def _stem(word):
+    """Normalize common academic suffixes and spelling variations (singular/plural, UK/US spelling)."""
+    w = word.lower()
+    # Normalize common academic terms
+    if w in ("programme", "programmes", "programming"):
+        return "program"
+    if w in ("admissions", "admission"):
+        return "admission"
+    if w in ("scholarships", "scholarship"):
+        return "scholarship"
+    if w in ("courses", "course"):
+        return "course"
+    if w in ("fees", "fee"):
+        return "fee"
+    if w in ("universities", "university"):
+        return "university"
+        
+    # Standard suffixes
+    for suffix in ("ies", "es", "s", "ed", "ing"):
+        if w.endswith(suffix) and len(w) - len(suffix) >= 3:
+            res = w[:-len(suffix)]
+            if suffix == "ies":
+                res += "y"
+            return res
+    return w
+
+
+def _has_word(token, text_low, url_tokens=None):
+    """Check if token matches a word in text_low (raw or stemmed) or in url_tokens."""
+    token_stem = _stem(token)
+    
+    if url_tokens and token_stem in url_tokens:
+        return True, True
+        
+    words = _re.findall(r"[a-z0-9\-]+", text_low)
+    for w in words:
+        if w == token:
+            return True, False
+        if _stem(w) == token_stem:
+            return True, False
+        if "-" in w:
+            w_norm = w.replace("-", "")
+            if w_norm == token or _stem(w_norm) == token_stem:
+                return True, False
+    return False, False
 
 
 _keyword_cache = {"chunks": None, "ids": None, "metas": None, "version": None}
@@ -256,39 +306,92 @@ def _load_all_chunks(collection):
 
 
 def _keyword_search(question, collection, top_k):
-    """Score chunks by how many distinct query tokens they contain.
+    """Score chunks by TF-IDF based keyword matching over text and URLs.
 
-    Cheap O(N) scan, but it's exactly what catches things semantic search
-    misses: course codes ("CS-201"), names, phone numbers, fee figures,
-    Roman-Urdu specific words that the English embedding glosses over.
-
-    Ties are broken by chunk length (shorter = more focused = preferred).
+    Uses stemmed whole-word matching so variations (like "programs" vs "programmes",
+    "admissions" vs "admission") match correctly, while protecting against
+    substring matches.
     """
     tokens = _meaningful_tokens(question)
     if not tokens:
         return [], [], []
 
     chunks, ids, metas = _load_all_chunks(collection)
+    
+    # 1. Precompute stemmed URL tokens for all chunks
+    precomputed_urls = []
+    for idx, text in enumerate(chunks):
+        meta = metas[idx] if idx < len(metas) else {}
+        source_url = meta.get("source", "").lower()
+        raw_url_tokens = _re.findall(r"[a-z0-9\-]+", source_url)
+        url_tokens = set()
+        for w in raw_url_tokens:
+            url_tokens.add(w)
+            url_tokens.add(_stem(w))
+            if "-" in w:
+                url_tokens.add(w.replace("-", ""))
+                url_tokens.add(_stem(w.replace("-", "")))
+        precomputed_urls.append(url_tokens)
+    
+    # 2. Compute Document Frequency (DF) and IDF for each token in the query
+    dfs = {t: 0 for t in tokens}
+    for idx, text in enumerate(chunks):
+        if not text:
+            continue
+        low = text.lower()
+        url_tokens = precomputed_urls[idx]
+        
+        for t in tokens:
+            matched, _ = _has_word(t, low, url_tokens)
+            if matched:
+                dfs[t] += 1
+                
+    idfs = {}
+    total_docs = len(chunks)
+    total_query_idf = 0.0
+    for t in tokens:
+        df = dfs[t]
+        # Calculate IDF with standard smoothing
+        idf = _math.log((total_docs + 1) / (df + 1))
+        idfs[t] = idf
+        total_query_idf += idf
+
+    if total_query_idf <= 0.0:
+        return [], [], []
+
+    # 3. Score each chunk
     scored = []
     for idx, text in enumerate(chunks):
         if not text:
             continue
         low = text.lower()
-        hits = sum(1 for t in tokens if t in low)
-        if hits == 0:
-            continue
-        scored.append((hits, -len(text), idx))
+        url_tokens = precomputed_urls[idx]
+        
+        matched_idf_sum = 0.0
+        for t in tokens:
+            matched, in_url = _has_word(t, low, url_tokens)
+            if matched:
+                term_score = idfs[t]
+                # Boost match if it's found in the source URL path
+                if in_url:
+                    term_score *= 1.5
+                matched_idf_sum += term_score
+                
+        if matched_idf_sum > 0:
+            # Normalized score between 0 and 1 (can exceed 1 if URL boosts apply)
+            norm_score = matched_idf_sum / total_query_idf
+            # Tie breaker: prefer shorter, more focused chunks
+            scored.append((norm_score, -len(text), idx))
 
     if not scored:
         return [], [], []
 
     scored.sort(reverse=True)
     out_chunks, out_metas, out_scores = [], [], []
-    for hits, _neglen, idx in scored[:top_k]:
+    for score, _neglen, idx in scored[:top_k]:
         out_chunks.append(chunks[idx])
         out_metas.append(metas[idx] if idx < len(metas) else {})
-        # Normalise: hits / total_tokens gives 0..1
-        out_scores.append(hits / len(tokens))
+        out_scores.append(score)
     return out_chunks, out_metas, out_scores
 
 
@@ -339,15 +442,15 @@ def search(question, collection, model, top_k=None):
         else:
             merged[key] = {"text": c, "meta": m, "score": 0.0, "kw": s}
 
-    # Combined score: semantic + 0.5 * keyword (semantic is primary,
-    # keyword is a tie-breaker / safety net)
+    # Combined score: semantic + 1.0 * keyword (semantic is primary,
+    # keyword is a boost for exact term matching)
     ranked = sorted(
         merged.values(),
-        key=lambda r: r["score"] + 0.5 * r["kw"],
+        key=lambda r: r["score"] + 1.0 * r["kw"],
         reverse=True,
     )[:top_k]
 
     chunks = [r["text"] for r in ranked]
     sources = [r["meta"] for r in ranked]
-    scores = [r["score"] + 0.5 * r["kw"] for r in ranked]
+    scores = [r["score"] + 1.0 * r["kw"] for r in ranked]
     return chunks, sources, scores
