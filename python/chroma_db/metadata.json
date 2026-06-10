@@ -1,7 +1,7 @@
 {
-  "total_chunks": 3073,
+  "total_chunks": 4763,
   "embedding_model": "all-MiniLM-L6-v2",
   "embedding_dimension": 384,
   "collection_name": "university_chunks",
-  "chunk_sources": 732
+  "chunk_sources": 1210
 }

@@ -214,10 +214,54 @@ def _get_groq_client():
     return _groq_client
 
 
+def _llm_chat_gemini(messages, temperature):
+    """Call Google Gemini OpenAI-compatible API via standard requests.
+    Omit max_tokens to prevent the OpenAI proxy from truncating output.
+    """
+    if not config.GEMINI_API_KEY:
+        raise ValueError("GEMINI_API_KEY is not configured in environment.")
+    
+    import requests
+    url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {config.GEMINI_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "model": config.GEMINI_MODEL,
+        "messages": messages,
+        "temperature": temperature
+    }
+    
+    response = requests.post(url, headers=headers, json=payload, timeout=config.LLM_REQUEST_TIMEOUT)
+    if response.status_code == 200:
+        res_json = response.json()
+        try:
+            return res_json["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError) as e:
+            raise RuntimeError(f"Unexpected response structure from Gemini API: {res_json}") from e
+    else:
+        raise RuntimeError(f"Gemini API returned status {response.status_code}: {response.text}")
+
+
+def _llm_chat_groq(messages, temperature, max_tokens):
+    """Call Groq API using the groq client library."""
+    client = _get_groq_client()
+    response = client.chat.completions.create(
+        model=config.GROQ_MODEL,
+        messages=messages,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return (response.choices[0].message.content or "") if response.choices else ""
+
+
 def _llm_chat(messages, temperature, max_tokens):
     """Backend-agnostic chat call. Returns the assistant text or raises.
 
-    Routes to local Ollama or cloud Groq based on `config.USE_LOCAL_LLM`.
+    Routes to local Ollama or cloud models based on `config.USE_LOCAL_LLM`.
+    If USE_LOCAL_LLM is false, attempts to query cloud models using the preferred order
+    defined in `config.CLOUD_LLM_ORDER`, failing over to secondary options if a provider fails.
     """
     if config.USE_LOCAL_LLM:
         client = _get_ollama_client()
@@ -232,14 +276,28 @@ def _llm_chat(messages, temperature, max_tokens):
         )
         return (response.get("message") or {}).get("content", "")
 
-    client = _get_groq_client()
-    response = client.chat.completions.create(
-        model=config.GROQ_MODEL,
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
-    return (response.choices[0].message.content or "") if response.choices else ""
+    errors = []
+    for provider in config.CLOUD_LLM_ORDER:
+        if provider == "gemini":
+            try:
+                print(f"  Attempting to call Gemini ({config.GEMINI_MODEL})...")
+                return _llm_chat_gemini(messages, temperature)
+            except Exception as exc:
+                err_msg = f"Gemini call failed: {exc}"
+                print(f"  Warning: {err_msg}")
+                errors.append(err_msg)
+        elif provider == "groq":
+            try:
+                print(f"  Attempting to call Groq ({config.GROQ_MODEL})...")
+                return _llm_chat_groq(messages, temperature, max_tokens)
+            except Exception as exc:
+                err_msg = f"Groq call failed: {exc}"
+                print(f"  Warning: {err_msg}")
+                errors.append(err_msg)
+        else:
+            print(f"  Warning: Unknown provider '{provider}' in CLOUD_LLM_ORDER")
+
+    raise RuntimeError(f"All configured cloud LLM providers failed. Errors: {'; '.join(errors)}")
 
 
 def _sanitize_history(history):
@@ -304,7 +362,7 @@ def get_llm_response(prompt, language="en", history=None):
                 f"Error: cannot reach Ollama at {config.OLLAMA_HOST}. "
                 f"Is the daemon running? ({exc})"
             )
-        return f"Error from Groq ({config.GROQ_MODEL}): {exc}"
+        return f"Error from Cloud LLM: {exc}"
 
 
 # Llama 3.2:3b reliably opens replies with one of these throat-clearing
@@ -504,7 +562,7 @@ def _initialize():
     if config.USE_LOCAL_LLM:
         print(f"  LLM: {config.OLLAMA_MODEL} via Ollama @ {config.OLLAMA_HOST}")
     else:
-        print(f"  LLM: {config.GROQ_MODEL} via Groq cloud API")
+        print(f"  LLM: Cloud LLM failover order: {', '.join(config.CLOUD_LLM_ORDER)}")
     _warm_llm()
 
 

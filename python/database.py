@@ -148,12 +148,28 @@ def build_database():
         for i, chunk in enumerate(batch):
             chunk_id = f"chunk_{start + i}"
 
+            # Combine page title, heading, and text to make the chunk self-contained for search
+            title = chunk.get("page_title", "")
+            heading = chunk.get("heading", "")
+            text = chunk["text"]
+
+            prefix_parts = []
+            if title:
+                prefix_parts.append(title)
+            if heading and heading != title:
+                prefix_parts.append(heading)
+
+            if prefix_parts:
+                doc_text = "\n\n".join(prefix_parts) + "\n\n" + text
+            else:
+                doc_text = text
+
             ids.append(chunk_id)
-            documents.append(chunk["text"])
+            documents.append(doc_text)
             metadatas.append({"source": chunk["source"], "chunk_id": chunk_id})
 
-            # Convert text to a 384-dimensional vector
-            embedding = model.encode(chunk["text"]).tolist()
+            # Convert combined text to a 384-dimensional vector
+            embedding = model.encode(doc_text).tolist()
             embeddings.append(embedding)
 
         # Add this batch to ChromaDB
@@ -233,7 +249,21 @@ def _meaningful_tokens(text):
     # Treat hyphens/slashes as word separators but keep alphanumerics
     text = _re.sub(r"[^a-z0-9\s\-/]+", " ", text)
     raw = [t.strip("-/") for t in text.split() if t.strip("-/")]
-    return [t for t in raw if len(t) >= 3 and t not in _STOPWORDS]
+    tokens = [t for t in raw if len(t) >= 3 and t not in _STOPWORDS]
+    
+    # Query expansion for programs/degrees/courses to capture structured lists
+    expanded = list(tokens)
+    has_program_query = False
+    for t in tokens:
+        stemmed = _stem(t)
+        if stemmed in ("program", "degree", "course", "offer", "admission"):
+            has_program_query = True
+            break
+            
+    if has_program_query:
+        expanded.extend(["undergraduate", "graduate", "postgraduate", "phd", "bachelor", "master", "doctorate", "bs", "ms"])
+        
+    return list(set(expanded))
 
 
 def _stem(word):
