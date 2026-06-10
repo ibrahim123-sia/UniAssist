@@ -22,13 +22,14 @@ HOW IT WORKS:
      to your question's vector (= most similar meaning)
 """
 
-import json
-import os
-import chromadb
-from sentence_transformers import SentenceTransformer
-from tqdm import tqdm
+import json           # For loading and parsing chunks and saving collection metadata
+import os             # For handling database and metadata file paths
+import chromadb       # The vector database client library for similarity search
+from sentence_transformers import SentenceTransformer  # For generating text embeddings locally
+from tqdm import tqdm  # For displaying progress bars during database build
 
-import config
+import config         # Local application configuration parameters
+
 
 
 # =============================================================
@@ -217,8 +218,9 @@ def build_database():
 # SEARCH - Finding relevant chunks for a question
 # =============================================================
 
-import re as _re
-import math as _math
+import re as _re      # For regular expressions used in query tokenization
+import math as _math  # For calculation of TF-IDF / BM25 term weights in keyword search
+
 
 _STOPWORDS = {
     "the", "a", "an", "is", "are", "was", "were", "be", "been", "being",

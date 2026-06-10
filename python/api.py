@@ -22,27 +22,28 @@ MODERATION:
   so the user is flagged and admin is notified.
 """
 
-import os
-import io
-import re
-import uuid
-import tempfile
-from typing import Optional, List
+import os             # For accessing environment variables and filesystem paths
+import io             # For byte stream management during file uploads
+import re             # For regular expression operations in validation
+import uuid           # For generating unique identifiers for document records
+import tempfile       # For creating temporary files during audio transcription
+from typing import Optional, List  # For type hinting in API request models
 
-import jwt
-import requests
-from fastapi import FastAPI, HTTPException, Header, UploadFile, File, Form, Query
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import uvicorn
-from dotenv import load_dotenv
+import jwt            # For verifying and decoding JWT tokens from the Node server
+import requests       # For sending HTTP requests and triggering Node admin webhooks
+from fastapi import FastAPI, HTTPException, Header, UploadFile, File, Form, Query  # FastAPI web framework components
+from fastapi.middleware.cors import CORSMiddleware  # CORS support for frontend API requests
+from pydantic import BaseModel  # For defining and validating request/response schemas
+import uvicorn        # ASGI server to run the FastAPI app
+from dotenv import load_dotenv  # For loading variables from .env into environment
 
-import config
-import rag
-import database
-from moderation import check_message
-from language_detect import detect_language, normalize_for_prompt
-from transcribe import transcribe_audio
+# Local project modules
+import config         # Application configurations and global settings
+import rag            # Retrieval Augmented Generation pipeline
+import database       # ChromaDB operations and search queries
+from moderation import check_message  # Urdu and English abuse detection filter
+from language_detect import detect_language, normalize_for_prompt  # Language classifier
+from transcribe import transcribe_audio  # Local Whisper speech-to-text transcription
 
 load_dotenv()
 
@@ -468,7 +469,7 @@ def _extract_structured_elements(filename: str, content: bytes) -> List[dict]:
         return elements
 
     if name.endswith(".pdf"):
-        from pypdf import PdfReader
+        from pypdf import PdfReader  # For parsing and extracting text from uploaded PDF documents
         reader = PdfReader(io.BytesIO(content))
         for page in reader.pages:
             page_text = page.extract_text() or ""
@@ -476,7 +477,7 @@ def _extract_structured_elements(filename: str, content: bytes) -> List[dict]:
         return elements
 
     if name.endswith(".docx"):
-        import docx
+        import docx  # For parsing and extracting text and headers from uploaded DOCX documents
         doc = docx.Document(io.BytesIO(content))
         for p in doc.paragraphs:
             text = (p.text or "").strip()
@@ -502,7 +503,7 @@ def _chunk_uploaded_document(filename: str, content: bytes) -> List[dict]:
     elements = _extract_structured_elements(filename, content)
     if not elements:
         return []
-    from scraper import chunk_elements  # local import to avoid boot cost
+    from scraper import chunk_elements  # For applying structural paragraph grouping/chunking to document elements, imported lazily to keep API startup fast
     return chunk_elements(elements, page_title=os.path.splitext(os.path.basename(filename or ""))[0])
 
 

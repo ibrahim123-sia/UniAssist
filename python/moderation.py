@@ -5,7 +5,8 @@ Scans English + Roman-Urdu profanity. Returns a structured result so the
 caller can decide whether to short-circuit a response and notify admins.
 """
 
-import re
+import re             # For compiling and executing regular expressions to detect profanity
+
 
 # English profanity (kept terse; expand as we collect false-positive feedback)
 ENGLISH_BAD_WORDS = {

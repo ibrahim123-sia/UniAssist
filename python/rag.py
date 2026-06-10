@@ -11,12 +11,13 @@ LLM backend is selected by `config.USE_LOCAL_LLM`:
   false -> Groq cloud API (requires GROQ_API_KEY)
 """
 
-import re
+import re             # For regular expression operations in source matching and text cleanup
 
-import ollama
+import ollama         # The Ollama library for local LLM inference
 
-import config
-import database
+import config         # Local application configuration and credentials settings
+import database       # ChromaDB retrieval helper functions
+
 
 
 # =============================================================
@@ -209,7 +210,8 @@ def _get_groq_client():
                 "USE_LOCAL_LLM=false but GROQ_API_KEY is not set. "
                 "Add it to python/.env or flip USE_LOCAL_LLM back to true."
             )
-        from groq import Groq  # imported lazily so local-only installs don't need the dep
+        from groq import Groq  # Groq client SDK for calling Groq cloud LLM API, imported lazily so local-only installs don't need the dependency
+
         _groq_client = Groq(api_key=config.GROQ_API_KEY, timeout=config.LLM_REQUEST_TIMEOUT)
     return _groq_client
 
@@ -221,7 +223,8 @@ def _llm_chat_gemini(messages, temperature):
     if not config.GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY is not configured in environment.")
     
-    import requests
+    import requests    # Standard library for sending HTTP requests to the Gemini API endpoint
+
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
     headers = {
         "Authorization": f"Bearer {config.GEMINI_API_KEY}",

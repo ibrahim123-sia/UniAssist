@@ -14,15 +14,16 @@ patterns + DOM selectors) and at the chunk level (sentence + capital-word
 ratio heuristics).
 """
 
-import os
-import re
-import json
-import concurrent.futures
-import requests
-from bs4 import BeautifulSoup, NavigableString, Tag
-from tqdm import tqdm
+import os             # For handling filesystem paths and directories for saving output
+import re             # For regular expression cleanup of scraped text and formatting
+import json           # For reading and writing the JSON arrays of pages and chunks
+import concurrent.futures  # For concurrent crawling/scraping of multiple URLs using thread pools
+import requests       # For fetching web content and sitemap files from the target website
+from bs4 import BeautifulSoup, NavigableString, Tag  # For parsing HTML and traversing the DOM tree
+from tqdm import tqdm  # For displaying progress meters during page crawling and processing
 
-import config
+import config         # Local application configuration parameters
+
 
 # Tune scrape concurrency. jinnah.edu sits on shared hosting; 15-20
 # concurrent connections is the safe ceiling — higher risks rate-limits.

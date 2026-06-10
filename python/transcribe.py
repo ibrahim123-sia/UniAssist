@@ -15,12 +15,13 @@ Output:
   }
 """
 
-from __future__ import annotations
+from __future__ import annotations  # For modern typing annotations in older Python runtimes
 
-import os
-from typing import Optional
+import os             # For verifying if the audio file exists at the given path
+from typing import Optional  # For using Optional type hint for the language parameter
 
-import config
+import config         # Local application configuration for Whisper model parameters
+
 
 
 _model = None
@@ -32,7 +33,8 @@ def _get_model():
     if _model is not None:
         return _model
 
-    from faster_whisper import WhisperModel
+    from faster_whisper import WhisperModel  # Local Whisper speech-to-text model for transcribing voice messages
+
 
     print(f"Loading Whisper model: {config.WHISPER_MODEL} "
           f"(device={config.WHISPER_DEVICE}, compute={config.WHISPER_COMPUTE_TYPE})")

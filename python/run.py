@@ -26,7 +26,8 @@ ADDING A NEW WEBSITE:
   3. python run.py build
 """
 
-import sys
+import sys            # For parsing command line arguments and managing process exit codes
+
 
 
 def print_help():
@@ -57,34 +58,34 @@ def print_help():
 
 def cmd_scrape():
     """Run the full scraping pipeline."""
-    from scraper import run_full_pipeline
+    from scraper import run_full_pipeline  # For executing the site scraper to fetch and process web content
     run_full_pipeline()
 
 
 def cmd_rechunk():
     """Re-chunk existing data."""
-    from scraper import run_rechunk
+    from scraper import run_rechunk  # For rebuilding text chunks without scraping the websites again
     run_rechunk()
 
 
 def cmd_build():
     """Build the vector database."""
-    from database import build_database
+    from database import build_database  # For encoding text chunks to vectors and writing to ChromaDB
     build_database()
 
 
 def cmd_server():
     """Start the FastAPI server."""
-    import uvicorn
+    import uvicorn  # For starting the ASGI server to host the FastAPI application
     # Import the app so uvicorn can serve it
-    from api import app
+    from api import app  # The FastAPI app instance configured with our routes
     print("Starting RAG API server on http://0.0.0.0:8000")
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
 def cmd_ask(question):
     """Ask a single question via the RAG pipeline."""
-    import rag
+    import rag  # The RAG pipeline module for context retrieval and answering
 
     print(f"\nQuestion: {question}")
     print("-" * 60)
@@ -94,7 +95,8 @@ def cmd_ask(question):
 
 def cmd_test():
     """Run a set of sample questions to test the system."""
-    import rag
+    import rag  # The RAG pipeline module to query test questions
+
 
     test_questions = [
         "What is the fee structure for BS Computer Science?",

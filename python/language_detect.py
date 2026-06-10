@@ -17,18 +17,19 @@ Output:
   }
 """
 
-from __future__ import annotations
+from __future__ import annotations  # For modern type hinting/annotation parsing within older Python runtimes
 
-import re
-from typing import Dict, List
+import re             # For tokenizing query strings and regex patterns in language detection
+from typing import Dict, List  # For type hinting of dicts and lists in class/function signatures
 
 try:
-    from langdetect import detect_langs, DetectorFactory
-    from langdetect.lang_detect_exception import LangDetectException
-    DetectorFactory.seed = 0  # deterministic
+    from langdetect import detect_langs, DetectorFactory  # The langdetect package to perform initial probabilistic language checks
+    from langdetect.lang_detect_exception import LangDetectException  # Exceptions raised during langdetect failure cases
+    DetectorFactory.seed = 0  # deterministic seed to avoid fluctuating predictions on short texts
     _LANGDETECT_OK = True
 except ImportError:
     _LANGDETECT_OK = False
+
 
 
 # ---------------------------------------------------------------------------

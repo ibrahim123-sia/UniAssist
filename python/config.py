@@ -16,8 +16,9 @@ HOW TO ADD A NEW WEBSITE:
     That's it! The RAG system will now include that site.
 """
 
-import os
-from dotenv import load_dotenv
+import os             # For interacting with the operating system environment variables and paths
+from dotenv import load_dotenv  # For loading environment variables from a .env file
+
 
 # Load API keys from .env file
 load_dotenv()
