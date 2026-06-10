@@ -237,6 +237,20 @@ _STOPWORDS = {
 }
 
 
+_ABBREVIATION_MAP = {
+    "bscs": ["bs", "cs", "computer", "science"],
+    "bsse": ["bs", "se", "software", "engineering"],
+    "bsee": ["bs", "ee", "electrical", "engineering"],
+    "bsai": ["bs", "ai", "artificial", "intelligence"],
+    "mscs": ["ms", "cs", "computer", "science"],
+    "msse": ["ms", "se", "software", "engineering"],
+    "msds": ["ms", "ds", "data", "science"],
+    "phdcs": ["phd", "cs", "computer", "science"],
+    "bba": ["business", "administration"],
+    "mba": ["business", "administration"]
+}
+
+
 def _meaningful_tokens(text):
     """Pull useful keywords out of a free-form question.
 
@@ -253,10 +267,17 @@ def _meaningful_tokens(text):
     
     # Query expansion for programs/degrees/courses to capture structured lists
     expanded = list(tokens)
+    
+    # 1. Expand abbreviations
+    for t in tokens:
+        if t in _ABBREVIATION_MAP:
+            expanded.extend(_ABBREVIATION_MAP[t])
+            
+    # 2. Expand general program queries
     has_program_query = False
     for t in tokens:
         stemmed = _stem(t)
-        if stemmed in ("program", "degree", "course", "offer", "admission"):
+        if stemmed in ("program", "degree", "course", "offer", "admission", "fee"):
             has_program_query = True
             break
             
