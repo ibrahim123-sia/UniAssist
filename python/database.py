@@ -286,6 +286,16 @@ def _has_word(token, text_low, url_tokens=None):
 _keyword_cache = {"chunks": None, "ids": None, "metas": None, "version": None}
 
 
+def clear_keyword_cache():
+    """Clear the cached chunks in RAM to force reload on the next search."""
+    global _keyword_cache
+    _keyword_cache["version"] = None
+    _keyword_cache["chunks"] = None
+    _keyword_cache["ids"] = None
+    _keyword_cache["metas"] = None
+    print("  Database keyword search cache cleared")
+
+
 def _load_all_chunks(collection):
     """Cache the full chunk list in RAM for keyword scans.
 

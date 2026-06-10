@@ -374,6 +374,7 @@ async def add_chunk(body: ChunkBody, authorization: Optional[str] = Header(defau
         metadatas=[{"source": body.source or "admin", "chunk_id": cid}],
         embeddings=[embedding],
     )
+    database.clear_keyword_cache()
     return {"success": True, "chunk": {"id": cid, "text": body.text, "source": body.source}}
 
 
@@ -396,6 +397,7 @@ async def update_chunk(chunk_id: str, body: ChunkUpdate, authorization: Optional
         embeddings=[embedding],
         metadatas=[{"source": source, "chunk_id": chunk_id}],
     )
+    database.clear_keyword_cache()
     return {"success": True, "chunk": {"id": chunk_id, "text": body.text, "source": source}}
 
 
@@ -407,6 +409,7 @@ async def delete_chunk(chunk_id: str, authorization: Optional[str] = Header(defa
     if not existing.get("ids"):
         raise HTTPException(status_code=404, detail="Chunk not found")
     col.delete(ids=[chunk_id])
+    database.clear_keyword_cache()
     return {"success": True, "id": chunk_id}
 
 
@@ -557,6 +560,7 @@ async def upload_document(
         embeds.append(model.encode(piece["text"]).tolist())
 
     col.add(ids=ids, documents=docs, metadatas=metas, embeddings=embeds)
+    database.clear_keyword_cache()
 
     return {
         "success": True,

@@ -240,8 +240,12 @@ def contains_important_info(text):
         return True
     low = text.lower()
     for kw in config.IMPORTANT_KEYWORDS:
-        if kw in low:
-            return True
+        if len(kw) <= 3:
+            if re.search(r"\b" + re.escape(kw) + r"\b", low):
+                return True
+        else:
+            if kw in low:
+                return True
     return False
 
 
@@ -272,12 +276,12 @@ def is_junk_chunk(text):
     # "recent posts" widget.
     date_hits = len(re.findall(DATE_REGEX, stripped))
     if date_hits >= 3:
-        return True
+        return not contains_important_info(stripped)
 
     # Rule 2: many ALL-CAPS words clustered together = name list.
     allcaps_hits = len(re.findall(ALLCAPS_WORD_REGEX, stripped))
     if allcaps_hits >= 4 and allcaps_hits * 8 > word_count:
-        return True
+        return not contains_important_info(stripped)
 
     # Rule 3: counts of sentence-ending punctuation. We split periods
     # vs questions/exclamations because post-title lists ("Why is X
@@ -291,11 +295,11 @@ def is_junk_chunk(text):
 
     # Rule 4: 50+ words but no real periods = title list.
     if word_count >= 50 and periods == 0:
-        return True
+        return not contains_important_info(stripped)
 
     # Rule 5: sentence density too low for real prose.
     if word_count > 60 and sentence_marks * 60 < word_count:
-        return True
+        return not contains_important_info(stripped)
 
     # Rule 6: dominated by Title Case / proper nouns and short on periods.
     if word_count >= 12:
@@ -304,7 +308,7 @@ def is_junk_chunk(text):
             if w and w[0].isalpha() and w[0].isupper()
         )
         if capitalized / word_count > 0.55 and periods <= 1:
-            return True
+            return not contains_important_info(stripped)
 
     return False
 

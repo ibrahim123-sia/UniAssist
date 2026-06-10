@@ -203,7 +203,7 @@ OLLAMA_MODEL = (
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
-GROQ_MODEL = "llama-3.3-70b-versatile"
+GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
 
 # Active model name used by callers/logging — picks the backend's model.
 LLM_MODEL = OLLAMA_MODEL if USE_LOCAL_LLM else GROQ_MODEL
@@ -255,4 +255,6 @@ IMPORTANT_KEYWORDS = [
     "admission", "apply", "deadline", "fee", "contact",
     "email", "phone", "office", "registrar",
     "exam", "scholarship",
+    "course", "program", "faculty", "curriculum", "syllabus", "department", "subject", "outline",
+    "bs", "ms", "phd", "cs", "se", "ee", "bba", "mba"
 ]
