@@ -192,7 +192,7 @@ ANSWER:"""
 # =============================================================
 
 _ollama_client = None
-_groq_client = None
+_groq_clients = {}  # api_key -> Groq client, so each key keeps its own connection
 
 
 def _get_ollama_client():
@@ -202,18 +202,29 @@ def _get_ollama_client():
     return _ollama_client
 
 
-def _get_groq_client():
-    global _groq_client
-    if _groq_client is None:
-        if not config.GROQ_API_KEY:
-            raise RuntimeError(
-                "USE_LOCAL_LLM=false but GROQ_API_KEY is not set. "
-                "Add it to python/.env or flip USE_LOCAL_LLM back to true."
-            )
+def _get_groq_client(api_key):
+    """Return a cached Groq client for the given API key (one per key)."""
+    client = _groq_clients.get(api_key)
+    if client is None:
         from groq import Groq  # Groq client SDK for calling Groq cloud LLM API, imported lazily so local-only installs don't need the dependency
 
-        _groq_client = Groq(api_key=config.GROQ_API_KEY, timeout=config.LLM_REQUEST_TIMEOUT)
-    return _groq_client
+        client = Groq(api_key=api_key, timeout=config.LLM_REQUEST_TIMEOUT)
+        _groq_clients[api_key] = client
+    return client
+
+
+def _is_rate_limit_error(exc):
+    """Heuristic: did this Groq error come from hitting a rate / quota limit?
+
+    We match on the SDK's status_code (429) when present, otherwise on the
+    message text. Used only for logging clarity — the failover tries the next
+    key on ANY error so a dead/expired key also rolls over.
+    """
+    status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
+    if status == 429:
+        return True
+    msg = str(exc).lower()
+    return any(s in msg for s in ("rate limit", "rate_limit", "429", "quota", "too many requests"))
 
 
 def _llm_chat_gemini(messages, temperature):
@@ -248,15 +259,44 @@ def _llm_chat_gemini(messages, temperature):
 
 
 def _llm_chat_groq(messages, temperature, max_tokens):
-    """Call Groq API using the groq client library."""
-    client = _get_groq_client()
-    response = client.chat.completions.create(
-        model=config.GROQ_MODEL,
-        messages=messages,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
-    return (response.choices[0].message.content or "") if response.choices else ""
+    """Call Groq, rolling over to the next API key when one is exhausted.
+
+    `config.GROQ_API_KEYS` holds the keys in priority order (primary first,
+    then keys from secondary accounts). We try them in turn: on a rate-limit
+    (HTTP 429) — or any other failure — we move to the next key. Only when
+    every key has failed do we raise, so the caller can fail over to the next
+    provider in CLOUD_LLM_ORDER.
+    """
+    keys = config.GROQ_API_KEYS
+    if not keys:
+        raise RuntimeError(
+            "USE_LOCAL_LLM=false and Groq selected, but no GROQ_API_KEY is set. "
+            "Add GROQ_API_KEY (and optionally GROQ_API_KEY_2) to python/.env."
+        )
+
+    errors = []
+    for idx, api_key in enumerate(keys):
+        try:
+            client = _get_groq_client(api_key)
+            response = client.chat.completions.create(
+                model=config.GROQ_MODEL,
+                messages=messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+            )
+            if idx > 0:
+                print(f"  Groq answered on key #{idx + 1} (primary key was unavailable).")
+            return (response.choices[0].message.content or "") if response.choices else ""
+        except Exception as exc:
+            reason = "rate-limited" if _is_rate_limit_error(exc) else "failed"
+            errors.append(f"key#{idx + 1}: {exc}")
+            if idx < len(keys) - 1:
+                print(f"  Groq key #{idx + 1} {reason}; rolling over to key #{idx + 2}...")
+                continue
+            # Last key — give up so the caller can try the next provider.
+            raise RuntimeError(
+                f"All {len(keys)} Groq key(s) failed. Errors: {'; '.join(errors)}"
+            ) from exc
 
 
 def _llm_chat(messages, temperature, max_tokens):
@@ -569,19 +609,63 @@ def _initialize():
     _warm_llm()
 
 
-def _build_retrieval_query(question, history):
-    """Combine the current question with the most recent user turn so
-    follow-ups like "or fee" still retrieve topic-relevant chunks.
+# Markers that signal a question is an ELLIPTICAL follow-up — it leans on the
+# previous turn for its subject ("or fee?", "aur iska deadline?", "what about
+# BSCS?"). For these, and ONLY these, we prepend the prior user turn to the
+# retrieval query. A self-contained question like "Admission requirements?"
+# carries its own subject and must NOT be prepended, otherwise the previous
+# turn's topic ("what programs...") dominates the embedding and buries the
+# chunks that actually answer it.
+_ELLIPTICAL_PREFIXES = (
+    "or ", "and ", "also ", "plus ", "what about", "how about", "whatabout",
+    "aur ", "ya ", "phir ", "to ", "tou ", "ab ",
+)
+# Back-reference pronouns that, when present, mean the subject lives in history.
+_BACKREF_WORDS = {
+    "it", "its", "it's", "they", "them", "their", "this", "that", "these",
+    "those", "one", "same",
+    # Roman-Urdu pronouns / referents
+    "iska", "iski", "isko", "ispe", "uska", "uski", "usko", "uspe",
+    "inka", "inki", "unka", "unki", "yeh", "ye", "woh", "wo",
+}
 
-    Why: "or fee" alone embeds to "fees in general" and retrieves the
-    generic fee chunk. Prepending the prior user turn ("bscs admission")
-    biases the embedding back toward the actual topic being discussed.
+
+def _is_elliptical_followup(question):
+    """True if the question relies on the previous turn for its subject.
+
+    Two signals: it opens with a connector ("or...", "aur...") OR it is short
+    and contains only a back-reference pronoun as its noun ("its fee?",
+    "uska deadline?"). A question that names its own topic noun
+    ("admission requirements", "application deadlines") is self-contained
+    and returns False.
+    """
+    q = (question or "").strip().lower()
+    if not q:
+        return False
+    if q.startswith(_ELLIPTICAL_PREFIXES):
+        return True
+    words = re.findall(r"[a-z']+", q)
+    # Short question whose only "subject-ish" words are back-references.
+    if len(words) <= 4 and any(w in _BACKREF_WORDS for w in words):
+        return True
+    return False
+
+
+def _build_retrieval_query(question, history):
+    """For elliptical follow-ups, prepend the latest prior user turn so the
+    retrieval embedding regains the subject that lives in the conversation.
+
+    Why: "or fee" alone embeds to "fees in general" and retrieves the generic
+    fee chunk. Prepending the prior user turn ("bscs admission") biases the
+    embedding back toward the actual topic. But this is done ONLY for
+    elliptical follow-ups — a self-contained question keeps its own subject,
+    so prepending would only dilute it.
 
     Only the LATEST prior user message is added — older turns dilute the
     embedding without much benefit, and the prior assistant reply often
     contains too much off-topic detail to be useful here.
     """
-    if not history:
+    if not history or not _is_elliptical_followup(question):
         return question
     prior_user = None
     for msg in reversed(history):
@@ -593,6 +677,29 @@ def _build_retrieval_query(question, history):
     if not prior_user or prior_user.lower() == question.strip().lower():
         return question
     return f"{prior_user}\n{question}"
+
+
+def _merge_search_results(result_sets, top_k):
+    """Merge several (chunks, sources, scores) tuples into one ranked list.
+
+    Dedup key is the first 120 chars of the chunk text (same convention as
+    `database.search`). When a chunk appears in more than one result set we
+    keep its HIGHEST score. Used to combine a standalone-question retrieval
+    with the history-prepended one so neither view's relevant chunks are lost.
+    """
+    merged = {}
+    for chunks, sources, scores in result_sets:
+        for c, m, s in zip(chunks, sources, scores):
+            key = (c or "")[:120]
+            existing = merged.get(key)
+            if existing is None or s > existing["score"]:
+                merged[key] = {"text": c, "meta": m, "score": s}
+    ranked = sorted(merged.values(), key=lambda r: r["score"], reverse=True)[:top_k]
+    return (
+        [r["text"] for r in ranked],
+        [r["meta"] for r in ranked],
+        [r["score"] for r in ranked],
+    )
 
 
 def ask(question, language="en", history=None):
@@ -610,13 +717,31 @@ def ask(question, language="en", history=None):
     """
     _initialize()
 
+    # Retrieve for the standalone question FIRST — a complete question like
+    # "Admission requirements?" must not be diluted by the previous turn.
+    # Then, if this looks like a follow-up, ALSO retrieve with the prior user
+    # turn prepended (helps elliptical follow-ups like "or fee?") and merge.
+    # Merging keeps the best of both views instead of letting the prepended
+    # query bury the chunks that actually answer a self-contained question.
+    result_sets = [
+        database.search(
+            question=question,
+            collection=_collection,
+            model=_model,
+            top_k=config.TOP_K_RESULTS,
+        )
+    ]
     retrieval_query = _build_retrieval_query(question, history)
-    chunks, _sources, _scores = database.search(
-        question=retrieval_query,
-        collection=_collection,
-        model=_model,
-        top_k=config.TOP_K_RESULTS,
-    )
+    if retrieval_query != question:
+        result_sets.append(
+            database.search(
+                question=retrieval_query,
+                collection=_collection,
+                model=_model,
+                top_k=config.TOP_K_RESULTS,
+            )
+        )
+    chunks, _sources, _scores = _merge_search_results(result_sets, config.TOP_K_RESULTS)
 
     if not chunks:
         return NO_INFO_FALLBACK.get(language, NO_INFO_FALLBACK["en"])

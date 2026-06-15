@@ -204,15 +204,30 @@ OLLAMA_MODEL = (
 )
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
+GROQ_API_KEY_2 = os.getenv("GROQ_API_KEY_2", "")
 GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+
+# Ordered list of Groq API keys. When the primary key hits its rate/quota
+# limit (HTTP 429) the client automatically rolls over to the next key —
+# typically a key from a second free-tier account. Add as many as you like
+# via GROQ_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3 ... Empty slots are
+# skipped, and duplicates are de-duped so a left-over copy doesn't waste a
+# retry. Order is preserved (primary first).
+GROQ_API_KEYS = []
+for _gk in (GROQ_API_KEY, GROQ_API_KEY_2, os.getenv("GROQ_API_KEY_3", "")):
+    _gk = (_gk or "").strip()
+    if _gk and _gk not in GROQ_API_KEYS:
+        GROQ_API_KEYS.append(_gk)
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
-# Define fallback order for cloud LLMs
+# Define fallback order for cloud LLMs. Groq is primary (preferred for answer
+# quality and instruction-following); Gemini is the last-resort fallback if
+# every Groq key is exhausted. Override via the CLOUD_LLM_ORDER env var.
 CLOUD_LLM_ORDER = [
-    m.strip().lower() 
-    for m in os.getenv("CLOUD_LLM_ORDER", "gemini,groq").split(",") 
+    m.strip().lower()
+    for m in os.getenv("CLOUD_LLM_ORDER", "groq,gemini").split(",")
     if m.strip()
 ]
 
@@ -220,8 +235,8 @@ CLOUD_LLM_ORDER = [
 if USE_LOCAL_LLM:
     LLM_MODEL = OLLAMA_MODEL
 else:
-    # Use first available model from CLOUD_LLM_ORDER
-    LLM_MODEL = GEMINI_MODEL if CLOUD_LLM_ORDER and CLOUD_LLM_ORDER[0] == "gemini" else GROQ_MODEL
+    # Reflects the model of whichever provider is tried FIRST in CLOUD_LLM_ORDER.
+    LLM_MODEL = GEMINI_MODEL if (CLOUD_LLM_ORDER and CLOUD_LLM_ORDER[0] == "gemini") else GROQ_MODEL
 
 LLM_TEMPERATURE = 0.3                       # Lower = more focused answers (0-1)
 # Increased max tokens to 1000 to allow complete and comprehensive long answers
