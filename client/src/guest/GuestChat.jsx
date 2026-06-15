@@ -112,16 +112,24 @@ const GuestChat = () => {
 
   const suggestedTopics = [
     {
-      icon: <Book className="w-4 h-4" />,
-      text: "What programs does MAJU offer?",
+      icon: <Wallet className="w-4 h-4" />,
+      text: "What is the fee structure for the Bachelor programs?",
     },
-    { icon: <Users className="w-4 h-4" />, text: "Admission requirements?" },
-    { icon: <Calendar className="w-4 h-4" />, text: "Application deadlines?" },
-    { icon: <Wallet className="w-4 h-4" />, text: "Fee structure?" },
-    { icon: <Building className="w-4 h-4" />, text: "Campus facilities?" },
     {
-      icon: <MessageCircle className="w-4 h-4" />,
-      text: "Contact information?",
+      icon: <Users className="w-4 h-4" />,
+      text: "What documents are required at the time of admission?",
+    },
+    {
+      icon: <Building className="w-4 h-4" />,
+      text: "Is MAJU recognized by H.E.C?",
+    },
+    {
+      icon: <Book className="w-4 h-4" />,
+      text: "In which areas MAJU offer degrees?",
+    },
+    {
+      icon: <Sparkles className="w-4 h-4" />,
+      text: "Does MAJU offer any scholarships?",
     },
   ];
 
