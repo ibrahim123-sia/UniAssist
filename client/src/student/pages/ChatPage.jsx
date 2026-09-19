@@ -1,8 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import { useDispatch, useSelector } from "react-redux";
+import { useSelector } from "react-redux";
 import axios from "../../utils/axios";
-import { setChats, setSelectedChat } from "../../redux/slices/chatSlice";
 import Message from "../components/Message";
 import toast from "react-hot-toast";
 import {
@@ -20,7 +19,6 @@ import {
 
 const ChatPage = () => {
   const containRef = useRef(null);
-  const dispatch = useDispatch();
   const selectedChat = useSelector((s) => s.chat.selectedChat);
   const theme = useSelector((s) => s.theme.theme);
   const user = useSelector((s) => s.auth.user);
@@ -251,11 +249,12 @@ const ChatPage = () => {
     toast.info("Recording cancelled");
   };
 
-  // Process voice message
-  // Process voice message - FIXED VERSION
+  // Process voice message: transcribe ONLY and drop the text into the input
+  // field. The user reviews/edits it and presses Send themselves — nothing
+  // is pushed to the chat or the AI automatically.
   const processVoiceMessage = async (audioBlob, duration) => {
     if (!user || !selectedChat) {
-      toast.error("Please login and select a chat to send voice messages");
+      toast.error("Please login and select a chat to record voice messages");
       return;
     }
 
@@ -282,49 +281,16 @@ const ChatPage = () => {
     }
 
     setIsProcessingVoice(true);
-    setLoading(true);
-
-    let tempMessageId = Date.now();
 
     try {
-      // Step 1: Show temporary message ONLY IN FRONTEND (not sent to backend)
-      const tempVoiceMessage = {
-        id: tempMessageId,
-        role: "user",
-        content: "[Processing voice message...]",
-        timestamp: Date.now(),
-        type: "voice",
-        voiceMeta: {
-          duration: duration,
-          fileSize: sizeMB.toFixed(2),
-        },
-        isProcessing: true,
-      };
-
-      // Add temporary message to local state only
-      setMessages((prev) => [...prev, tempVoiceMessage]);
-
-      // Scroll to bottom
-      setTimeout(() => {
-        if (containRef.current) {
-          containRef.current.scrollTo({
-            top: containRef.current.scrollHeight,
-            behavior: "smooth",
-          });
-        }
-      }, 100);
-
-      // Step 2: Convert blob to base64 for API
       const base64Audio = await blobToBase64(audioBlob);
 
-      // Step 3: Call your backend API with timeout
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 90000);
 
       const response = await axios.post(
-        "/api/message/voice",
+        "/api/message/transcribe",
         {
-          chatId: selectedChat._id,
           audioUrl: base64Audio,
           duration: duration,
           fileSize: sizeMB.toFixed(2),
@@ -340,45 +306,13 @@ const ChatPage = () => {
 
       clearTimeout(timeoutId);
 
-      if (response.data.success) {
-        // Step 4: Replace temporary message with actual transcription from backend
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === tempMessageId
-              ? {
-                  ...msg,
-                  content:
-                    response.data.transcription || "Voice message transcribed",
-                  isProcessing: false,
-                  voiceMeta: {
-                    ...msg.voiceMeta,
-                    wasTranscribed: true,
-                    transcriptionService:
-                      response.data.transcriptionDetails?.service || "unknown",
-                    isFallback:
-                      response.data.transcriptionDetails?.isFallback || false,
-                  },
-                }
-              : msg
-          )
-        );
+      if (response.data.success && response.data.transcription) {
+        // Put the transcription into the text box instead of sending it —
+        // the user can edit it before hitting Send.
+        setPrompt(response.data.transcription);
 
-        // Step 5: Add AI response from backend
-        if (response.data.reply) {
-          const aiMessage = {
-            role: "assistant",
-            content: response.data.reply.content,
-            timestamp: Date.now(),
-            type: "text",
-            isVoiceResponse: true,
-          };
-          setMessages((prev) => [...prev, aiMessage]);
-        }
+        toast.success("Voice transcribed. Review and send when ready.");
 
-        // Show success message
-        toast.success("Voice message processed successfully!");
-
-        // Show warning for fallback transcription
         if (response.data.transcriptionDetails?.isFallback) {
           toast(
             "Voice transcribed with basic fallback. Text may be less accurate.",
@@ -388,27 +322,7 @@ const ChatPage = () => {
             }
           );
         }
-
-        try {
-          const { data } = await axios.get("/api/chat/all", {
-            headers: { Authorization: token },
-          });
-          if (data.success) {
-            dispatch(setChats(data.chats));
-            const updatedChat = data.chats.find(
-              (c) => c._id === selectedChat._id
-            );
-            if (updatedChat) {
-              dispatch(setSelectedChat(updatedChat));
-            }
-          }
-        } catch (refreshError) {
-          console.error("Failed to refresh chats:", refreshError);
-        }
       } else {
-        // Remove temporary message on error
-        setMessages((prev) => prev.filter((msg) => msg.id !== tempMessageId));
-
         if (
           response.data.message?.includes("No speech detected") ||
           response.data.message?.includes("too short")
@@ -418,13 +332,12 @@ const ChatPage = () => {
           );
         } else {
           toast.error(
-            response.data.message || "Failed to process voice message"
+            response.data.message || "Failed to transcribe voice message"
           );
         }
       }
     } catch (error) {
-      console.error("Error processing voice:", error);
-      setMessages((prev) => prev.filter((msg) => msg.id !== tempMessageId));
+      console.error("Error transcribing voice:", error);
 
       if (error.name === "AbortError") {
         toast.error("Request timeout. Please try again.");
@@ -445,13 +358,12 @@ const ChatPage = () => {
           toast.error(errorMsg);
         }
       } else if (error.response?.status === 500) {
-        toast.error("Server error processing voice. Please try again.");
+        toast.error("Server error transcribing voice. Please try again.");
       } else {
-        toast.error("Failed to process voice message. Please try again.");
+        toast.error("Failed to transcribe voice message. Please try again.");
       }
     } finally {
       setIsProcessingVoice(false);
-      setLoading(false);
     }
   };
 
@@ -737,7 +649,7 @@ const ChatPage = () => {
                   onClick={stopRecording}
                   className="px-5 py-2 bg-[#E63027] hover:bg-[#C81E15] text-white rounded-lg text-sm font-medium transition-colors"
                 >
-                  Send
+                  Stop &amp; Transcribe
                 </button>
               </div>
             </div>

@@ -522,6 +522,102 @@ export const voiceMessageController = async (req, res) => {
   }
 };
 
+// Transcribe-only Controller — converts audio to text WITHOUT saving a chat
+// message or calling the LLM. The frontend drops the result into the text
+// input so the user can edit it before actually sending.
+export const transcribeMessageController = async (req, res) => {
+  let tempFilePath = null;
+
+  try {
+    const { audioUrl } = req.body;
+
+    if (!audioUrl) {
+      return res.status(400).json({
+        success: false,
+        message: "Audio data is required",
+      });
+    }
+
+    if (!audioUrl.startsWith('data:audio/')) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid audio format. Expected base64 audio data.",
+      });
+    }
+
+    // Determine file extension
+    let fileExtension = 'webm';
+    const mimeMatch = audioUrl.match(/data:audio\/([^;]+);/);
+    if (mimeMatch) {
+      const mimeType = mimeMatch[1];
+      if (mimeType.includes('wav')) fileExtension = 'wav';
+      else if (mimeType.includes('mp3')) fileExtension = 'mp3';
+      else if (mimeType.includes('ogg')) fileExtension = 'ogg';
+      else if (mimeType.includes('m4a')) fileExtension = 'm4a';
+    }
+
+    tempFilePath = saveBase64ToTempFile(audioUrl, fileExtension);
+
+    const validation = validateAudioQuality(tempFilePath);
+    if (!validation.valid) {
+      return res.status(400).json({
+        success: false,
+        message: validation.error,
+      });
+    }
+
+    let transcription = await transcribeWithPython(tempFilePath);
+
+    if (!transcription.success) {
+      transcription = await transcribeWithBasicFallback(tempFilePath);
+
+      if (!transcription.success) {
+        return res.status(500).json({
+          success: false,
+          message: "Failed to transcribe voice message. Please try again or use text input.",
+        });
+      }
+    }
+
+    const transcribedText = transcription.text.trim();
+
+    if (!transcribedText) {
+      return res.status(400).json({
+        success: false,
+        message: "No speech detected in your recording. Please speak clearly and try again.",
+      });
+    }
+
+    if (transcription.isFallback && transcribedText.includes('[Voice message received')) {
+      return res.status(400).json({
+        success: false,
+        message: "Could not transcribe voice message. Please speak more clearly or try text input.",
+        suggestion: "Speak louder and more clearly, or reduce background noise.",
+      });
+    }
+
+    res.json({
+      success: true,
+      transcription: transcribedText,
+      transcriptionDetails: {
+        service: transcription.service,
+        isFallback: transcription.isFallback || false,
+        audioFormat: fileExtension,
+      },
+    });
+  } catch (error) {
+    console.error("Voice transcription error:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Error transcribing voice message: " + error.message,
+    });
+  } finally {
+    if (tempFilePath) {
+      cleanupTempFile(tempFilePath);
+    }
+  }
+};
+
 // Health check - Updated to check Python backend
 export const transcriptionHealth = async (req, res) => {
   try {
@@ -596,6 +692,7 @@ export default {
   textMessageController,
   emailMessageController,
   voiceMessageController,
+  transcribeMessageController,
   transcriptionHealth,
   testPythonBackend
 };
