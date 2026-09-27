@@ -76,3 +76,6 @@ python/data/urls.txt
 # OS
 .DS_Store
 Thumbs.db
+
+# portfolio screenshot gallery (kept locally, not committed)
+screenshots/
