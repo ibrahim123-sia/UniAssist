@@ -57,6 +57,8 @@ venv/
 .env/
 Lib/
 Scripts/
+# ...but keep the server's own scripts (Windows matches Scripts/ case-insensitively)
+!server/scripts/
 Include/
 __pycache__/
 *.pyc
@@ -67,6 +69,7 @@ python/chroma_db/
 python/data/clean_pages.json
 python/data/chunks.json
 python/data/urls.txt
+python/data/preserved_admin_chunks.json
 
 # ML / torch large binaries
 *.dll
@@ -79,3 +82,6 @@ Thumbs.db
 
 # portfolio screenshot gallery (kept locally, not committed)
 screenshots/
+
+# Local admin credentials written by scripts/createAdmin.js
+.admin-credentials.txt
