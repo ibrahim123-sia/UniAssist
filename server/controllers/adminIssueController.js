@@ -1,26 +1,37 @@
 import mongoose from "mongoose";
 import Issue from "../models/Issue.js";
+import User from "../models/User.js";
+import { escapeRegex } from "../utils/regex.js";
 
 export const listAllIssues = async (req, res) => {
   try {
     const limit = Math.min(parseInt(req.query.limit) || 25, 100);
     const offset = Math.max(parseInt(req.query.offset) || 0, 0);
-    const { departmentId, status, category, search, dateFrom, dateTo } = req.query;
+    const { departmentId, status, category, search, dateFrom, dateTo, escalated } = req.query;
     const filter = {};
-    if (departmentId) filter.department = departmentId;
-    if (status) filter.status = status;
-    if (category) filter.category = category;
-    if (dateFrom || dateTo) {
+    if (departmentId) {
+      if (!mongoose.isValidObjectId(departmentId)) return res.json({ success: true, issues: [], total: 0 });
+      filter.department = departmentId;
+    }
+    if (status) filter.status = String(status);
+    if (category) filter.category = String(category);
+    // Escalated by the SLA scheduler (services/scheduler.js).
+    if (escalated === "true") filter.escalated = true;
+    else if (escalated === "false") filter.escalated = { $ne: true };
+    const from = dateFrom ? new Date(dateFrom) : null;
+    const to = dateTo ? new Date(dateTo) : null;
+    if ((from && !isNaN(from)) || (to && !isNaN(to))) {
       filter.createdAt = {};
-      if (dateFrom) filter.createdAt.$gte = new Date(dateFrom);
-      if (dateTo) filter.createdAt.$lte = new Date(dateTo);
+      if (from && !isNaN(from)) filter.createdAt.$gte = from;
+      if (to && !isNaN(to)) filter.createdAt.$lte = to;
     }
     if (search) {
+      const pattern = escapeRegex(search);
       filter.$or = [
-        { title: { $regex: search, $options: "i" } },
-        { description: { $regex: search, $options: "i" } },
-        { studentName: { $regex: search, $options: "i" } },
-        { studentEmail: { $regex: search, $options: "i" } },
+        { title: { $regex: pattern, $options: "i" } },
+        { description: { $regex: pattern, $options: "i" } },
+        { studentName: { $regex: pattern, $options: "i" } },
+        { studentEmail: { $regex: pattern, $options: "i" } },
       ];
     }
 
@@ -54,10 +65,27 @@ export const getIssueAnalytics = async (req, res) => {
         { $limit: 10 },
       ]),
       Issue.aggregate([
-        { $group: { _id: "$department", count: { $sum: 1 } } },
+        {
+          $group: {
+            _id: "$department",
+            count: { $sum: 1 },
+            // Student feedback (1-5) on resolved/closed issues.
+            avgRating: { $avg: "$feedback.rating" },
+            ratingsCount: { $sum: { $cond: [{ $isNumber: "$feedback.rating" }, 1, 0] } },
+          },
+        },
         { $lookup: { from: "departments", localField: "_id", foreignField: "_id", as: "dept" } },
         { $unwind: "$dept" },
-        { $project: { _id: 0, code: "$dept.code", name: "$dept.name", count: 1 } },
+        {
+          $project: {
+            _id: 0,
+            code: "$dept.code",
+            name: "$dept.name",
+            count: 1,
+            avgRating: { $round: ["$avgRating", 2] },
+            ratingsCount: 1,
+          },
+        },
         { $sort: { count: -1 } },
       ]),
       Issue.aggregate([{ $group: { _id: "$status", count: { $sum: 1 } } }]),
@@ -121,5 +149,84 @@ export const getAdminIssue = async (req, res) => {
   } catch (error) {
     console.error("getAdminIssue error:", error);
     res.status(500).json({ success: false, message: "Failed to load issue" });
+  }
+};
+
+// ---------------------------------------------------------------------------
+// GET /api/admin/staff/performance
+//   Per staff member: assigned / resolved / open counts, mean time to first
+//   response (on issues they responded to first) and mean student rating (on
+//   issues assigned to them, else first responded to by them). Three
+//   aggregations, merged in memory — no per-staff queries.
+// ---------------------------------------------------------------------------
+
+const round = (n, digits) => (typeof n === "number" ? +n.toFixed(digits) : null);
+
+export const getStaffPerformance = async (req, res) => {
+  try {
+    const [staff, workload, responses, ratings] = await Promise.all([
+      User.find({ role: "staff" })
+        .select("name email department isBlocked")
+        .populate("department", "code name")
+        .sort({ name: 1 })
+        .lean(),
+      Issue.aggregate([
+        { $match: { assignedTo: { $ne: null } } },
+        {
+          $group: {
+            _id: "$assignedTo",
+            assigned: { $sum: 1 },
+            resolved: { $sum: { $cond: [{ $in: ["$status", ["Resolved", "Closed"]] }, 1, 0] } },
+            open: { $sum: { $cond: [{ $in: ["$status", ["Pending", "In Progress"]] }, 1, 0] } },
+          },
+        },
+      ]),
+      Issue.aggregate([
+        { $match: { firstResponderId: { $ne: null }, firstStaffResponseAt: { $ne: null } } },
+        {
+          $group: {
+            _id: "$firstResponderId",
+            avgMs: { $avg: { $subtract: ["$firstStaffResponseAt", "$createdAt"] } },
+          },
+        },
+      ]),
+      Issue.aggregate([
+        { $match: { "feedback.rating": { $gte: 1 } } },
+        { $project: { rating: "$feedback.rating", staffId: { $ifNull: ["$assignedTo", "$firstResponderId"] } } },
+        { $match: { staffId: { $ne: null } } },
+        { $group: { _id: "$staffId", avgRating: { $avg: "$rating" }, ratingsCount: { $sum: 1 } } },
+      ]),
+    ]);
+
+    const byId = (rows) => new Map(rows.map((r) => [String(r._id), r]));
+    const workloadMap = byId(workload);
+    const responseMap = byId(responses);
+    const ratingMap = byId(ratings);
+
+    res.json({
+      success: true,
+      staff: staff.map((s) => {
+        const id = String(s._id);
+        const w = workloadMap.get(id);
+        const r = responseMap.get(id);
+        const f = ratingMap.get(id);
+        return {
+          _id: s._id,
+          name: s.name,
+          email: s.email,
+          department: s.department || null,
+          isBlocked: Boolean(s.isBlocked),
+          assigned: w?.assigned || 0,
+          resolved: w?.resolved || 0,
+          open: w?.open || 0,
+          avgFirstResponseHours: r ? round(r.avgMs / 3600000, 1) : null,
+          avgRating: f ? round(f.avgRating, 2) : null,
+          ratingsCount: f?.ratingsCount || 0,
+        };
+      }),
+    });
+  } catch (error) {
+    console.error("getStaffPerformance error:", error);
+    res.status(500).json({ success: false, message: "Failed to load staff performance" });
   }
 };

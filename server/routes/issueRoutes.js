@@ -2,6 +2,7 @@ import express from "express";
 import { protect } from "../middlewares/auth.js";
 import { requireRole } from "../middlewares/requireRole.js";
 import { issueUpload, handleUploadError } from "../middlewares/upload.js";
+import { complaintFromChatLimiter } from "../middlewares/rateLimit.js";
 import {
   createIssue,
   getMyIssues,
@@ -14,6 +15,9 @@ import {
   getDeptStats,
   assignIssue,
   listDeptStaff,
+  getDepartmentSuggestion,
+  createIssueFromChat,
+  submitIssueFeedback,
 } from "../controllers/issueController.js";
 
 const router = express.Router();
@@ -26,6 +30,10 @@ router.patch("/department/:id/status", protect, requireRole("staff"), updateIssu
 router.patch("/department/:id/assign", protect, requireRole("staff"), assignIssue);
 router.post("/department/:id/sfo-reply", protect, requireRole("staff"), addStaffReply);
 
+// "Register a complaint" from the student chat. Must stay above /:id.
+router.get("/department-suggestion", protect, requireRole("student"), getDepartmentSuggestion);
+router.post("/from-chat", protect, requireRole("student"), complaintFromChatLimiter, createIssueFromChat);
+
 router.post(
   "/",
   protect,
@@ -37,5 +45,6 @@ router.post(
 router.get("/my", protect, getMyIssues);
 router.get("/:id", protect, getMyIssueById);
 router.post("/:id/reply", protect, addStudentReply);
+router.post("/:id/feedback", protect, requireRole("student"), submitIssueFeedback);
 
 export default router;

@@ -2,6 +2,7 @@ import User from "../models/User.js";
 import Issue from "../models/Issue.js";
 import Department from "../models/Department.js";
 import Chat from "../models/Chat.js";
+import UnansweredQuestion from "../models/UnansweredQuestion.js";
 
 export const getAdminStats = async (req, res) => {
   try {
@@ -21,6 +22,8 @@ export const getAdminStats = async (req, res) => {
       deptActive,
       chatTotal,
       recentSignups,
+      openQuestions,
+      escalatedOpen,
     ] = await Promise.all([
       User.countDocuments({}),
       User.aggregate([{ $group: { _id: "$role", count: { $sum: 1 } } }]),
@@ -45,6 +48,9 @@ export const getAdminStats = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(5)
         .select("name email createdAt isBlocked"),
+      UnansweredQuestion.countDocuments({ status: "open" }),
+      // SLA-escalated issues still waiting on the department.
+      Issue.countDocuments({ escalated: true, status: { $in: ["Pending", "In Progress"] } }),
     ]);
 
     const roleMap = usersByRole.reduce((acc, r) => ({ ...acc, [r._id || "student"]: r.count }), {});
@@ -85,6 +91,8 @@ export const getAdminStats = async (req, res) => {
         departments: { total: deptTotal, active: deptActive },
         chats: { total: chatTotal },
         recentSignups,
+        openQuestions,
+        escalatedOpen,
       },
     });
   } catch (error) {

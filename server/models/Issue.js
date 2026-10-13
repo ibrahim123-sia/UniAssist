@@ -30,6 +30,18 @@ const replySchema = new mongoose.Schema(
   { _id: true }
 );
 
+// Student's rating once the issue is Resolved/Closed (one submission only).
+const feedbackSchema = new mongoose.Schema(
+  {
+    rating: { type: Number, required: true, min: 1, max: 5 },
+    comment: { type: String, trim: true, default: "", maxlength: 1000 },
+    submittedAt: { type: Date, default: Date.now },
+  },
+  { _id: false }
+);
+
+export const ISSUE_SOURCES = ["form", "chatbot"];
+
 const issueSchema = new mongoose.Schema(
   {
     studentId: {
@@ -56,6 +68,7 @@ const issueSchema = new mongoose.Schema(
       type: String,
       required: [true, "Description is required"],
       trim: true,
+      maxlength: 5000,
     },
     category: {
       type: String,
@@ -77,6 +90,16 @@ const issueSchema = new mongoose.Schema(
       ref: "User",
       default: null,
     },
+    // "chatbot" = registered from a chat via POST /api/issue/from-chat.
+    source: { type: String, enum: ISSUE_SOURCES, default: "form" },
+    chatId: { type: mongoose.Schema.Types.ObjectId, ref: "Chat", default: null },
+    // First staff reply / status change / assign — the SLA clock stops here.
+    firstStaffResponseAt: { type: Date, default: null },
+    firstResponderId: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+    // Set once by the SLA scheduler (services/scheduler.js) and kept as history.
+    escalated: { type: Boolean, default: false, index: true },
+    escalatedAt: { type: Date, default: null },
+    feedback: { type: feedbackSchema, default: null },
     // Last write metadata — used by the staff UI to show "Sara just resolved this"
     // banners and for concurrency-conflict messages.
     lastEvent: {
@@ -88,8 +111,13 @@ const issueSchema = new mongoose.Schema(
       note: { type: String, default: "" }, // e.g. previous->new status
     },
   },
-  { timestamps: true }
+  // Concurrent staff saves fail with VersionError instead of silently
+  // overwriting each other (see issueController versionConflict).
+  { timestamps: true, optimisticConcurrency: true }
 );
+
+// Duplicate check for complaints registered from the same chat.
+issueSchema.index({ studentId: 1, chatId: 1 });
 
 const Issue = mongoose.model("Issue", issueSchema);
 
