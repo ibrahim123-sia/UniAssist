@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import Notification from "../models/Notification.js";
 
 export const listNotifications = async (req, res) => {
@@ -30,6 +31,9 @@ export const getUnreadCount = async (req, res) => {
 
 export const markRead = async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(404).json({ success: false, message: "Notification not found" });
+    }
     const notif = await Notification.findOne({
       _id: req.params.id,
       userId: req.user._id,

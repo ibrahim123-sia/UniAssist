@@ -1,22 +1,33 @@
+import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
+
+const MAX_CHAT_NAME = 100;
+const MAX_CHATS_LISTED = 200; // sidebar: newest 200 chats
+
+const notFound = (res) => res.status(404).json({ success: false, message: "Chat not found" });
+
+// Malformed ids would otherwise surface as a CastError (500).
+const validId = (id) => mongoose.isValidObjectId(id);
+
+const serverError = (res, label, error) => {
+  console.error(`${label} error:`, error);
+  return res.status(500).json({ success: false, message: "Something went wrong. Please try again." });
+};
 
 // Create a new chat
 export const createChat = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const { name, type } = req.body;
+    const rawName = typeof req.body?.name === "string" ? req.body.name.trim() : "";
 
-    const chatData = {
-      userId,
+    const chat = await Chat.create({
+      userId: req.user._id,
       messages: [],
-      name: name || "New Chat",
+      name: rawName.slice(0, MAX_CHAT_NAME) || "New Chat",
       userName: req.user.name,
-    };
-    
-    const chat = await Chat.create(chatData);
-    
-    res.json({ 
-      success: true, 
+    });
+
+    res.json({
+      success: true,
       message: "Chat Created",
       chat: {
         _id: chat._id,
@@ -27,151 +38,116 @@ export const createChat = async (req, res) => {
       }
     });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    serverError(res, "createChat", error);
   }
 };
 
 // Get all chats for user
 export const getChats = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const chats = await Chat.find({ userId })
+    const chats = await Chat.find({ userId: req.user._id })
       .sort({ updatedAt: -1 })
+      .limit(MAX_CHATS_LISTED)
       .select('_id name messages createdAt updatedAt');
 
     res.json({ success: true, chats });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    serverError(res, "getChats", error);
   }
 };
 
 // Get single chat by ID
 export const getChatById = async (req, res) => {
   try {
-    const userId = req.user._id;
     const { chatId } = req.params;
+    if (!validId(chatId)) return notFound(res);
 
-    const chat = await Chat.findOne({ _id: chatId, userId });
-    if (!chat) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Chat not found" 
-      });
-    }
+    const chat = await Chat.findOne({ _id: chatId, userId: req.user._id });
+    if (!chat) return notFound(res);
 
     res.json({ success: true, chat });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    serverError(res, "getChatById", error);
   }
 };
 
 // Delete chat
 export const deleteChat = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const { chatId } = req.body;
+    const { chatId } = req.body ?? {};
+    if (!validId(chatId)) return notFound(res);
 
-    const result = await Chat.deleteOne({ _id: chatId, userId });
-    
-    if (result.deletedCount === 0) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Chat not found" 
-      });
-    }
+    const result = await Chat.deleteOne({ _id: chatId, userId: req.user._id });
+    if (result.deletedCount === 0) return notFound(res);
 
     res.json({ success: true, message: "Chat deleted" });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    serverError(res, "deleteChat", error);
   }
 };
 
 // Update chat name
 export const updateChatName = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const { chatId, name } = req.body;
+    const { chatId, name } = req.body ?? {};
 
-    if (!name || name.trim() === '') {
-      return res.status(400).json({ 
-        success: false, 
-        message: "Chat name is required" 
-      });
+    if (typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ success: false, message: "Chat name is required" });
     }
+    if (!validId(chatId)) return notFound(res);
 
     const chat = await Chat.findOneAndUpdate(
-      { _id: chatId, userId },
-      { name: name.trim() },
-      { new: true, runValidators: true }
+      { _id: chatId, userId: req.user._id },
+      { name: name.trim().slice(0, MAX_CHAT_NAME) },
+      { returnDocument: "after", runValidators: true }
     );
+    if (!chat) return notFound(res);
 
-    if (!chat) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Chat not found" 
-      });
-    }
-
-    res.json({ 
-      success: true, 
+    res.json({
+      success: true,
       message: "Chat name updated",
       chat: { _id: chat._id, name: chat.name }
     });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    serverError(res, "updateChatName", error);
   }
 };
 
 // Clear all messages in a chat (keep chat record)
 export const clearChatMessages = async (req, res) => {
   try {
-    const userId = req.user._id;
-    const { chatId } = req.body;
+    const { chatId } = req.body ?? {};
+    if (!validId(chatId)) return notFound(res);
 
     const chat = await Chat.findOneAndUpdate(
-      { _id: chatId, userId },
+      { _id: chatId, userId: req.user._id },
       { messages: [] },
-      { new: true }
+      { returnDocument: "after" }
     );
-
-    if (!chat) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Chat not found" 
-      });
-    }
+    if (!chat) return notFound(res);
 
     res.json({ success: true, message: "Chat messages cleared", chat });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    serverError(res, "clearChatMessages", error);
   }
 };
 
 // Get chat statistics (voice count, email count, etc.)
 export const getChatStats = async (req, res) => {
   try {
-    const userId = req.user._id;
     const { chatId } = req.params;
+    if (!validId(chatId)) return notFound(res);
 
-    const chat = await Chat.findOne({ _id: chatId, userId });
-    if (!chat) {
-      return res.status(404).json({ 
-        success: false, 
-        message: "Chat not found" 
-      });
-    }
+    const chat = await Chat.findOne({ _id: chatId, userId: req.user._id });
+    if (!chat) return notFound(res);
 
-    // Count different message types
     const stats = chat.messages.reduce((acc, message) => {
       acc.totalMessages++;
-      
       if (message.type === 'voice') acc.voiceMessages++;
       if (message.type === 'email') acc.emailMessages++;
       if (message.type === 'text') acc.textMessages++;
-      
       if (message.role === 'user') acc.userMessages++;
       if (message.role === 'assistant') acc.aiMessages++;
-      
       return acc;
     }, {
       totalMessages: 0,
@@ -184,6 +160,6 @@ export const getChatStats = async (req, res) => {
 
     res.json({ success: true, stats });
   } catch (error) {
-    res.json({ success: false, message: error.message });
+    serverError(res, "getChatStats", error);
   }
 };

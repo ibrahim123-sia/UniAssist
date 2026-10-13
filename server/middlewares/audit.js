@@ -1,7 +1,7 @@
 import AuditLog from "../models/AuditLog.js";
 
 // Trim noisy fields out of the recorded payload
-const REDACT_KEYS = ["password", "newPassword", "otp", "token"];
+const REDACT_KEYS = ["password", "newPassword", "currentPassword", "otp", "token", "appPassword", "appPasswordEnc"];
 
 const redactPayload = (obj) => {
   if (!obj || typeof obj !== "object") return obj;
@@ -25,6 +25,8 @@ export const auditAdminWrites = (req, res, next) => {
         body?.user?._id ||
         body?.department?._id ||
         body?.issue?._id ||
+        body?.listing?._id ||
+        body?.question?._id ||
         "";
       const targetId = req.params?.id || targetIdFromBody || "";
       const action = `${req.method} ${req.baseUrl}${req.route?.path || ""}`.trim();

@@ -12,18 +12,23 @@ import {
 } from '../controllers/userController.js'
 import { protect } from '../middlewares/auth.js'
 import { avatarUpload, handleUploadError } from '../middlewares/upload.js'
+import {
+  loginLimiter,
+  loginIpLimiter,
+  otpSendLimiter,
+  otpSendIpLimiter,
+  otpVerifyLimiter,
+} from '../middlewares/rateLimit.js'
 
 const userRouter = express.Router()
 
-// Apply rate limiter to OTP-related routes
-userRouter.post('/resend-otp', resentOtp)
-userRouter.post('/forgot-password', forgetPassword)
-
-// Public routes
-userRouter.post('/register', registerUser)
-userRouter.post('/verify-otp', verifyOtp)
-userRouter.post('/reset-password', resetPassword)
-userRouter.post('/login', loginUser)
+// Public routes — rate limited (OTP brute force, email bombing, password spraying)
+userRouter.post('/register', otpSendIpLimiter, otpSendLimiter, registerUser)
+userRouter.post('/resend-otp', otpSendIpLimiter, otpSendLimiter, resentOtp)
+userRouter.post('/forgot-password', otpSendIpLimiter, otpSendLimiter, forgetPassword)
+userRouter.post('/verify-otp', otpVerifyLimiter, verifyOtp)
+userRouter.post('/reset-password', otpVerifyLimiter, resetPassword)
+userRouter.post('/login', loginIpLimiter, loginLimiter, loginUser)
 
 // Protected routes
 userRouter.get('/get', protect, getUser)

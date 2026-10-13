@@ -1,11 +1,17 @@
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
-import nodemailer from "nodemailer";
-import User from "../models/User.js";
+import User, { EMAIL_REGEX } from "../models/User.js";
 import LoginEvent from "../models/LoginEvent.js";
-import rateLimit from "express-rate-limit";
+import {
+  transporter,
+  escapeHtml,
+  isEmailConfigured,
+  isEmailNotConfigured,
+  EMAIL_NOT_CONFIGURED_MESSAGE,
+} from "../services/mailer.js";
 
 const recordLogin = (req, email, userId, success, reason = "") =>
   LoginEvent.create({
@@ -17,37 +23,17 @@ const recordLogin = (req, email, userId, success, reason = "") =>
     userAgent: req.headers["user-agent"] || "",
   }).catch((err) => console.error("recordLogin failed:", err.message));
 
-// Gmail Transporter with App Password - REMOVE SPACES FROM PASSWORD!
-const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // true for 465, false for 587
-  auth: {
-    user: process.env.EMAIL_USER, // syedibrahimali1111@gmail.com
-    pass: process.env.EMAIL_PASS // 16-char App Password NO SPACES
-  },
-  tls: {
-    rejectUnauthorized: false,
-    ciphers: 'SSLv3'
-  }
-});
+const OTP_TTL_MS = 5 * 60 * 1000;
+const OTP_RESEND_COOLDOWN_MS = 60 * 1000;
+const MAX_OTP_ATTEMPTS = 5;
+const MAX_LOGIN_ATTEMPTS = 5;
+const LOCK_DURATION_MS = 15 * 60 * 1000;
 
-// Test connection on startup
-transporter.verify(function(error, success) {
-  if (error) {
-    console.log("❌ Gmail SMTP Error:", error.message);
-    console.log("Fix: 1) Remove spaces from App Password 2) Enable 2FA on Google");
-  } else {
-    console.log("✅ Gmail SMTP Connected");
-  }
-});
-
-// CORRECTED Regex patterns for email validation
-// Format: sp/fa + (20-26) + (bscs|bsai|bsse|bsbc) + (0000-9999) + @maju.edu.pk
+// Format: sp/fa + 2-digit year + program + 4-digit roll @maju.edu.pk
 // Examples: sp23bscs0178@maju.edu.pk, fa24bsai1234@maju.edu.pk
-const MAJU_EMAIL_REGEX = /^(sp|fa)(2[0-6])(bscs|bsai|bsse|bsbc)([0-9]{4})@maju\.edu\.pk$/i;
+const MAJU_EMAIL_REGEX = /^(sp|fa)(\d{2})(bscs|bsai|bsse|bsbc)([0-9]{4})@maju\.edu\.pk$/i;
+const FIRST_INTAKE_YEAR = 20;
 
-// Program codes mapping - Updated to only include specified programs
 const PROGRAM_CODES = {
   'bscs': 'BS Computer Science',
   'bsai': 'BS Artificial Intelligence',
@@ -55,72 +41,38 @@ const PROGRAM_CODES = {
   'bsbc': 'BS Business Computing'
 };
 
-// Helper function to validate MAJU email
 const validateMajuEmail = (email) => {
+  if (typeof email !== "string") return { isValid: false, error: "Invalid email format" };
   const trimmedEmail = email.trim().toLowerCase();
   const match = trimmedEmail.match(MAJU_EMAIL_REGEX);
-  
-  if (!match) {
+  if (!match) return { isValid: false, error: "Invalid email format" };
+
+  const sessionType = match[1].toLowerCase();
+  const yearNum = parseInt(match[2], 10);
+  const programCode = match[3].toLowerCase();
+  const rollNumber = match[4];
+
+  // Intake year runs from 2020 up to next year (students can register before
+  // their first semester starts) — computed so the regex never goes stale.
+  const maxYear = (new Date().getFullYear() % 100) + 1;
+  if (yearNum < FIRST_INTAKE_YEAR || yearNum > maxYear) {
     return {
       isValid: false,
-      error: "Invalid email format"
+      error: `Invalid year. Must be between ${FIRST_INTAKE_YEAR} and ${maxYear}`,
     };
   }
-  
-  // Extract parts from regex groups
-  const sessionType = match[1]?.toLowerCase(); // sp or fa
-  const year = match[2]; // 20-26
-  const programCode = match[3]?.toLowerCase(); // bscs, bsai, bsse, bsbc
-  const rollNumber = match[4]; // 0178, 1234, etc. (0000-9999)
-  
-  // Validate session (sp or fa) - regex already ensures this
-  if (!['sp', 'fa'].includes(sessionType)) {
-    return {
-      isValid: false,
-      error: "Invalid session. Must be 'sp' (Spring) or 'fa' (Fall)"
-    };
-  }
-  
-  // Validate year (20-26) - regex already ensures this but double-check
-  const yearNum = parseInt(year);
-  if (yearNum < 20 || yearNum > 26) {
-    return {
-      isValid: false,
-      error: "Invalid year. Must be between 20 and 26 (2020-2026)"
-    };
-  }
-  
-  // Validate program code - regex already ensures this but double-check
-  if (!PROGRAM_CODES[programCode]) {
-    const validPrograms = Object.keys(PROGRAM_CODES).join(', ');
-    return {
-      isValid: false,
-      error: `Invalid program code. Valid codes: ${validPrograms}`
-    };
-  }
-  
-  // Validate roll number (0000-9999) - regex already ensures 4 digits
-  const rollNum = parseInt(rollNumber);
-  if (rollNum < 0 || rollNum > 9999) {
-    return {
-      isValid: false,
-      error: "Invalid roll number. Must be between 0000 and 9999"
-    };
-  }
-  
+
   return {
     isValid: true,
     email: trimmedEmail,
     sessionType,
     year: yearNum,
     programCode,
-    rollNumber: rollNumber, // Keep as string with leading zeros
+    rollNumber,
     programName: PROGRAM_CODES[programCode],
-    fullFormat: `${sessionType}${year}${programCode}${rollNumber}@maju.edu.pk`
   };
 };
 
-// Helper function to hash password
 const hashPassword = async (password) => {
   if (!password || password.length < 6) {
     throw new Error("Password must be at least 6 characters long");
@@ -129,17 +81,21 @@ const hashPassword = async (password) => {
   return await bcrypt.hash(password, salt);
 };
 
-// OTP rate limiter
-export const otpLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 5,
-  message: "Too many OTP requests from this IP, please try again later",
-  skipSuccessfulRequests: true,
-});
+// OTPs come from a CSPRNG and only their sha256 is stored, so a DB read
+// doesn't hand out live codes.
+const generateOtp = () => crypto.randomInt(100000, 1000000).toString();
+const hashOtp = (otp) => crypto.createHash("sha256").update(String(otp)).digest("hex");
+const otpMatches = (stored, candidate) => {
+  if (!stored) return false;
+  const a = Buffer.from(stored, "hex");
+  const b = Buffer.from(hashOtp(candidate), "hex");
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+};
+const cleanOtpInput = (otp) => String(otp ?? "").replace(/\s/g, "");
 
-function generateOtp() {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
+// Compared against when the email doesn't exist so response time doesn't
+// reveal which accounts are registered.
+const DUMMY_HASH = bcrypt.hashSync("uniassist-timing-equaliser", 10);
 
 const generateToken = (id) => {
   const userId = id.toString ? id.toString() : id;
@@ -148,20 +104,39 @@ const generateToken = (id) => {
   });
 };
 
-// Email sending function
+const cooldownRemaining = (sentAt) => {
+  if (!sentAt) return 0;
+  const elapsed = Date.now() - new Date(sentAt).getTime();
+  return elapsed < OTP_RESEND_COOLDOWN_MS ? Math.ceil((OTP_RESEND_COOLDOWN_MS - elapsed) / 1000) : 0;
+};
+
+// Flows that can't work without email answer 503 with this before touching
+// any account state (so nothing half-done blocks a retry later).
+const emailNotConfigured = (res) =>
+  res.status(503).json({ success: false, message: EMAIL_NOT_CONFIGURED_MESSAGE });
+
+// Login / password reset work for every account (students, staff with
+// @maju.<dept>.edu addresses, admins) — only REGISTRATION needs a MAJU
+// student email.
+const normalizeAnyEmail = (email) => {
+  if (typeof email !== "string") return null;
+  const normalized = email.trim().toLowerCase();
+  return normalized.length <= 254 && EMAIL_REGEX.test(normalized) ? normalized : null;
+};
+
+// → "sent" | "not_configured" | "failed"
 const sendOtpEmail = async (toEmail, name, otp, subject = 'OTP Verification') => {
   try {
-    const mailOptions = {
-      from: `"UniAssist" <${process.env.EMAIL_USER}>`,
+    await transporter.sendMail({
       to: toEmail,
-      subject: subject,
+      subject,
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #e0e0e0; border-radius: 10px;">
           <div style="background: #4a6fa5; color: white; padding: 15px; border-radius: 10px 10px 0 0; text-align: center;">
             <h1 style="margin: 0;">UniAssist Verification</h1>
           </div>
           <div style="padding: 25px;">
-            <h2>Hello ${name},</h2>
+            <h2>Hello ${escapeHtml(name)},</h2>
             <p>Your verification code is:</p>
             <div style="background: #f8f9fa; padding: 25px; text-align: center; margin: 25px 0; border-radius: 8px; border-left: 4px solid #4a6fa5;">
               <div style="font-size: 36px; font-weight: bold; letter-spacing: 10px; color: #2c3e50;">${otp}</div>
@@ -173,43 +148,45 @@ const sendOtpEmail = async (toEmail, name, otp, subject = 'OTP Verification') =>
               </p>
             </div>
             <p style="color: #666; font-size: 12px;">
-              Sent via Gmail SMTP | UniAssist System
+              If you didn't request this code, you can ignore this email.
             </p>
           </div>
         </div>
       `,
       text: `UniAssist OTP: ${otp}. Expires in 5 minutes. Check spam folder.`,
-      headers: {
-        'X-Priority': '1',
-        'X-MSMail-Priority': 'High',
-        'Importance': 'high'
-      }
-    };
-
-    const info = await transporter.sendMail(mailOptions);
+    });
     console.log(`✅ Email sent to: ${toEmail}`);
-    return true;
+    return "sent";
   } catch (error) {
+    if (isEmailNotConfigured(error)) return "not_configured";
     console.error('❌ Email error:', error.message);
-    return false;
+    return "failed";
   }
 };
 
-export const registerUser = async (req, res) => {
-  const { name, email, password } = req.body;
+const studentFields = (v) => ({
+  program: v.programName,
+  rollNumber: v.rollNumber,
+  session: v.sessionType,
+  admissionYear: 2000 + v.year,
+});
 
-  // Input validation
-  if (!name || !email || !password) {
+export const registerUser = async (req, res) => {
+  const { name, email, password } = req.body ?? {};
+
+  if (typeof name !== "string" || typeof email !== "string" || typeof password !== "string"
+      || !name || !email || !password) {
     return res.status(400).json({
       success: false,
       message: "All fields (name, email, password) are required"
     });
   }
 
-  if (name.length < 2) {
+  const trimmedName = name.trim();
+  if (trimmedName.length < 2 || trimmedName.length > 80) {
     return res.status(400).json({
       success: false,
-      message: "Name must be at least 2 characters long"
+      message: "Name must be between 2 and 80 characters long"
     });
   }
 
@@ -220,7 +197,6 @@ export const registerUser = async (req, res) => {
     });
   }
 
-  // Validate MAJU email format
   const emailValidation = validateMajuEmail(email);
   if (!emailValidation.isValid) {
     return res.status(400).json({
@@ -230,9 +206,11 @@ export const registerUser = async (req, res) => {
   }
 
   try {
-    const userExists = await User.findOne({ email: emailValidation.email });
+    if (!(await isEmailConfigured())) return emailNotConfigured(res);
 
-    // Check if user is already verified
+    const userExists = await User.findOne({ email: emailValidation.email })
+      .select("+otpExpires +otpSentAt");
+
     if (userExists?.isVerified) {
       return res.status(409).json({
         success: false,
@@ -241,59 +219,61 @@ export const registerUser = async (req, res) => {
       });
     }
 
-    // Check if user exists but not verified
-    if (userExists && !userExists.isVerified) {
-      // Check if OTP was recently sent (cooldown period)
-      if (userExists.otpExpires && userExists.otpExpires > Date.now() - 60000) {
-        return res.status(429).json({
-          success: false,
-          message: "OTP was recently sent. Please wait 1 minute before requesting a new one",
-          retryAfter: Math.ceil((userExists.otpExpires - Date.now() + 60000) / 1000)
-        });
-      }
-    }
-
-    const otp = generateOtp();
-    const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-
-    const hashedPassword = await hashPassword(password);
-
-    if (userExists) {
-      // Update existing unverified user
-      userExists.name = name;
-      userExists.password = hashedPassword;
-      userExists.otp = otp;
-      userExists.otpExpires = otpExpires;
-      userExists.program = emailValidation.programName;
-      userExists.rollNumber = emailValidation.rollNumber;
-      userExists.session = emailValidation.sessionType;
-      userExists.year = emailValidation.year;
-      await userExists.save();
-    } else {
-      // Create new user
-      await User.create({
-        name,
-        email: emailValidation.email,
-        password: hashedPassword,
-        otp,
-        otpExpires,
-        program: emailValidation.programName,
-        rollNumber: emailValidation.rollNumber,
-        session: emailValidation.sessionType,
-        year: emailValidation.year,
-        admissionYear: 2000 + emailValidation.year, // Convert 23 to 2023
-        isMajuStudent: true
+    // While a pending registration's OTP is still live, refuse to overwrite it.
+    // Otherwise anyone could re-register the same email with their own
+    // password, and the real student would verify the attacker's password by
+    // entering the newest OTP from their inbox.
+    if (userExists && userExists.otpExpires && userExists.otpExpires > Date.now()) {
+      const waitSeconds = Math.ceil((userExists.otpExpires - Date.now()) / 1000);
+      return res.status(429).json({
+        success: false,
+        message: "A verification code was already sent to this email. Enter it, use 'Resend OTP', or try again once it expires.",
+        retryAfter: waitSeconds,
       });
     }
 
-    // Send OTP via Gmail
-    const emailSent = await sendOtpEmail(emailValidation.email, name, otp, 'Your OTP Verification Code');
+    const otp = generateOtp();
+    const now = new Date();
+    const otpFields = {
+      otp: hashOtp(otp),
+      otpExpires: new Date(now.getTime() + OTP_TTL_MS),
+      otpSentAt: now,
+      otpAttempts: 0,
+    };
+    const hashedPassword = await hashPassword(password);
 
-    if (!emailSent) {
-      // Cleanup if email failed and user was newly created
+    if (userExists) {
+      Object.assign(userExists, {
+        name: trimmedName,
+        password: hashedPassword,
+        ...otpFields,
+        ...studentFields(emailValidation),
+      });
+      await userExists.save();
+    } else {
+      await User.create({
+        name: trimmedName,
+        email: emailValidation.email,
+        password: hashedPassword,
+        ...otpFields,
+        ...studentFields(emailValidation),
+      });
+    }
+
+    const emailResult = await sendOtpEmail(emailValidation.email, trimmedName, otp, 'Your OTP Verification Code');
+
+    if (emailResult !== "sent") {
+      // Undo the pending registration so the student can simply try again
+      // (a live-looking OTP would otherwise block re-register for 5 minutes).
       if (!userExists) {
-        await User.deleteOne({ email: emailValidation.email });
+        await User.deleteOne({ email: emailValidation.email, isVerified: false });
+      } else {
+        await User.updateOne(
+          { _id: userExists._id, isVerified: false },
+          { $unset: { otp: 1, otpExpires: 1, otpSentAt: 1 }, $set: { otpAttempts: 0 } }
+        );
       }
+      if (emailResult === "not_configured") return emailNotConfigured(res);
       return res.status(500).json({
         success: false,
         message: "Failed to send OTP. Please try again later.",
@@ -311,14 +291,14 @@ export const registerUser = async (req, res) => {
     });
   } catch (error) {
     console.error("Registration error:", error);
-    
+
     let errorMessage = "Registration failed. Please try again.";
     let statusCode = 500;
 
     if (error.code === 11000) {
       errorMessage = "Email already exists";
       statusCode = 409;
-    } else if (error.message.includes("password")) {
+    } else if (error.message?.includes("password")) {
       errorMessage = error.message;
       statusCode = 400;
     }
@@ -331,7 +311,7 @@ export const registerUser = async (req, res) => {
 };
 
 export const verifyOtp = async (req, res) => {
-  const { email, otp } = req.body;
+  const { email, otp } = req.body ?? {};
 
   if (!email || !otp) {
     return res.status(400).json({
@@ -340,7 +320,6 @@ export const verifyOtp = async (req, res) => {
     });
   }
 
-  // Validate MAJU email format
   const emailValidation = validateMajuEmail(email);
   if (!emailValidation.isValid) {
     return res.status(400).json({
@@ -349,9 +328,8 @@ export const verifyOtp = async (req, res) => {
     });
   }
 
-  const cleanOtp = otp.toString().replace(/\s/g, "");
-
-  if (cleanOtp.length !== 6 || !/^\d{6}$/.test(cleanOtp)) {
+  const cleanOtp = cleanOtpInput(otp);
+  if (!/^\d{6}$/.test(cleanOtp)) {
     return res.status(400).json({
       success: false,
       message: "OTP must be a 6-digit number"
@@ -359,7 +337,8 @@ export const verifyOtp = async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ email: emailValidation.email }).select("+otp +otpExpires");
+    const user = await User.findOne({ email: emailValidation.email })
+      .select("+otp +otpExpires +otpAttempts");
 
     if (!user) {
       return res.status(404).json({
@@ -376,27 +355,17 @@ export const verifyOtp = async (req, res) => {
       });
     }
 
-    if (!user.otp || user.otp !== cleanOtp) {
-      // Increment failed attempts
-      user.otpAttempts = (user.otpAttempts || 0) + 1;
-      await user.save();
-
-      if (user.otpAttempts >= 5) {
-        return res.status(429).json({
-          success: false,
-          message: "Too many failed OTP attempts. Please request a new OTP.",
-          requiresNewOtp: true
-        });
-      }
-
-      return res.status(400).json({
+    // Attempt cap is checked BEFORE comparing, and the OTP is burned once it's
+    // hit, so a 6-digit code can't be brute-forced.
+    if (!user.otp || (user.otpAttempts || 0) >= MAX_OTP_ATTEMPTS) {
+      return res.status(429).json({
         success: false,
-        message: "Invalid OTP code",
-        attemptsRemaining: 5 - user.otpAttempts
+        message: "Too many failed OTP attempts. Please request a new OTP.",
+        requiresNewOtp: true
       });
     }
 
-    if (user.otpExpires < Date.now()) {
+    if (!user.otpExpires || user.otpExpires < Date.now()) {
       return res.status(400).json({
         success: false,
         message: "OTP has expired. Please request a new one.",
@@ -404,7 +373,28 @@ export const verifyOtp = async (req, res) => {
       });
     }
 
-    // Clear OTP attempts on successful verification
+    if (!otpMatches(user.otp, cleanOtp)) {
+      const updated = await User.findOneAndUpdate(
+        { _id: user._id },
+        { $inc: { otpAttempts: 1 } },
+        { returnDocument: "after", projection: "+otpAttempts" }
+      );
+      const attempts = updated?.otpAttempts ?? MAX_OTP_ATTEMPTS;
+      if (attempts >= MAX_OTP_ATTEMPTS) {
+        await User.updateOne({ _id: user._id }, { $unset: { otp: 1, otpExpires: 1 } });
+        return res.status(429).json({
+          success: false,
+          message: "Too many failed OTP attempts. Please request a new OTP.",
+          requiresNewOtp: true
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP code",
+        attemptsRemaining: MAX_OTP_ATTEMPTS - attempts
+      });
+    }
+
     user.isVerified = true;
     user.otp = undefined;
     user.otpExpires = undefined;
@@ -417,17 +407,7 @@ export const verifyOtp = async (req, res) => {
       success: true,
       token,
       message: "Account verified successfully!",
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        program: user.program,
-        rollNumber: user.rollNumber,
-        session: user.session,
-        admissionYear: user.admissionYear,
-        isVerified: user.isVerified,
-        isMajuStudent: user.isMajuStudent
-      }
+      user: serializeUser(user),
     });
   } catch (error) {
     console.error("OTP verification error:", error);
@@ -439,7 +419,7 @@ export const verifyOtp = async (req, res) => {
 };
 
 export const resentOtp = async (req, res) => {
-  const { email } = req.body;
+  const { email } = req.body ?? {};
 
   if (!email) {
     return res.status(400).json({
@@ -448,7 +428,6 @@ export const resentOtp = async (req, res) => {
     });
   }
 
-  // Validate MAJU email format
   const emailValidation = validateMajuEmail(email);
   if (!emailValidation.isValid) {
     return res.status(400).json({
@@ -458,7 +437,9 @@ export const resentOtp = async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ email: emailValidation.email });
+    if (!(await isEmailConfigured())) return emailNotConfigured(res);
+
+    const user = await User.findOne({ email: emailValidation.email }).select("+otpSentAt");
     if (!user) {
       return res.status(404).json({
         success: false,
@@ -473,9 +454,8 @@ export const resentOtp = async (req, res) => {
       });
     }
 
-    // Check cooldown period (1 minute)
-    if (user.otpExpires && user.otpExpires > Date.now() - 60000) {
-      const waitTime = Math.ceil((user.otpExpires - Date.now() + 60000) / 1000);
+    const waitTime = cooldownRemaining(user.otpSentAt);
+    if (waitTime > 0) {
       return res.status(429).json({
         success: false,
         message: `Please wait ${waitTime} seconds before requesting a new OTP`,
@@ -484,17 +464,22 @@ export const resentOtp = async (req, res) => {
     }
 
     const otp = generateOtp();
-    const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-
-    user.otp = otp;
-    user.otpExpires = otpExpires;
-    user.otpAttempts = 0; // Reset attempts
+    const now = new Date();
+    user.otp = hashOtp(otp);
+    user.otpExpires = new Date(now.getTime() + OTP_TTL_MS);
+    user.otpSentAt = now;
+    user.otpAttempts = 0;
     await user.save();
 
-    // Resend via Gmail
-    const emailSent = await sendOtpEmail(emailValidation.email, user.name, otp, 'Your New OTP Verification Code');
+    const emailResult = await sendOtpEmail(emailValidation.email, user.name, otp, 'Your New OTP Verification Code');
 
-    if (!emailSent) {
+    if (emailResult !== "sent") {
+      // No cooldown for a code that never went out.
+      await User.updateOne(
+        { _id: user._id, isVerified: false },
+        { $unset: { otp: 1, otpExpires: 1, otpSentAt: 1 }, $set: { otpAttempts: 0 } }
+      );
+      if (emailResult === "not_configured") return emailNotConfigured(res);
       return res.status(500).json({
         success: false,
         message: "Failed to resend OTP. Please try again."
@@ -516,7 +501,7 @@ export const resentOtp = async (req, res) => {
 };
 
 export const forgetPassword = async (req, res) => {
-  const { email } = req.body;
+  const { email } = req.body ?? {};
 
   if (!email) {
     return res.status(400).json({
@@ -525,60 +510,59 @@ export const forgetPassword = async (req, res) => {
     });
   }
 
-  // Validate MAJU email format
-  const emailValidation = validateMajuEmail(email);
-  if (!emailValidation.isValid) {
+  const normalizedEmail = normalizeAnyEmail(email);
+  if (!normalizedEmail) {
     return res.status(400).json({
       success: false,
-      message: emailValidation.error
+      message: "Invalid email format"
     });
   }
 
-  try {
-    const user = await User.findOne({ email: emailValidation.email });
-    
-    // Always return success for security (don't reveal if user exists)
-    if (!user) {
-      return res.json({
-        success: true,
-        message: "If an account exists with this email, a reset OTP has been sent."
-      });
-    }
+  const genericOk = {
+    success: true,
+    message: "If an account exists with this email, a reset OTP has been sent."
+  };
 
-    // Check if password reset was recently requested
-    if (user.resetPasswordExpires && user.resetPasswordExpires > Date.now() - 60000) {
+  try {
+    if (!(await isEmailConfigured())) return emailNotConfigured(res);
+
+    const user = await User.findOne({ email: normalizedEmail }).select("+resetPasswordSentAt");
+
+    // Don't reveal whether the account exists.
+    if (!user) return res.json(genericOk);
+
+    const waitTime = cooldownRemaining(user.resetPasswordSentAt);
+    if (waitTime > 0) {
       return res.status(429).json({
         success: false,
-        message: "Reset OTP was recently sent. Please wait 1 minute before requesting a new one."
+        message: `Reset OTP was recently sent. Please wait ${waitTime} seconds before requesting a new one.`,
+        retryAfter: waitTime
       });
     }
 
     const otp = generateOtp();
-    const otpExpires = new Date(Date.now() + 5 * 60 * 1000);
-
-    user.resetPasswordOtp = otp;
-    user.resetPasswordExpires = otpExpires;
+    const now = new Date();
+    user.resetPasswordOtp = hashOtp(otp);
+    user.resetPasswordExpires = new Date(now.getTime() + OTP_TTL_MS);
+    user.resetPasswordSentAt = now;
+    user.resetPasswordAttempts = 0;
     await user.save();
 
-    // Send password reset via Gmail
-    const emailSent = await sendOtpEmail(
-      emailValidation.email, 
-      user.name, 
-      otp, 
-      'Password Reset OTP'
-    );
+    const emailResult = await sendOtpEmail(normalizedEmail, user.name, otp, 'Password Reset OTP');
 
-    if (!emailSent) {
+    if (emailResult !== "sent") {
+      await User.updateOne(
+        { _id: user._id },
+        { $unset: { resetPasswordOtp: 1, resetPasswordExpires: 1, resetPasswordSentAt: 1 } }
+      );
+      if (emailResult === "not_configured") return emailNotConfigured(res);
       return res.status(500).json({
         success: false,
         message: "Failed to send reset email. Please try again."
       });
     }
 
-    res.json({
-      success: true,
-      message: "Reset OTP sent! Check inbox AND spam folder."
-    });
+    res.json(genericOk);
   } catch (error) {
     console.error("Forgot password error:", error);
     res.status(500).json({
@@ -589,9 +573,9 @@ export const forgetPassword = async (req, res) => {
 };
 
 export const resetPassword = async (req, res) => {
-  const { email, otp, newPassword } = req.body;
+  const { email, otp, newPassword } = req.body ?? {};
 
-  if (!email || !otp || !newPassword) {
+  if (!email || !otp || typeof newPassword !== "string" || !newPassword) {
     return res.status(400).json({
       success: false,
       message: "All fields (email, OTP, new password) are required"
@@ -605,61 +589,70 @@ export const resetPassword = async (req, res) => {
     });
   }
 
-  // Validate MAJU email format
-  const emailValidation = validateMajuEmail(email);
-  if (!emailValidation.isValid) {
+  const normalizedEmail = normalizeAnyEmail(email);
+  if (!normalizedEmail) {
     return res.status(400).json({
       success: false,
-      message: emailValidation.error
+      message: "Invalid email format"
     });
   }
 
-  const cleanOtp = otp.toString().replace(/\s/g, "");
+  const cleanOtp = cleanOtpInput(otp);
+  const invalid = { success: false, message: "Invalid or expired OTP" };
 
   try {
-    const user = await User.findOne({ email: emailValidation.email }).select(
-      "+resetPasswordOtp +resetPasswordExpires"
+    const user = await User.findOne({ email: normalizedEmail }).select(
+      "+resetPasswordOtp +resetPasswordExpires +resetPasswordAttempts"
     );
 
-    if (!user) {
-      return res.status(404).json({
+    // Same response as a wrong OTP, so this can't be used to probe accounts.
+    if (!user || !user.resetPasswordOtp) return res.status(400).json(invalid);
+
+    if ((user.resetPasswordAttempts || 0) >= MAX_OTP_ATTEMPTS) {
+      return res.status(429).json({
         success: false,
-        message: "User not found"
+        message: "Too many failed attempts. Please request a new reset OTP."
       });
     }
 
-    if (user.resetPasswordOtp !== cleanOtp) {
-      // Increment failed attempts
-      user.resetPasswordAttempts = (user.resetPasswordAttempts || 0) + 1;
-      await user.save();
-
-      if (user.resetPasswordAttempts >= 5) {
-        return res.status(429).json({
-          success: false,
-          message: "Too many failed attempts. Please request a new reset OTP."
-        });
-      }
-
-      return res.status(400).json({
-        success: false,
-        message: "Invalid OTP",
-        attemptsRemaining: 5 - user.resetPasswordAttempts
-      });
-    }
-
-    if (user.resetPasswordExpires < new Date()) {
+    if (!user.resetPasswordExpires || user.resetPasswordExpires < new Date()) {
       return res.status(400).json({
         success: false,
         message: "OTP expired. Please request a new one."
       });
     }
 
-    const hashedPassword = await hashPassword(newPassword);
+    if (!otpMatches(user.resetPasswordOtp, cleanOtp)) {
+      const updated = await User.findOneAndUpdate(
+        { _id: user._id },
+        { $inc: { resetPasswordAttempts: 1 } },
+        { returnDocument: "after", projection: "+resetPasswordAttempts" }
+      );
+      const attempts = updated?.resetPasswordAttempts ?? MAX_OTP_ATTEMPTS;
+      if (attempts >= MAX_OTP_ATTEMPTS) {
+        await User.updateOne(
+          { _id: user._id },
+          { $unset: { resetPasswordOtp: 1, resetPasswordExpires: 1 } }
+        );
+        return res.status(429).json({
+          success: false,
+          message: "Too many failed attempts. Please request a new reset OTP."
+        });
+      }
+      return res.status(400).json({
+        success: false,
+        message: "Invalid OTP",
+        attemptsRemaining: MAX_OTP_ATTEMPTS - attempts
+      });
+    }
 
-    user.password = hashedPassword;
+    user.password = await hashPassword(newPassword);
+    user.passwordChangedAt = new Date();
     user.resetPasswordOtp = undefined;
     user.resetPasswordExpires = undefined;
     user.resetPasswordAttempts = 0;
+    user.loginAttempts = 0;
+    user.accountLockedUntil = null;
     await user.save();
 
     res.json({
@@ -676,9 +669,9 @@ export const resetPassword = async (req, res) => {
 };
 
 export const loginUser = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password } = req.body ?? {};
 
-  if (!email || !password) {
+  if (typeof email !== "string" || typeof password !== "string" || !email || !password) {
     return res.status(400).json({
       success: false,
       message: "Email and password are required"
@@ -686,8 +679,7 @@ export const loginUser = async (req, res) => {
   }
 
   const normalizedEmail = email.trim().toLowerCase();
-  const genericEmailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
-  if (!genericEmailRegex.test(normalizedEmail)) {
+  if (!EMAIL_REGEX.test(normalizedEmail)) {
     return res.status(400).json({
       success: false,
       message: "Invalid email format"
@@ -695,9 +687,11 @@ export const loginUser = async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({ email: normalizedEmail }).select("+password");
+    const user = await User.findOne({ email: normalizedEmail })
+      .select("+password +loginAttempts +accountLockedUntil");
 
     if (!user) {
+      await bcrypt.compare(password, DUMMY_HASH);
       recordLogin(req, normalizedEmail, null, false, "user_not_found");
       return res.status(401).json({
         success: false,
@@ -705,20 +699,34 @@ export const loginUser = async (req, res) => {
       });
     }
 
+    // Lock check comes BEFORE the password compare — otherwise the "locked"
+    // message only appears for the right password and confirms it to an attacker.
+    if (user.accountLockedUntil && user.accountLockedUntil > new Date()) {
+      const minutesLeft = Math.ceil((user.accountLockedUntil - new Date()) / (60 * 1000));
+      recordLogin(req, normalizedEmail, user._id, false, "locked");
+      return res.status(429).json({
+        success: false,
+        message: `Account is locked. Try again in ${minutesLeft} minute(s).`
+      });
+    }
+
     const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
       recordLogin(req, normalizedEmail, user._id, false, "bad_password");
-      // Increment failed login attempts
-      user.loginAttempts = (user.loginAttempts || 0) + 1;
-      user.lastLoginAttempt = new Date();
-      await user.save();
+      // Atomic increment so parallel guesses can't all read the same count.
+      const updated = await User.findOneAndUpdate(
+        { _id: user._id },
+        { $inc: { loginAttempts: 1 } },
+        { returnDocument: "after", projection: "+loginAttempts" }
+      );
+      const attempts = updated?.loginAttempts ?? MAX_LOGIN_ATTEMPTS;
 
-      if (user.loginAttempts >= 5) {
-        // Lock account for 15 minutes
-        user.accountLockedUntil = new Date(Date.now() + 15 * 60 * 1000);
-        await user.save();
-
+      if (attempts >= MAX_LOGIN_ATTEMPTS) {
+        await User.updateOne(
+          { _id: user._id },
+          { $set: { accountLockedUntil: new Date(Date.now() + LOCK_DURATION_MS), loginAttempts: 0 } }
+        );
         return res.status(429).json({
           success: false,
           message: "Account temporarily locked due to too many failed attempts. Try again in 15 minutes."
@@ -728,28 +736,12 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({
         success: false,
         message: "Invalid email or password",
-        attemptsRemaining: 5 - user.loginAttempts
+        attemptsRemaining: MAX_LOGIN_ATTEMPTS - attempts
       });
     }
 
-    // Check if account is locked
-    if (user.accountLockedUntil && user.accountLockedUntil > new Date()) {
-      const minutesLeft = Math.ceil((user.accountLockedUntil - new Date()) / (60 * 1000));
-      return res.status(429).json({
-        success: false,
-        message: `Account is locked. Try again in ${minutesLeft} minute(s).`
-      });
-    }
-
-    // Reset login attempts on successful login + stamp last login
-    user.loginAttempts = 0;
-    user.accountLockedUntil = undefined;
-    user.lastLoginAt = new Date();
-    await user.save();
-    recordLogin(req, normalizedEmail, user._id, true);
-
-    // Check if user is verified
     if (!user.isVerified) {
+      recordLogin(req, normalizedEmail, user._id, false, "not_verified");
       return res.status(403).json({
         success: false,
         message: "Account not verified. Please verify your email first.",
@@ -758,27 +750,26 @@ export const loginUser = async (req, res) => {
       });
     }
 
-    const token = generateToken(user._id);
+    if (user.isBlocked) {
+      recordLogin(req, normalizedEmail, user._id, false, "blocked");
+      return res.status(403).json({
+        success: false,
+        message: "Your account has been blocked. Please contact the administrator.",
+        blocked: true,
+      });
+    }
+
+    await User.updateOne(
+      { _id: user._id },
+      { $set: { loginAttempts: 0, accountLockedUntil: null, lastLoginAt: new Date() } }
+    );
+    recordLogin(req, normalizedEmail, user._id, true);
 
     return res.json({
       success: true,
-      token: token,
+      token: generateToken(user._id),
       message: "Login successful",
-      user: {
-        _id: user._id,
-        name: user.name,
-        email: user.email,
-        program: user.program,
-        rollNumber: user.rollNumber,
-        session: user.session,
-        admissionYear: user.admissionYear,
-        isVerified: user.isVerified,
-        isMajuStudent: user.isMajuStudent,
-        role: user.role,
-        department: user.department,
-        staffTitle: user.staffTitle,
-        isBlocked: user.isBlocked,
-      },
+      user: serializeUser(user),
     });
   } catch (error) {
     console.error("Login error:", error);
@@ -789,22 +780,23 @@ export const loginUser = async (req, res) => {
   }
 };
 
-const serializeUser = (user) => ({
-  _id: user._id,
-  name: user.name,
-  email: user.email,
-  program: user.program,
-  rollNumber: user.rollNumber,
-  session: user.session,
-  admissionYear: user.admissionYear,
-  isVerified: user.isVerified,
-  isMajuStudent: user.isMajuStudent,
-  role: user.role,
-  department: user.department,
-  staffTitle: user.staffTitle,
-  isBlocked: user.isBlocked,
-  profilePicture: user.profilePicture || "",
-});
+function serializeUser(user) {
+  return {
+    _id: user._id,
+    name: user.name,
+    email: user.email,
+    program: user.program,
+    rollNumber: user.rollNumber,
+    session: user.session,
+    admissionYear: user.admissionYear,
+    isVerified: user.isVerified,
+    role: user.role,
+    department: user.department,
+    staffTitle: user.staffTitle,
+    isBlocked: user.isBlocked,
+    profilePicture: user.profilePicture || "",
+  };
+}
 
 export const getUser = async (req, res) => {
   try {
@@ -820,6 +812,10 @@ export const getUser = async (req, res) => {
   }
 };
 
+const removeUploadedFile = (file) => {
+  if (file?.path) fs.unlink(file.path, () => {});
+};
+
 // ---------------------------------------------------------------------------
 // PATCH /api/user/profile
 //   Multipart form: optional `avatar` file, optional `name` field.
@@ -831,13 +827,17 @@ export const getUser = async (req, res) => {
 export const updateProfile = async (req, res) => {
   try {
     const user = await User.findById(req.user._id);
-    if (!user) return res.status(404).json({ success: false, message: "User not found" });
+    if (!user) {
+      removeUploadedFile(req.file);
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
 
     const { name } = req.body || {};
     if (name !== undefined) {
       const trimmed = String(name).trim();
-      if (trimmed.length < 2) {
-        return res.status(400).json({ success: false, message: "Name must be at least 2 characters" });
+      if (trimmed.length < 2 || trimmed.length > 80) {
+        removeUploadedFile(req.file);
+        return res.status(400).json({ success: false, message: "Name must be between 2 and 80 characters" });
       }
       user.name = trimmed;
     }
@@ -856,6 +856,7 @@ export const updateProfile = async (req, res) => {
     const populated = await User.findById(user._id).populate("department", "code name");
     return res.json({ success: true, user: serializeUser(populated) });
   } catch (error) {
+    removeUploadedFile(req.file);
     console.error("updateProfile error:", error);
     return res.status(500).json({ success: false, message: "Failed to update profile" });
   }
@@ -865,18 +866,19 @@ export const updateProfile = async (req, res) => {
 // POST /api/user/change-password
 //   Body: { currentPassword, newPassword }
 //   Verifies current password against the hash, then sets a new bcrypt hash.
-//   Min 6 chars (matches User.password model rule).
+//   Older tokens are invalidated; a fresh token is returned for this session.
 // ---------------------------------------------------------------------------
 
 export const changePassword = async (req, res) => {
   const { currentPassword, newPassword } = req.body || {};
-  if (!currentPassword || !newPassword) {
+  if (typeof currentPassword !== "string" || typeof newPassword !== "string"
+      || !currentPassword || !newPassword) {
     return res.status(400).json({
       success: false,
       message: "Current password and new password are both required",
     });
   }
-  if (String(newPassword).length < 6) {
+  if (newPassword.length < 6) {
     return res.status(400).json({
       success: false,
       message: "New password must be at least 6 characters",
@@ -899,135 +901,16 @@ export const changePassword = async (req, res) => {
     }
 
     user.password = await hashPassword(newPassword);
+    user.passwordChangedAt = new Date();
     await user.save();
 
-    return res.json({ success: true, message: "Password changed successfully" });
+    return res.json({
+      success: true,
+      message: "Password changed successfully",
+      token: generateToken(user._id),
+    });
   } catch (error) {
     console.error("changePassword error:", error);
     return res.status(500).json({ success: false, message: "Failed to change password" });
   }
-};
-
-// TEST ENDPOINT
-export const testGmail = async (req, res) => {
-  try {
-    console.log('Testing Gmail SMTP...');
-    console.log('Email:', process.env.EMAIL_USER);
-    console.log('Pass length:', process.env.EMAIL_PASS?.length);
-    
-    // Test connection
-    await transporter.verify();
-    console.log('✅ SMTP connection verified');
-    
-    // Send test email with a valid format
-    const testEmail = 'sp23bscs0178@maju.edu.pk';
-    const mailOptions = {
-      from: `"UniAssist" <${process.env.EMAIL_USER}>`,
-      to: testEmail,
-      subject: 'Gmail SMTP Test',
-      text: 'Test from Gmail SMTP. If received, OTP will work.',
-      html: '<h1>Gmail Test</h1><p>Check spam folder too!</p>'
-    };
-    
-    const info = await transporter.sendMail(mailOptions);
-    
-    console.log('✅ Test sent! ID:', info.messageId);
-    
-    res.json({
-      success: true,
-      message: 'Test email sent. Check university email AND spam folder.',
-      messageId: info.messageId,
-      testEmail: testEmail,
-      emailFormat: 'Valid format: sp23bscs0178@maju.edu.pk'
-    });
-    
-  } catch (error) {
-    console.error('❌ Test error:', error);
-    
-    let errorMsg = error.message;
-    if (errorMsg.includes('Invalid login')) {
-      errorMsg = 'Invalid App Password. Regenerate 16-char password (NO SPACES)';
-    }
-    
-    res.status(500).json({
-      success: false,
-      error: errorMsg,
-      fix: '1) Enable 2FA on Google 2) Generate new App Password 3) Copy 16 chars without spaces'
-    });
-  }
-};
-
-// Check if email was sent successfully
-export const checkEmailStatus = async (req, res) => {
-  try {
-    const testEmail = 'sp23bscs0178@maju.edu.pk';
-    const mailOptions = {
-      from: `"UniAssist Check" <${process.env.EMAIL_USER}>`,
-      to: testEmail,
-      subject: 'Status Check - ' + new Date().toLocaleTimeString(),
-      text: 'Testing email delivery status'
-    };
-    
-    const info = await transporter.sendMail(mailOptions);
-    
-    res.json({
-      success: true,
-      status: 'Email queued for delivery',
-      messageId: info.messageId,
-      time: new Date().toLocaleString(),
-      note: 'University emails may take 2-5 minutes. Check spam folder.',
-      validFormat: 'sp23bscs0178@maju.edu.pk',
-      regexPattern: '^(sp|fa)(2[0-6])(bscs|bsai|bsse|bsbc)([0-9]{4})@maju\\.edu\\.pk$'
-    });
-    
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      error: error.message,
-      status: 'Failed to send'
-    });
-  }
-};
-
-// Export email validator for use in other files
-export const validateEmailFormat = (email) => {
-  return validateMajuEmail(email);
-};
-
-// Test email validation function
-export const testEmailValidation = async (req, res) => {
-  const { email } = req.query;
-  
-  if (!email) {
-    return res.status(400).json({
-      success: false,
-      message: "Please provide an email parameter",
-      example: "/api/auth/test-email?email=sp23bscs0178@maju.edu.pk"
-    });
-  }
-  
-  const validation = validateMajuEmail(email);
-  
-  // Test with sample valid emails
-  const sampleEmails = [
-    'sp23bscs0178@maju.edu.pk',
-    'fa24bsai1234@maju.edu.pk',
-    'sp20bsse5678@maju.edu.pk',
-    'fa26bsbc9999@maju.edu.pk'
-  ];
-  
-  const sampleResults = sampleEmails.map(sample => ({
-    email: sample,
-    isValid: validateMajuEmail(sample).isValid
-  }));
-  
-  return res.json({
-    success: true,
-    validationResult: validation,
-    sampleTests: sampleResults,
-    regexPattern: MAJU_EMAIL_REGEX.toString(),
-    validFormat: "[sp/fa][20-26][bscs|bsai|bsse|bsbc][0000-9999]@maju.edu.pk",
-    validPrograms: Object.keys(PROGRAM_CODES),
-    yearsRange: "20-26 (represents 2020-2026)"
-  });
 };

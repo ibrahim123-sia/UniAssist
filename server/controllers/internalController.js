@@ -1,10 +1,15 @@
+import crypto from "crypto";
+import mongoose from "mongoose";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
 
 const requireInternal = (req) => {
   const provided = req.headers["x-internal-secret"];
-  if (!process.env.INTERNAL_SECRET) return false;
-  return provided && provided === process.env.INTERNAL_SECRET;
+  const expected = process.env.INTERNAL_SECRET;
+  if (!expected || typeof provided !== "string") return false;
+  const a = Buffer.from(provided);
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
 };
 
 export const verifyAdmin = async (req, res) => {
@@ -30,6 +35,10 @@ export const flagUser = async (req, res) => {
   if (!userId || !message) {
     return res.status(400).json({ success: false, message: "userId and message are required" });
   }
+  // Guest chats carry no real user id; only flag genuine accounts.
+  if (!mongoose.isValidObjectId(userId)) {
+    return res.status(400).json({ success: false, message: "Invalid userId" });
+  }
   try {
     const user = await User.findById(userId);
     if (!user) return res.status(404).json({ success: false, message: "User not found" });
@@ -39,7 +48,7 @@ export const flagUser = async (req, res) => {
       type: "inappropriate_language",
       message: String(message).slice(0, 500),
       matches: Array.isArray(matches) ? matches.slice(0, 20) : [],
-      chatId: chatId || null,
+      chatId: mongoose.isValidObjectId(chatId) ? chatId : null,
       timestamp: new Date(),
     });
     await user.save();
