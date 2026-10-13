@@ -45,6 +45,13 @@ const ChatSchema = new mongoose.Schema(
           type: Number, 
           required: true 
         },
+        // Assistant replies only: false when the bot couldn't answer, and the
+        // UnansweredQuestion it was forwarded to (so the note survives reloads).
+        answered: { type: Boolean, default: undefined },
+        questionId: { type: mongoose.Schema.Types.ObjectId, ref: "UnansweredQuestion", default: undefined },
+        // Student chats only: the question looked like a personal complaint,
+        // so clients highlight "Register a complaint".
+        suggestComplaint: { type: Boolean, default: undefined },
       },
     ],
   },

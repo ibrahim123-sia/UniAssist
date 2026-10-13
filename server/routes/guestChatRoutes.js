@@ -4,12 +4,13 @@ import {
   getGuestChatHistory,
   clearGuestSession
 } from "../controllers/guestChatController.js";
+import { guestChatLimiter, guestIpLimiter } from "../middlewares/rateLimit.js";
 
 const router = express.Router();
 
-// Guest chat route (no authentication required)
-router.post("/chat", guestTextChatController); // Send message
-router.get("/history", getGuestChatHistory); // Get chat history
-router.post("/clear", clearGuestSession); // Clear session
+// Guest chat routes (no authentication required — rate limited instead)
+router.post("/chat", guestIpLimiter, guestChatLimiter, guestTextChatController); // Send message
+router.get("/history", guestIpLimiter, getGuestChatHistory); // Get chat history
+router.post("/clear", guestIpLimiter, clearGuestSession); // Clear session
 
 export default router;

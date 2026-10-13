@@ -1,698 +1,311 @@
+import mongoose from "mongoose";
 import Chat from "../models/Chat.js";
-import { v4 as uuidv4 } from "uuid";
-import fs from "fs";
-import path from "path";
-import { fileURLToPath } from "url";
-import os from "os";
-import fetch from "node-fetch";
-import FormData from "form-data";
+import {
+  askPython,
+  buildHistoryPayload,
+  decodeAudioDataUrl,
+  transcribeWithPython,
+  pythonIsHealthy,
+  MAX_PROMPT_CHARS,
+} from "../services/pythonClient.js";
+import { handleAskResult } from "../services/unansweredQuestions.js";
+import { looksLikeComplaint } from "../services/departmentSuggestion.js";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const KB_UNAVAILABLE =
+  "Sorry, I'm unable to connect to the university knowledge base at the moment. Please try again later.";
 
-// Python FastAPI backend URL — RAG + local Whisper transcription live here
-const PYTHON_BACKEND_URL = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
+// Shown instead of "I don't have information about that" when a complaint-like
+// message finds nothing in the knowledge base — the department, not the KB,
+// has to handle it.
+const COMPLAINT_REPLY =
+  "This sounds like something the relevant department needs to look into. Tap \"Register a complaint\" below to send it to them — this chat is attached automatically, and you can track it in My Issues.";
 
-// Helper function to call Python backend
-async function getPythonBackendResponse(question, context = {}) {
-  try {
-    console.log(`📡 Calling Python backend at: ${PYTHON_BACKEND_URL}/ask`);
-
-    const response = await fetch(`${PYTHON_BACKEND_URL}/ask`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        question,
-        user_id: context.userId ? String(context.userId) : undefined,
-        chat_id: context.chatId ? String(context.chatId) : undefined,
-        // Conversation memory: prior turns of this chat, oldest → newest.
-        // Lets the LLM resolve follow-ups like "and its fee?" without
-        // re-explaining the topic each turn.
-        history: Array.isArray(context.history) ? context.history : undefined,
-      }),
-      timeout: 30000,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Python backend responded with status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    return data.answer || "No response from Python backend";
-  } catch (error) {
-    console.error("❌ Error calling Python backend:", error.message);
-    throw new Error(`Failed to get response from Python backend: ${error.message}`);
-  }
-}
-
-// How many prior messages to send to the LLM as conversational context.
-// 6 = 3 full turns. Tuned to keep token usage low on a local 3B model
-// while still resolving short follow-up references.
-const HISTORY_TURN_LIMIT = 6;
-
-// Build the trimmed history payload from a Chat document. Only role/content
-// is sent — voice metadata, email fields, timestamps etc. are stripped to
-// keep the prompt small and the schema simple on the Python side.
-function buildHistoryPayload(messages) {
-  if (!Array.isArray(messages) || messages.length === 0) return [];
-  const recent = messages.slice(-HISTORY_TURN_LIMIT);
-  return recent
-    .filter((m) => m && m.role && m.content)
-    .map((m) => ({ role: m.role, content: String(m.content) }));
-}
-
-// Helper function to save base64 audio to temporary file
-const saveBase64ToTempFile = (base64Data, fileExtension = "webm") => {
-  try {
-    const base64String = base64Data.includes('base64,') 
-      ? base64Data.split('base64,')[1] 
-      : base64Data;
-    
-    const filename = `audio_${uuidv4()}.${fileExtension}`;
-    const tempDir = os.tmpdir();
-    const filePath = path.join(tempDir, filename);
-    
-    fs.writeFileSync(filePath, base64String, 'base64');
-    return filePath;
-  } catch (error) {
-    console.error("Error saving base64 to file:", error);
-    throw new Error("Failed to save audio file");
-  }
+// First ~5 words of the opening question become the chat's sidebar name.
+const titleFrom = (text) => {
+  const words = text.trim().split(/\s+/);
+  return words.slice(0, 5).join(" ") + (words.length > 5 ? "..." : "");
 };
 
-// Clean up temp files
-const cleanupTempFile = (filePath) => {
-  if (filePath && fs.existsSync(filePath)) {
-    try {
-      fs.unlinkSync(filePath);
-    } catch (error) {
-      console.error("Error cleaning up temp file:", error.message);
-    }
-  }
+const findUserChat = (userId, chatId) =>
+  mongoose.isValidObjectId(chatId) ? Chat.findOne({ userId, _id: chatId }) : null;
+
+const validatePrompt = (prompt) => {
+  if (typeof prompt !== "string" || !prompt.trim()) return "Message is required";
+  if (prompt.length > MAX_PROMPT_CHARS) return `Message is too long (max ${MAX_PROMPT_CHARS} characters)`;
+  return null;
 };
 
-// Validate audio quality
-const validateAudioQuality = (audioPath) => {
+// Ask Python and work out the reply metadata. A Python outage is reported as
+// not answered but is NOT captured as an unanswered question (it's not a
+// knowledge gap, and an outage would flood the admin tab). Neither is a
+// complaint: it goes to a department via "Register a complaint" instead.
+async function askAndCapture(question, { user, chatId, history, captureText, fallback, logLabel, complaint }) {
   try {
-    const stats = fs.statSync(audioPath);
-    
-    if (stats.size < 1024) {
-      return { 
-        valid: false, 
-        error: "Audio file is too small. Please speak longer (at least 2-3 seconds)."
-      };
+    const result = await askPython(question, { userId: user._id, chatId, history });
+    if (complaint) {
+      const answered = result.answered !== false;
+      const content = answered || result.flagged ? result.answer : COMPLAINT_REPLY;
+      return { content, answered, escalated: false, questionId: null };
     }
-    
-    if (stats.size > 5 * 1024 * 1024) {
-      return { 
-        valid: false, 
-        error: "Audio file is too large. Maximum size is 5MB."
-      };
-    }
-    
-    return { valid: true };
+    const meta = await handleAskResult(result, { question: captureText ?? question, user, chatId });
+    return { content: result.answer, ...meta };
   } catch (error) {
-    return { valid: false, error: "Failed to validate audio file" };
-  }
-};
-
-// Transcribe audio by forwarding the file to the local Python /transcribe
-// endpoint (faster-whisper). No data leaves this machine.
-async function transcribeWithPython(audioPath) {
-  try {
-    console.log("=== LOCAL WHISPER TRANSCRIPTION START ===");
-
-    if (!fs.existsSync(audioPath)) {
-      return { success: false, error: "Audio file not found" };
-    }
-
-    const form = new FormData();
-    form.append("file", fs.createReadStream(audioPath), {
-      filename: path.basename(audioPath),
-    });
-
-    const response = await fetch(`${PYTHON_BACKEND_URL}/transcribe`, {
-      method: "POST",
-      body: form,
-      headers: form.getHeaders(),
-      timeout: 120000, // Whisper on CPU can take a while on long clips
-    });
-
-    if (!response.ok) {
-      const detail = await response.text().catch(() => "");
-      return {
-        success: false,
-        error: `Python /transcribe returned ${response.status}: ${detail.slice(0, 200)}`,
-      };
-    }
-
-    const data = await response.json();
-    if (!data.text || !data.text.trim()) {
-      return { success: false, error: "Whisper returned empty transcription" };
-    }
-
-    console.log("✅ Whisper transcription completed");
-    console.log("Text:", data.text);
-
-    return {
-      success: true,
-      text: data.text.trim(),
-      service: "whisper",
-      language: data.language,
-      duration: data.duration,
-    };
-  } catch (error) {
-    console.error("💥 Whisper transcription error:", error.message);
-    return { success: false, error: `Transcription failed: ${error.message}` };
+    console.error(`${logLabel}:`, error.message);
+    return { content: fallback, answered: false, escalated: false, questionId: null };
   }
 }
 
-// Simple fallback transcription
-async function transcribeWithBasicFallback(audioPath) {
-  try {
-    const stats = fs.statSync(audioPath);
-    const sizeKB = Math.round(stats.size / 1024);
-    
-    const placeholderText = `[Voice message received (${sizeKB}KB). Please try sending your message as text.]`;
-    
-    return {
-      success: true,
-      text: placeholderText,
-      isFallback: true,
-      service: "basic-fallback"
-    };
-  } catch (error) {
-    return {
-      success: false,
-      error: "Fallback transcription failed"
-    };
+// Top-level fields every chat reply JSON carries (clients render the
+// "forwarded to admin" note from these).
+const replyMeta = (ask) => ({
+  answered: ask.answered,
+  escalated: ask.escalated,
+  questionId: ask.questionId,
+});
+
+// Students only: does the question read like a personal complaint? Clients
+// then highlight "Register a complaint" under the reply.
+const complaintHint = (user, text) => user?.role === "student" && looksLikeComplaint(text);
+
+// Push the user turn + assistant reply, name a fresh chat after its first
+// question, and save once.
+async function appendTurn(chat, userMessage, reply) {
+  const isFirstQuestion = !chat.messages.some((m) => m.role === "user");
+  chat.messages.push(userMessage, reply);
+  if (isFirstQuestion && chat.name === "New Chat") {
+    chat.name = titleFrom(userMessage.content);
   }
+  await chat.save();
 }
 
-// Text Message Controller - UPDATED TO USE PYTHON BACKEND
 export const textMessageController = async (req, res) => {
   try {
     const userId = req.user._id;
+    const { chatId, prompt } = req.body ?? {};
 
-    const { chatId, prompt } = req.body;
+    const invalid = validatePrompt(prompt);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
 
-    const chat = await Chat.findOne({ userId, _id: chatId });
+    const chat = await findUserChat(userId, chatId);
     if (!chat) {
-      return res.status(404).json({
-        success: false,
-        message: "Chat not found",
-      });
+      return res.status(404).json({ success: false, message: "Chat not found" });
     }
 
-    // Snapshot prior history BEFORE pushing the new user message — the
-    // history we send to Python must not contain the question we're about
-    // to ask (it would be a duplicate of `prompt`).
+    // History is snapshotted BEFORE the new question is added, so the
+    // question isn't sent to Python twice.
     const history = buildHistoryPayload(chat.messages);
+    const question = prompt.trim();
+    const suggestComplaint = complaintHint(req.user, question);
 
-    // Add user message
-    const userMessage = {
-      type: "text",
-      role: "user",
-      content: prompt,
-      timestamp: Date.now(),
-    };
-    chat.messages.push(userMessage);
-    await chat.save();
+    const ask = await askAndCapture(question, {
+      user: req.user,
+      chatId: chat._id,
+      history,
+      fallback: KB_UNAVAILABLE,
+      logLabel: "Failed to get response from Python backend",
+      complaint: suggestComplaint,
+    });
 
-    // Get response from Python backend
-    console.log(`🤖 Sending to Python backend: "${prompt}" (history: ${history.length} msgs)`);
-    let replyContent;
-    try {
-      replyContent = await getPythonBackendResponse(prompt, { userId, chatId, history });
-    } catch (error) {
-      console.error("Failed to get response from Python backend:", error.message);
-      replyContent = "Sorry, I'm unable to connect to the university knowledge base at the moment. Please try again later.";
-    }
-
+    const userMessage = { type: "text", role: "user", content: question, timestamp: Date.now() };
     const reply = {
       type: "text",
       role: "assistant",
-      content: replyContent,
+      content: ask.content,
+      answered: ask.answered,
+      questionId: ask.questionId ?? undefined,
+      suggestComplaint,
       timestamp: Date.now(),
     };
-
-    // Save AI response
-    chat.messages.push(reply);
-    await chat.save();
-
-    // Update chat title if this is the first real message
-    if (chat.messages.filter(m => m.role === "user").length === 1) {
-      // Use first 5 words of the question as title
-      const title = prompt.split(' ').slice(0, 5).join(' ') + (prompt.split(' ').length > 5 ? '...' : '');
-      chat.title = title;
-      await chat.save();
-    }
+    await appendTurn(chat, userMessage, reply);
 
     res.json({
       success: true,
       reply,
-      userMessage: userMessage,
-      source: "python_backend"
+      userMessage,
+      chatName: chat.name,
+      source: "python_backend",
+      ...replyMeta(ask),
+      suggestComplaint,
     });
-
   } catch (error) {
     console.error("Error in textMessageController:", error.message);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error processing your request",
-    });
+    res.status(500).json({ success: false, message: "Error processing your request" });
   }
 };
 
-// Email Message Controller — routes through the same Python /ask endpoint.
+// Email drafting — routed through the same Python /ask endpoint.
 export const emailMessageController = async (req, res) => {
   try {
     const userId = req.user._id;
+    const { chatId, prompt } = req.body ?? {};
+    const recipient = typeof req.body?.recipient === "string" ? req.body.recipient.slice(0, 200) : "";
+    const subject = typeof req.body?.subject === "string" ? req.body.subject.slice(0, 200) : "";
 
-    const { chatId, prompt, recipient, subject } = req.body;
+    const invalid = validatePrompt(prompt);
+    if (invalid) return res.status(400).json({ success: false, message: invalid });
 
-    const chat = await Chat.findOne({ userId, _id: chatId });
+    const chat = await findUserChat(userId, chatId);
     if (!chat) {
-      return res.status(404).json({
-        success: false,
-        message: "Chat not found",
-      });
+      return res.status(404).json({ success: false, message: "Chat not found" });
     }
 
-    // Snapshot prior history BEFORE pushing the new user email message
     const history = buildHistoryPayload(chat.messages);
-
-    // Add user message
-    const userMessage = {
-      type: "email",
-      role: "user",
-      content: prompt,
-      emailData: {
-        recipient: recipient || "",
-        subject: subject || "",
-        isSent: false,
-      },
-      timestamp: Date.now(),
-    };
-    chat.messages.push(userMessage);
-    await chat.save();
-
-    // For email generation, you might want to create a separate endpoint in Python
-    // For now, we'll use the same /ask endpoint with modified prompt
-    const emailPrompt = `Please help draft an email based on: ${prompt}
+    const emailPrompt = `Please help draft an email based on: ${prompt.trim()}
     Recipient: ${recipient || "Not specified"}
     Subject: ${subject || "No subject"}
     Please format the email professionally with salutation, body, and closing.`;
-    
-    console.log(`📧 Sending email request to Python backend: "${emailPrompt}" (history: ${history.length} msgs)`);
 
-    let replyContent;
-    try {
-      replyContent = await getPythonBackendResponse(emailPrompt, { userId, chatId, history });
-    } catch (error) {
-      console.error("Failed to get email response from Python backend:", error.message);
-      replyContent = "Sorry, I'm unable to draft emails at the moment. Please try again later.";
-    }
+    // The wrapped drafting prompt goes to Python, but the student's own words
+    // are what gets captured if the bot can't help.
+    const ask = await askAndCapture(emailPrompt, {
+      user: req.user,
+      chatId: chat._id,
+      history,
+      captureText: prompt.trim(),
+      fallback: "Sorry, I'm unable to draft emails at the moment. Please try again later.",
+      logLabel: "Failed to get email response from Python backend",
+    });
 
+    const userMessage = {
+      type: "email",
+      role: "user",
+      content: prompt.trim(),
+      emailData: { recipient, subject, isSent: false },
+      timestamp: Date.now(),
+    };
     const reply = {
       type: "email",
       role: "assistant",
-      content: replyContent,
-      emailData: {
-        recipient: recipient || "",
-        subject: subject || "Drafted Email",
-        isSent: false,
+      content: ask.content,
+      emailData: { recipient, subject: subject || "Drafted Email", isSent: false },
+      answered: ask.answered,
+      questionId: ask.questionId ?? undefined,
+      timestamp: Date.now(),
+    };
+    await appendTurn(chat, userMessage, reply);
+
+    res.json({ success: true, reply, userMessage, chatName: chat.name, source: "python_backend", ...replyMeta(ask) });
+  } catch (error) {
+    console.error("Error in emailMessageController:", error.message);
+    res.status(500).json({ success: false, message: "Error generating email" });
+  }
+};
+
+// Shared by voice + transcribe: decode, validate, run Whisper.
+async function transcribeRequestAudio(audioUrl) {
+  const decoded = decodeAudioDataUrl(audioUrl);
+  if (decoded.error) return { status: 400, message: decoded.error };
+
+  const transcription = await transcribeWithPython(decoded.buffer, decoded.extension);
+  if (!transcription.success) {
+    console.error("Transcription failed:", transcription.error);
+    return {
+      status: 502,
+      message: "Could not transcribe voice message. Please speak more clearly or try text input.",
+    };
+  }
+  // Same length rule as a typed message — a long recording can't smuggle a
+  // bigger prompt to the LLM than the text box allows.
+  const text = transcription.text.trim().slice(0, MAX_PROMPT_CHARS).trim();
+  if (!text) return { status: 502, message: "Could not transcribe voice message. Please try text input." };
+  return { text, extension: decoded.extension };
+}
+
+export const voiceMessageController = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const { chatId, audioUrl, duration, fileSize } = req.body ?? {};
+
+    const chat = await findUserChat(userId, chatId);
+    if (!chat) {
+      return res.status(404).json({ success: false, message: "Chat not found" });
+    }
+
+    const result = await transcribeRequestAudio(audioUrl);
+    if (!result.text) {
+      return res.status(result.status).json({ success: false, message: result.message });
+    }
+
+    const history = buildHistoryPayload(chat.messages);
+    const suggestComplaint = complaintHint(req.user, result.text);
+    const ask = await askAndCapture(result.text, {
+      user: req.user,
+      chatId: chat._id,
+      history,
+      fallback:
+        "I received your voice message, but I'm having trouble accessing the knowledge base. Please try again or use text input.",
+      logLabel: "Python backend Error",
+      complaint: suggestComplaint,
+    });
+
+    const userMessage = {
+      type: "voice",
+      role: "user",
+      content: result.text,
+      voiceNote: {
+        duration: Number(duration) || 0,
+        fileSize: Number(fileSize) || 0,
       },
       timestamp: Date.now(),
     };
-
-    // Save AI response
-    chat.messages.push(reply);
-    await chat.save();
+    const reply = {
+      type: "text",
+      role: "assistant",
+      content: ask.content,
+      answered: ask.answered,
+      questionId: ask.questionId ?? undefined,
+      suggestComplaint,
+      timestamp: Date.now(),
+    };
+    await appendTurn(chat, userMessage, reply);
 
     res.json({
       success: true,
       reply,
-      userMessage: userMessage,
-      source: "python_backend"
-    });
-
-  } catch (error) {
-    console.error("Error in emailMessageController:", error.message);
-    res.status(500).json({
-      success: false,
-      message: error.message || "Error generating email",
-    });
-  }
-};
-
-// Voice Message Controller - UPDATED TO USE PYTHON BACKEND
-export const voiceMessageController = async (req, res) => {
-  let tempFilePath = null;
-  
-  try {
-    const userId = req.user._id;
-
-    const { chatId, audioUrl, duration, fileSize } = req.body;
-
-    if (!audioUrl) {
-      return res.status(400).json({
-        success: false,
-        message: "Audio data is required",
-      });
-    }
-
-    if (!audioUrl.startsWith('data:audio/')) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid audio format. Expected base64 audio data.",
-      });
-    }
-
-    const chat = await Chat.findOne({ userId, _id: chatId });
-    if (!chat) {
-      return res.status(404).json({
-        success: false,
-        message: "Chat not found",
-      });
-    }
-
-    console.log("=== VOICE MESSAGE PROCESSING START ===");
-
-    // Determine file extension
-    let fileExtension = 'webm';
-    const mimeMatch = audioUrl.match(/data:audio\/([^;]+);/);
-    if (mimeMatch) {
-      const mimeType = mimeMatch[1];
-      if (mimeType.includes('wav')) fileExtension = 'wav';
-      else if (mimeType.includes('mp3')) fileExtension = 'mp3';
-      else if (mimeType.includes('ogg')) fileExtension = 'ogg';
-      else if (mimeType.includes('m4a')) fileExtension = 'm4a';
-    }
-
-    // Save to temp file
-    tempFilePath = saveBase64ToTempFile(audioUrl, fileExtension);
-    
-    // Validate audio
-    const validation = validateAudioQuality(tempFilePath);
-    if (!validation.valid) {
-      return res.status(400).json({
-        success: false,
-        message: validation.error,
-      });
-    }
-
-    // Transcribe with local Whisper (via Python service)
-    let transcription = await transcribeWithPython(tempFilePath);
-
-    // If Whisper fails, use basic fallback
-    if (!transcription.success) {
-      transcription = await transcribeWithBasicFallback(tempFilePath);
-      
-      if (!transcription.success) {
-        return res.status(500).json({
-          success: false,
-          message: "Failed to process voice message. Please try again or use text input.",
-        });
-      }
-    }
-
-    const transcribedText = transcription.text.trim();
-    
-    // Enhanced validation for transcribed text
-    if (!transcribedText || transcribedText === "") {
-      return res.status(400).json({
-        success: false,
-        message: "No speech detected in your recording. Please speak clearly and try again.",
-      });
-    }
-
-    // Check if transcription is just fallback placeholder
-    if (transcription.isFallback && transcribedText.includes('[Voice message received')) {
-      return res.status(400).json({
-        success: false,
-        message: "Could not transcribe voice message. Please speak more clearly or try text input.",
-        suggestion: "Speak louder and more clearly, or reduce background noise."
-      });
-    }
-
-    console.log("✅ Transcription completed:", transcribedText);
-
-    // Snapshot history BEFORE we push the transcribed user message.
-    const history = buildHistoryPayload(chat.messages);
-
-    // Create user voice message
-    const userMessage = {
-      type: "voice",
-      role: "user",
-      content: transcribedText,
-      voiceMeta: {
-        duration: duration || 0,
-        fileSize: fileSize || 0,
-        wasTranscribed: true,
-        transcriptionService: transcription.service || "unknown",
-        isFallback: transcription.isFallback || false,
-        audioFormat: fileExtension,
-      },
-      timestamp: Date.now(),
-    };
-
-    // Add user voice message to chat
-    chat.messages.push(userMessage);
-
-    // Get response from Python backend
-    console.log(`🤖 Sending voice transcription to Python backend: "${transcribedText}" (history: ${history.length} msgs)`);
-    let aiResponse = "";
-    try {
-      aiResponse = await getPythonBackendResponse(transcribedText, { userId, chatId, history });
-    } catch (error) {
-      console.error("Python backend Error:", error.message);
-      aiResponse = "I received your voice message, but I'm having trouble accessing the knowledge base. Please try again or use text input.";
-    }
-
-    const reply = {
-      type: "text",
-      role: "assistant",
-      content: aiResponse,
-      timestamp: Date.now(),
-      isVoiceResponse: true,
-    };
-
-    // Save AI response
-    chat.messages.push(reply);
-    
-    // Save chat once with both messages
-    await chat.save();
-
-    // Update chat title if this is the first real message
-    if (chat.messages.filter(m => m.role === "user" && !m.content.includes("[Processing")).length === 1) {
-      // Use first few words as title
-      chat.title = transcribedText.split(' ').slice(0, 5).join(' ') + (transcribedText.split(' ').length > 5 ? '...' : '');
-      await chat.save();
-    }
-
-    console.log("=== VOICE MESSAGE PROCESSING COMPLETE ===");
-
-    // Send response
-    res.json({
-      success: true,
-      reply: reply,
-      transcription: transcribedText,
-      transcriptionDetails: {
-        service: transcription.service,
-        isFallback: transcription.isFallback || false,
-        audioFormat: fileExtension,
-      },
+      suggestComplaint,
+      transcription: result.text,
+      transcriptionDetails: { service: "whisper", isFallback: false, audioFormat: result.extension },
+      chatName: chat.name,
       source: "python_backend",
       message: "Voice message processed successfully",
+      ...replyMeta(ask),
     });
-
   } catch (error) {
     console.error("Voice message processing error:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Error processing voice message: " + error.message,
-    });
-  } finally {
-    // Clean up temporary file
-    if (tempFilePath) {
-      cleanupTempFile(tempFilePath);
-    }
+    res.status(500).json({ success: false, message: "Error processing voice message" });
   }
 };
 
-// Transcribe-only Controller — converts audio to text WITHOUT saving a chat
-// message or calling the LLM. The frontend drops the result into the text
-// input so the user can edit it before actually sending.
+// Transcribe-only — converts audio to text WITHOUT saving a chat message or
+// calling the LLM. The frontend drops the result into the text input so the
+// user can edit it before actually sending.
 export const transcribeMessageController = async (req, res) => {
-  let tempFilePath = null;
-
   try {
-    const { audioUrl } = req.body;
-
-    if (!audioUrl) {
-      return res.status(400).json({
-        success: false,
-        message: "Audio data is required",
-      });
+    const result = await transcribeRequestAudio(req.body?.audioUrl);
+    if (!result.text) {
+      return res.status(result.status).json({ success: false, message: result.message });
     }
-
-    if (!audioUrl.startsWith('data:audio/')) {
-      return res.status(400).json({
-        success: false,
-        message: "Invalid audio format. Expected base64 audio data.",
-      });
-    }
-
-    // Determine file extension
-    let fileExtension = 'webm';
-    const mimeMatch = audioUrl.match(/data:audio\/([^;]+);/);
-    if (mimeMatch) {
-      const mimeType = mimeMatch[1];
-      if (mimeType.includes('wav')) fileExtension = 'wav';
-      else if (mimeType.includes('mp3')) fileExtension = 'mp3';
-      else if (mimeType.includes('ogg')) fileExtension = 'ogg';
-      else if (mimeType.includes('m4a')) fileExtension = 'm4a';
-    }
-
-    tempFilePath = saveBase64ToTempFile(audioUrl, fileExtension);
-
-    const validation = validateAudioQuality(tempFilePath);
-    if (!validation.valid) {
-      return res.status(400).json({
-        success: false,
-        message: validation.error,
-      });
-    }
-
-    let transcription = await transcribeWithPython(tempFilePath);
-
-    if (!transcription.success) {
-      transcription = await transcribeWithBasicFallback(tempFilePath);
-
-      if (!transcription.success) {
-        return res.status(500).json({
-          success: false,
-          message: "Failed to transcribe voice message. Please try again or use text input.",
-        });
-      }
-    }
-
-    const transcribedText = transcription.text.trim();
-
-    if (!transcribedText) {
-      return res.status(400).json({
-        success: false,
-        message: "No speech detected in your recording. Please speak clearly and try again.",
-      });
-    }
-
-    if (transcription.isFallback && transcribedText.includes('[Voice message received')) {
-      return res.status(400).json({
-        success: false,
-        message: "Could not transcribe voice message. Please speak more clearly or try text input.",
-        suggestion: "Speak louder and more clearly, or reduce background noise.",
-      });
-    }
-
     res.json({
       success: true,
-      transcription: transcribedText,
-      transcriptionDetails: {
-        service: transcription.service,
-        isFallback: transcription.isFallback || false,
-        audioFormat: fileExtension,
-      },
+      transcription: result.text,
+      transcriptionDetails: { service: "whisper", isFallback: false, audioFormat: result.extension },
     });
   } catch (error) {
     console.error("Voice transcription error:", error.message);
-    res.status(500).json({
-      success: false,
-      message: "Error transcribing voice message: " + error.message,
-    });
-  } finally {
-    if (tempFilePath) {
-      cleanupTempFile(tempFilePath);
-    }
+    res.status(500).json({ success: false, message: "Error transcribing voice message" });
   }
 };
 
-// Health check - Updated to check Python backend
 export const transcriptionHealth = async (req, res) => {
-  try {
-    // Test Python backend connection
-    let pythonBackendHealthy = false;
-    try {
-      const testResponse = await fetch(`${PYTHON_BACKEND_URL}/ask`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ question: "test" }),
-        timeout: 5000,
-      });
-      pythonBackendHealthy = testResponse.ok;
-    } catch (error) {
-      console.error("Python backend health check failed:", error.message);
-    }
-    
-    const health = {
-      pythonBackend: pythonBackendHealthy,
-      pythonBackendUrl: PYTHON_BACKEND_URL,
-      whisper: pythonBackendHealthy, // local transcription is part of the Python service
+  const healthy = await pythonIsHealthy();
+  res.json({
+    success: true,
+    health: {
+      pythonBackend: healthy,
+      whisper: healthy, // local transcription is part of the Python service
       timestamp: new Date().toISOString(),
-      audioFormats: ["webm", "wav", "mp3", "ogg", "m4a"]
-    };
-    
-    res.json({
-      success: true,
-      health,
-      message: pythonBackendHealthy 
-        ? "All systems operational" 
-        : "Python backend connection issue"
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: "Health check failed"
-    });
-  }
-};
-
-// You might also want to add a direct test endpoint
-export const testPythonBackend = async (req, res) => {
-  try {
-    const { question } = req.body;
-    
-    if (!question) {
-      return res.status(400).json({
-        success: false,
-        message: "Question is required"
-      });
-    }
-    
-    const response = await getPythonBackendResponse(question);
-    
-    res.json({
-      success: true,
-      question,
-      response,
-      source: "python_backend"
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
-
-export default {
-  textMessageController,
-  emailMessageController,
-  voiceMessageController,
-  transcribeMessageController,
-  transcriptionHealth,
-  testPythonBackend
+      audioFormats: ["webm", "wav", "mp3", "ogg", "m4a"],
+    },
+    message: healthy ? "All systems operational" : "Python backend connection issue",
+  });
 };
