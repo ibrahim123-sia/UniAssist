@@ -1,0 +1,50 @@
+{
+  "expo": {
+    "name": "UniAssist",
+    "slug": "uniassist",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#1E2A66"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "edu.maju.uniassist"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#1E2A66"
+      },
+      "package": "edu.maju.uniassist"
+    },
+    "plugins": [
+      "expo-secure-store",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "UniAssist uses your photos to set your profile picture."
+        }
+      ],
+      "expo-document-picker",
+      [
+        "expo-av",
+        {
+          "microphonePermission": "UniAssist uses the microphone to transcribe voice questions."
+        }
+      ],
+      [
+        "expo-build-properties",
+        {
+          "android": {
+            "usesCleartextTraffic": true
+          }
+        }
+      ]
+    ]
+  }
+}
