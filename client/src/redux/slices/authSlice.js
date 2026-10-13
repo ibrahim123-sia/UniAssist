@@ -1,8 +1,37 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "../../utils/axios";
 import { validateMajuEmail } from "../../utils/validation";
-import { resetChat } from "./chatSlice";
 import { clearGuestSession } from "./guestSlice";
+
+const GENERIC_EMAIL_REGEX = /^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$/;
+
+// Rate-limit and validation responses carry a specific, user-facing message
+// (e.g. "try again in 15 minutes") that beats any generic fallback.
+const serverMessage = (error) => error.response?.data?.message;
+
+// Forgot/reset works for every account (students, staff, admins), so any
+// well-formed email is accepted; the server's reply never reveals whether
+// the account exists.
+const validateResetEmail = (email) => {
+  const normalized = (email || "").trim().toLowerCase();
+  if (GENERIC_EMAIL_REGEX.test(normalized)) return { isValid: true, email: normalized };
+  return { isValid: false, error: "Invalid email format" };
+};
+
+export const EMAIL_NOT_CONFIGURED_MESSAGE =
+  "Email service is not configured yet. Please contact the university administrator.";
+
+// 503 from register / resend / forgot-password: the university email
+// (SMTP) hasn't been set up, so no OTP can be sent. Pages show this as a
+// notice rather than a generic failure.
+const emailNotConfigured = (error) =>
+  error.response?.status === 503
+    ? {
+        success: false,
+        emailNotConfigured: true,
+        message: serverMessage(error) || EMAIL_NOT_CONFIGURED_MESSAGE,
+      }
+    : null;
 
 export const registerUser = createAsyncThunk(
   "auth/register",
@@ -42,17 +71,25 @@ export const registerUser = createAsyncThunk(
       }
       return { success: false, message: data.message };
     } catch (error) {
-      let message = "Registration failed";
+      const notConfigured = emailNotConfigured(error);
+      if (notConfigured) return notConfigured;
+      let message = serverMessage(error) || "Registration failed";
       if (error.response?.status === 400) {
-        message = error.response?.data?.message || "Invalid data";
+        message = serverMessage(error) || "Invalid data";
       } else if (error.response?.status === 409) {
         message = "User already exists";
       } else if (error.response?.status === 429) {
-        message = "Too many attempts";
+        // retryAfter in the body (not just the header) means an OTP for this
+        // email is still live, so the user can go straight to entering it.
+        const otpPending = error.response?.data?.retryAfter !== undefined;
+        return {
+          success: false,
+          message: serverMessage(error) || "Too many attempts. Please try again later.",
+          otpPending,
+          email: email?.trim().toLowerCase(),
+        };
       } else if (error.code === "ERR_NETWORK") {
         message = "Network error";
-      } else if (error.response?.data?.message) {
-        message = error.response.data.message;
       }
       return { success: false, message };
     }
@@ -93,17 +130,22 @@ export const verifyOtp = createAsyncThunk(
         requiresNewOtp: data.requiresNewOtp,
       };
     } catch (error) {
-      let message = "Verification failed";
+      let message = serverMessage(error) || "Verification failed";
       if (error.response?.status === 400) {
-        message = error.response?.data?.message || "Invalid OTP";
+        message = serverMessage(error) || "Invalid OTP";
       } else if (error.response?.status === 404) {
         message = "User not found";
       } else if (error.response?.status === 429) {
-        message = "Too many attempts";
+        message = serverMessage(error) || "Too many attempts. Please try again later.";
       } else if (error.code === "ERR_NETWORK") {
         message = "Network error";
       }
-      return { success: false, message };
+      return {
+        success: false,
+        message,
+        attemptsRemaining: error.response?.data?.attemptsRemaining,
+        requiresNewOtp: error.response?.data?.requiresNewOtp,
+      };
     }
   }
 );
@@ -130,12 +172,14 @@ export const resendOtp = createAsyncThunk(
         retryAfter: data.retryAfter,
       };
     } catch (error) {
-      let message = "Failed to resend OTP";
-      if (error.response?.status === 400) message = "Invalid email";
-      else if (error.response?.status === 404) message = "User not found";
-      else if (error.response?.status === 429) message = "Too many attempts";
-      else if (error.code === "ERR_NETWORK") message = "Network error";
-      return { success: false, message };
+      const notConfigured = emailNotConfigured(error);
+      if (notConfigured) return notConfigured;
+      let message = serverMessage(error) || "Failed to resend OTP";
+      if (error.response?.status === 404) message = "User not found";
+      else if (error.response?.status === 429) {
+        message = serverMessage(error) || "Too many attempts. Please try again later.";
+      } else if (error.code === "ERR_NETWORK") message = "Network error";
+      return { success: false, message, retryAfter: error.response?.data?.retryAfter };
     }
   }
 );
@@ -149,8 +193,7 @@ export const loginUser = createAsyncThunk(
       }
 
       const normalized = email.trim().toLowerCase();
-      const genericEmailRegex = /^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$/;
-      if (!genericEmailRegex.test(normalized)) {
+      if (!GENERIC_EMAIL_REGEX.test(normalized)) {
         return { success: false, message: "Invalid email format" };
       }
 
@@ -172,19 +215,35 @@ export const loginUser = createAsyncThunk(
         email: normalized,
       };
     } catch (error) {
-      let message = "Login failed";
-      if (error.response?.status === 400) message = "Invalid input";
-      else if (error.response?.status === 401)
+      const status = error.response?.status;
+      const body = error.response?.data || {};
+      let message = body.message || "Login failed";
+      if (status === 400) message = body.message || "Invalid input";
+      else if (status === 401) {
         message = "Invalid email or password";
-      else if (error.response?.status === 403) {
+        if (typeof body.attemptsRemaining === "number") {
+          message += ` (${body.attemptsRemaining} attempt${
+            body.attemptsRemaining === 1 ? "" : "s"
+          } remaining)`;
+        }
+        return { success: false, message, attemptsRemaining: body.attemptsRemaining };
+      } else if (status === 403) {
+        if (body.needsVerification) {
+          return {
+            success: false,
+            message: body.message || "Please verify your email first",
+            needsVerification: true,
+            email: body.email || email.trim().toLowerCase(),
+          };
+        }
         return {
           success: false,
-          message: "Please verify your email first",
-          needsVerification: true,
-          email,
+          message: body.message || "Your account has been blocked.",
+          blocked: !!body.blocked,
         };
-      } else if (error.response?.status === 429) message = "Account locked";
-      else if (error.code === "ERR_NETWORK") message = "Network error";
+      } else if (status === 429) {
+        message = body.message || "Too many login attempts. Please try again later.";
+      } else if (error.code === "ERR_NETWORK") message = "Network error";
       return { success: false, message };
     }
   }
@@ -196,9 +255,9 @@ export const forgotPassword = createAsyncThunk(
     try {
       if (!email) return { success: false, message: "Email is required" };
 
-      const emailValidation = validateMajuEmail(email);
+      const emailValidation = validateResetEmail(email);
       if (!emailValidation.isValid) {
-        return { success: false, message: "Invalid email format" };
+        return { success: false, message: emailValidation.error };
       }
 
       const { data } = await axios.post("/api/user/forgot-password", {
@@ -210,10 +269,12 @@ export const forgotPassword = createAsyncThunk(
       }
       return { success: false, message: data.message };
     } catch (error) {
-      let message = "Failed to send reset OTP";
-      if (error.response?.status === 400) message = "Invalid email";
-      else if (error.response?.status === 429) message = "Too many attempts";
-      else if (error.code === "ERR_NETWORK") message = "Network error";
+      const notConfigured = emailNotConfigured(error);
+      if (notConfigured) return notConfigured;
+      let message = serverMessage(error) || "Failed to send reset OTP";
+      if (error.response?.status === 429) {
+        message = serverMessage(error) || "Too many attempts. Please try again later.";
+      } else if (error.code === "ERR_NETWORK") message = "Network error";
       return { success: false, message };
     }
   }
@@ -227,9 +288,9 @@ export const resetPassword = createAsyncThunk(
         return { success: false, message: "All fields are required" };
       }
 
-      const emailValidation = validateMajuEmail(email);
+      const emailValidation = validateResetEmail(email);
       if (!emailValidation.isValid) {
-        return { success: false, message: "Invalid email format" };
+        return { success: false, message: emailValidation.error };
       }
 
       if (newPassword.length < 6) {
@@ -257,12 +318,20 @@ export const resetPassword = createAsyncThunk(
         attemptsRemaining: data.attemptsRemaining,
       };
     } catch (error) {
-      let message = "Failed to reset password";
-      if (error.response?.status === 400) message = "Invalid input";
-      else if (error.response?.status === 404) message = "User not found";
-      else if (error.response?.status === 429) message = "Too many attempts";
-      else if (error.code === "ERR_NETWORK") message = "Network error";
-      return { success: false, message };
+      const body = error.response?.data || {};
+      let message = body.message || "Failed to reset password";
+      if (error.response?.status === 400) {
+        message = body.message || "Invalid input";
+        if (typeof body.attemptsRemaining === "number") {
+          message += ` (${body.attemptsRemaining} attempt${
+            body.attemptsRemaining === 1 ? "" : "s"
+          } remaining)`;
+        }
+      } else if (error.response?.status === 404) message = "User not found";
+      else if (error.response?.status === 429) {
+        message = body.message || "Too many attempts. Please try again later.";
+      } else if (error.code === "ERR_NETWORK") message = "Network error";
+      return { success: false, message, attemptsRemaining: body.attemptsRemaining };
     }
   }
 );
@@ -281,19 +350,24 @@ export const fetchUser = createAsyncThunk(
       const unauthorized =
         data.message?.includes("Not authorized") ||
         data.message?.includes("Invalid token");
+      if (unauthorized) localStorage.removeItem("token");
       return { success: false, unauthorized, message: data.message };
     } catch (error) {
-      const unauthorized = error.response?.status === 401;
+      const status = error.response?.status;
+      const unauthorized =
+        status === 401 || (status === 403 && !!error.response?.data?.blocked);
+      if (unauthorized) localStorage.removeItem("token");
       return { success: false, unauthorized };
     }
   }
 );
 
+// The root reducer (redux/store.js) resets every slice except theme when
+// this fulfils, so no per-slice cleanup is needed here.
 export const logoutUser = createAsyncThunk(
   "auth/logout",
   async (_, { dispatch }) => {
     localStorage.removeItem("token");
-    dispatch(resetChat());
     dispatch(clearGuestSession());
     return true;
   }
@@ -335,6 +409,9 @@ export const changePassword = createAsyncThunk(
         { currentPassword, newPassword },
         { headers: { Authorization: token } }
       );
+      // The server invalidates tokens issued before a password change and
+      // hands back a fresh one — persist it or the next request logs us out.
+      if (data.success && data.token) localStorage.setItem("token", data.token);
       return data;
     } catch (error) {
       return {
@@ -345,11 +422,13 @@ export const changePassword = createAsyncThunk(
   }
 );
 
-const initialState = {
+// Lazy so a reset (see store.js) re-reads storage instead of reusing the
+// token captured at module load.
+const initialState = () => ({
   user: null,
   token: localStorage.getItem("token") || null,
-  loadingUser: true,
-};
+  loadingUser: !!localStorage.getItem("token"),
+});
 
 const authSlice = createSlice({
   name: "auth",
@@ -390,6 +469,12 @@ const authSlice = createSlice({
       .addCase(logoutUser.fulfilled, (state) => {
         state.token = null;
         state.user = null;
+        state.loadingUser = false;
+      })
+      .addCase(changePassword.fulfilled, (state, action) => {
+        if (action.payload.success && action.payload.token) {
+          state.token = action.payload.token;
+        }
       })
       .addCase(updateProfile.fulfilled, (state, action) => {
         if (action.payload.success) {

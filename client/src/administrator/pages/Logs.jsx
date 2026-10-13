@@ -23,6 +23,7 @@ import LoadingSkeleton from "../components/LoadingSkeleton";
 import EmptyState from "../components/EmptyState";
 import Pagination from "../components/Pagination";
 import { getPalette } from "../utils/palette";
+import { useDebouncedSearch } from "../utils/useDebouncedSearch";
 
 const PAGE_SIZE = 25;
 
@@ -41,10 +42,15 @@ const Logs = () => {
   );
 
   const [tab, setTab] = useState("audit");
-  const [search, setSearch] = useState("");
   const [loginFilter, setLoginFilter] = useState("");
   const [flaggedOnly, setFlaggedOnly] = useState(false);
   const [page, setPage] = useState(1);
+  const {
+    input: searchInput,
+    setInput: setSearchInput,
+    search,
+    reset: resetSearch,
+  } = useDebouncedSearch(() => setPage(1));
   const [chatOpen, setChatOpen] = useState(false);
 
   useEffect(() => {
@@ -58,7 +64,6 @@ const Logs = () => {
     }
   }, [dispatch, tab, search, loginFilter, flaggedOnly, page]);
 
-  useEffect(() => { setPage(1); setSearch(""); }, [tab]);
 
   const openChat = (id) => {
     setChatOpen(true);
@@ -113,8 +118,8 @@ const Logs = () => {
                 <span
                   className="px-2 py-0.5 text-xs rounded-full font-medium"
                   style={{
-                    backgroundColor: a.statusCode < 300 ? `${C.green}1A` : `${C.red}1A`,
-                    color: a.statusCode < 300 ? C.green : C.red,
+                    backgroundColor: a.statusCode < 300 ? `${C.green}1A` : `${C.danger}1A`,
+                    color: a.statusCode < 300 ? C.green : C.danger,
                   }}
                 >
                   {a.statusCode}
@@ -168,7 +173,7 @@ const Logs = () => {
                 ) : (
                   <span
                     className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full"
-                    style={{ backgroundColor: `${C.red}1A`, color: C.red }}
+                    style={{ backgroundColor: `${C.danger}1A`, color: C.danger }}
                   >
                     <XCircle className="w-3 h-3" /> Failed
                   </span>
@@ -251,7 +256,13 @@ const Logs = () => {
           return (
             <button
               key={t.key}
-              onClick={() => setTab(t.key)}
+              onClick={() => {
+                // One batched update: the new tab's first fetch already has
+                // page 1 and no search carried over from the previous tab.
+                setTab(t.key);
+                setPage(1);
+                resetSearch();
+              }}
               className="px-3 py-2 text-sm rounded-lg border flex items-center gap-2 transition-colors"
               style={{
                 backgroundColor: active ? C.navy : C.surface,
@@ -271,8 +282,8 @@ const Logs = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder={
               tab === "audit"
                 ? "Filter by action (e.g. POST)..."
@@ -287,7 +298,10 @@ const Logs = () => {
         {tab === "logins" && (
           <select
             value={loginFilter}
-            onChange={(e) => setLoginFilter(e.target.value)}
+            onChange={(e) => {
+              setLoginFilter(e.target.value);
+              setPage(1);
+            }}
             className="px-3 py-2.5 text-sm rounded-lg border focus:outline-none"
             style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
           >
@@ -301,7 +315,10 @@ const Logs = () => {
             <input
               type="checkbox"
               checked={flaggedOnly}
-              onChange={(e) => setFlaggedOnly(e.target.checked)}
+              onChange={(e) => {
+                setFlaggedOnly(e.target.checked);
+                setPage(1);
+              }}
             />
             <Flag className="w-3 h-3" style={{ color: C.red }} />
             Flagged students only

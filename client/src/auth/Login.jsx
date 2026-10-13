@@ -1,9 +1,15 @@
 import React, { useState } from "react";
 import { toast } from "react-hot-toast";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { loginUser, forgotPassword, resetPassword } from "../redux/slices/authSlice";
+import {
+  loginUser,
+  forgotPassword,
+  resetPassword,
+  resendOtp,
+} from "../redux/slices/authSlice";
 import { toggleTheme as toggleThemeAction } from "../redux/slices/themeSlice";
+import ServiceNotice from "../components/ServiceNotice";
 import {
   Sun,
   Moon,
@@ -16,9 +22,26 @@ import {
   Mail as MailIcon,
 } from "lucide-react";
 
+// Top-level path sections each role may open; mirrors the role guards in
+// App.jsx so a stale `from` can't bounce the user through a redirect.
+const ROLE_PATHS = {
+  student: ["/chat", "/jobs", "/events", "/scholarships", "/issues", "/questions", "/profile"],
+  staff: ["/staff", "/profile"],
+  admin: ["/admin", "/profile"],
+};
+
+const roleHome = (role) =>
+  role === "staff" ? "/staff/dashboard" : role === "admin" ? "/admin/dashboard" : "/chat";
+
+const isPathAllowed = (pathname, role) =>
+  (ROLE_PATHS[role] || ROLE_PATHS.student).some(
+    (prefix) => pathname === prefix || pathname.startsWith(prefix + "/")
+  );
+
 const Login = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const theme = useSelector((s) => s.theme.theme);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -27,6 +50,8 @@ const Login = () => {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [resetStep, setResetStep] = useState(0);
+  // Server-side blocker (503: university email not configured), shown inline.
+  const [serviceIssue, setServiceIssue] = useState("");
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
@@ -39,13 +64,21 @@ const Login = () => {
 
     if (result.success) {
       const role = result.user?.role;
+      const from = location.state?.from;
       const dest =
-        role === "staff"
-          ? "/staff/dashboard"
-          : role === "admin"
-          ? "/admin/dashboard"
-          : "/chat";
+        from?.pathname && isPathAllowed(from.pathname, role)
+          ? `${from.pathname}${from.search || ""}${from.hash || ""}`
+          : roleHome(role);
       navigate(dest, { replace: true });
+    } else if (result.needsVerification) {
+      // Send a fresh code and hand off to Register's OTP step.
+      const resent = await dispatch(resendOtp({ email: result.email })).unwrap();
+      if (resent.success) {
+        toast.success("Your email isn't verified yet. We sent you a new code.");
+      } else {
+        toast.error(resent.message || result.message);
+      }
+      navigate("/register", { state: { email: result.email, step: 2 } });
     } else {
       toast.error(result.message || "Login failed");
     }
@@ -60,9 +93,13 @@ const Login = () => {
     const result = await dispatch(forgotPassword({ email: resetEmail })).unwrap();
 
     if (result.success) {
+      setServiceIssue("");
       toast.success("OTP sent to your email");
       setResetStep(2);
+    } else if (result.emailNotConfigured) {
+      setServiceIssue(result.message);
     } else {
+      setServiceIssue("");
       toast.error(result.message || "Failed to send OTP");
     }
 
@@ -296,8 +333,9 @@ const Login = () => {
                     theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
                   }`}
                 >
-                  Enter your email to receive a verification code
+                  Enter your account email to receive a verification code
                 </p>
+                <ServiceNotice message={serviceIssue} isDark={theme === "dark"} />
                 <form onSubmit={handleSendOtp}>
                   <div className="mb-4 sm:mb-6">
                     <label
@@ -318,7 +356,7 @@ const Login = () => {
                             ? "bg-[#0B1120] border-[#2A3656] text-[#ECEEF5]"
                             : "bg-[#F2F3F8] border-[#D8DAE6] text-[#1F2330]"
                         }`}
-                        placeholder="student@maju.edu.pk"
+                        placeholder="you@maju.edu.pk"
                         required
                       />
                     </div>
@@ -326,7 +364,10 @@ const Login = () => {
                   <div className="flex flex-col sm:flex-row gap-2 sm:gap-3">
                     <button
                       type="button"
-                      onClick={() => setResetStep(0)}
+                      onClick={() => {
+                        setServiceIssue("");
+                        setResetStep(0);
+                      }}
                       className={`flex-1 py-2 sm:py-3 px-4 border rounded-xl hover:transition-colors text-sm sm:text-base ${
                         theme === "dark"
                           ? "border-[#2A3656] text-[#9AA5BD] hover:bg-[#1E2A47]"

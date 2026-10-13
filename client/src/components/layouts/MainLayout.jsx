@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { Suspense, useState } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import Sidebar from '../Sidebar';
 import MobileMenuButton from '../MobileMenuButton';
+import PageFallback from '../PageFallback';
 
 const MainLayout = () => {
   const user = useSelector((s) => s.auth.user);
@@ -30,7 +31,10 @@ const MainLayout = () => {
       
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden md:ml-0">
-        <Outlet />
+        {/* Keeps the sidebar on screen while a lazy page loads */}
+        <Suspense fallback={<PageFallback />}>
+          <Outlet />
+        </Suspense>
       </div>
     </div>
   );

@@ -36,10 +36,23 @@ const AdminTable = ({ columns, children, dense = false }) => {
 export const AdminTableRow = ({ children, onClick, highlight }) => {
   const theme = useSelector((s) => s.theme.theme);
   const C = getPalette(theme === "dark");
+  // Clickable rows are keyboard operable: focusable, Enter/Space activate.
+  const onKeyDown = onClick
+    ? (e) => {
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick(e);
+        }
+      }
+    : undefined;
   return (
     <tr
       onClick={onClick}
-      className={`border-t transition-colors ${onClick ? "cursor-pointer" : ""}`}
+      onKeyDown={onKeyDown}
+      tabIndex={onClick ? 0 : undefined}
+      role={onClick ? "button" : undefined}
+      className={`border-t transition-colors ${onClick ? "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset" : ""}`}
       style={{ borderColor: C.border, backgroundColor: highlight ? `${C.red}10` : "transparent" }}
       onMouseEnter={(e) => onClick && (e.currentTarget.style.backgroundColor = C.surfaceAlt)}
       onMouseLeave={(e) =>

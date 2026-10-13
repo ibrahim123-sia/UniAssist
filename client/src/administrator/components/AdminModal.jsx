@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useId, useRef } from "react";
 import { useSelector } from "react-redux";
 import { X } from "lucide-react";
 import { getPalette } from "../utils/palette";
@@ -6,6 +6,8 @@ import { getPalette } from "../utils/palette";
 const AdminModal = ({ open, onClose, title, children, footer, size = "md" }) => {
   const theme = useSelector((s) => s.theme.theme);
   const C = getPalette(theme === "dark");
+  const titleId = useId();
+  const panelRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -13,6 +15,21 @@ const AdminModal = ({ open, onClose, title, children, footer, size = "md" }) => 
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [open, onClose]);
+
+  // Move focus into the dialog (first form field, else the first button) and
+  // give it back to whatever opened it when the dialog closes.
+  useEffect(() => {
+    if (!open) return undefined;
+    const previous = document.activeElement;
+    const panel = panelRef.current;
+    const target =
+      panel?.querySelector("input:not([type=hidden]):not([disabled]), select:not([disabled]), textarea:not([disabled])") ||
+      panel?.querySelector("[data-autofocus], button:not([disabled])");
+    target?.focus();
+    return () => {
+      if (previous && typeof previous.focus === "function" && document.contains(previous)) previous.focus();
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -25,12 +42,16 @@ const AdminModal = ({ open, onClose, title, children, footer, size = "md" }) => 
       onClick={onClose}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className={`w-full ${widths[size] || widths.md} rounded-xl border shadow-2xl flex flex-col max-h-[90vh]`}
         style={{ backgroundColor: C.surface, borderColor: C.border, color: C.text }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: C.border }}>
-          <h3 className="text-base font-semibold">{title}</h3>
+          <h3 id={titleId} className="text-base font-semibold">{title}</h3>
           <button
             onClick={onClose}
             className="p-1 rounded transition-colors"

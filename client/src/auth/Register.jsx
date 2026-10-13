@@ -1,10 +1,11 @@
 // pages/Register.jsx
 import React, { useState } from "react";
 import { toast } from "react-hot-toast";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { registerUser, verifyOtp, resendOtp } from "../redux/slices/authSlice";
 import { toggleTheme } from "../redux/slices/themeSlice";
+import ServiceNotice from "../components/ServiceNotice";
 import {
   Sun,
   Moon,
@@ -27,15 +28,23 @@ const Register = () => {
   const dispatch = useDispatch();
   const theme = useSelector((s) => s.theme.theme);
   const navigate = useNavigate();
+  const location = useLocation();
+  // Login hands unverified users over as { email, step: 2 } so they land
+  // directly on the OTP form.
+  const handoffEmail = location.state?.email || "";
   const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(handoffEmail);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [otp, setOtp] = useState("");
-  const [step, setStep] = useState(1);
+  const [step, setStep] = useState(
+    handoffEmail && location.state?.step === 2 ? 2 : 1
+  );
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // Server-side blocker (503: university email not configured), shown inline.
+  const [serviceIssue, setServiceIssue] = useState("");
 
   const handleRegister = async (e) => {
     e.preventDefault();
@@ -58,10 +67,16 @@ const Register = () => {
       ).unwrap();
 
       if (result.success) {
+        setServiceIssue("");
         toast.success("OTP sent to your email");
         setStep(2);
+      } else if (result.emailNotConfigured) {
+        setServiceIssue(result.message);
       } else {
+        setServiceIssue("");
         toast.error(result.message || "Registration failed");
+        // A code for this email is still live: let them enter it.
+        if (result.otpPending) setStep(2);
       }
     } catch (error) {
       toast.error(error.message || "Registration failed");
@@ -96,7 +111,10 @@ const Register = () => {
       const result = await dispatch(resendOtp({ email })).unwrap();
 
       if (result.success) {
+        setServiceIssue("");
         toast.success("New OTP sent to your email!");
+      } else if (result.emailNotConfigured) {
+        setServiceIssue(result.message);
       } else {
         toast.error(result.message || "Failed to resend OTP");
       }
@@ -171,6 +189,7 @@ const Register = () => {
                 : "Enter the 6-digit code sent to your email"}
             </p>
 
+            <ServiceNotice message={serviceIssue} isDark={theme === "dark"} />
             {step === 1 ? (
               <form
                 onSubmit={handleRegister}

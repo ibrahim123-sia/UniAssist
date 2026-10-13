@@ -40,7 +40,7 @@ const ConfirmDialog = ({
             onClick={onConfirm}
             disabled={loading}
             className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-            style={{ backgroundColor: destructive ? C.red : C.navy }}
+            style={{ backgroundColor: destructive ? C.danger : C.navy }}
           >
             {loading ? "Please wait..." : confirmLabel}
           </button>
@@ -50,7 +50,7 @@ const ConfirmDialog = ({
       <div className="flex gap-3">
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-          style={{ backgroundColor: `${destructive ? C.red : C.amber}1A`, color: destructive ? C.red : C.amber }}
+          style={{ backgroundColor: `${destructive ? C.danger : C.amber}1A`, color: destructive ? C.danger : C.amber }}
         >
           <AlertTriangle className="w-5 h-5" />
         </div>

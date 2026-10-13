@@ -53,6 +53,7 @@ const Profile = () => {
     muted: isDark ? "#9AA5BD" : "#5A6372",
     navy: isDark ? "#E63027" : "#1E2A66",
     red: isDark ? "#C48A4A" : "#E63027",
+    danger: isDark ? "#F06A62" : "#C81E15",
     green: isDark ? "#6FB58A" : "#2F8A56",
   };
 
@@ -331,7 +332,7 @@ const Profile = () => {
                 autoComplete="new-password"
               />
               {confirmPassword && newPassword !== confirmPassword && (
-                <p className="text-xs mt-1" style={{ color: C.red }}>
+                <p className="text-xs mt-1" style={{ color: C.danger }}>
                   Passwords don't match.
                 </p>
               )}

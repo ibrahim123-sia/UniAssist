@@ -23,7 +23,7 @@ export const fetchUnreadCount = createAsyncThunk(
     try {
       const { data } = await axios.get("/api/notification/unread-count", authHeader(getState));
       return data;
-    } catch (error) {
+    } catch {
       return { success: false };
     }
   }
@@ -35,7 +35,7 @@ export const markRead = createAsyncThunk(
     try {
       const { data } = await axios.patch(`/api/notification/${id}/read`, {}, authHeader(getState));
       return data;
-    } catch (error) {
+    } catch {
       return { success: false };
     }
   }
@@ -47,7 +47,7 @@ export const markAllRead = createAsyncThunk(
     try {
       const { data } = await axios.patch("/api/notification/read-all", {}, authHeader(getState));
       return data;
-    } catch (error) {
+    } catch {
       return { success: false };
     }
   }
@@ -59,12 +59,7 @@ const notificationSlice = createSlice({
     notifications: [],
     unreadCount: 0,
   },
-  reducers: {
-    resetNotifications(state) {
-      state.notifications = [];
-      state.unreadCount = 0;
-    },
-  },
+  reducers: {},
   extraReducers: (builder) => {
     builder
       .addCase(fetchNotifications.fulfilled, (state, action) => {
@@ -91,5 +86,4 @@ const notificationSlice = createSlice({
   },
 });
 
-export const { resetNotifications } = notificationSlice.actions;
 export default notificationSlice.reducer;

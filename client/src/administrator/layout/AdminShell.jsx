@@ -1,7 +1,8 @@
-import React from "react";
+import React, { Suspense } from "react";
 import { Outlet, useLocation, Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import { getPalette } from "../utils/palette";
+import PageFallback from "../../components/PageFallback";
 
 const TITLES = {
   "/admin/dashboard": { title: "Dashboard", subtitle: "Overview of the entire portal" },
@@ -10,7 +11,11 @@ const TITLES = {
   "/admin/departments": { title: "Departments", subtitle: "Manage university departments" },
   "/admin/query": { title: "Query", subtitle: "Cross-department issue analytics" },
   "/admin/data": { title: "Data", subtitle: "Manage chatbot knowledge base" },
+  "/admin/listings": { title: "Listings", subtitle: "Jobs, scholarships and events shown to students" },
+  "/admin/questions": { title: "Questions", subtitle: "Questions the chatbot couldn't answer" },
   "/admin/logs": { title: "Logs & Activity", subtitle: "Audit, login, and chat activity" },
+  "/admin/health": { title: "System Health", subtitle: "Status of the server, database, AI service and email" },
+  "/admin/settings": { title: "Settings", subtitle: "University email used for OTPs and notifications" },
 };
 
 const AdminShell = () => {
@@ -48,7 +53,9 @@ const AdminShell = () => {
         </div>
       </header>
       <main className="p-6">
-        <Outlet />
+        <Suspense fallback={<PageFallback />}>
+          <Outlet />
+        </Suspense>
       </main>
     </div>
   );

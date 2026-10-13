@@ -30,9 +30,12 @@ export const getPalette = (isDark) => ({
   // Secondary accent — MAJU red in light, brushed copper in dark
   red: isDark ? "#C48A4A" : "#E63027",
 
-  // Status colors
+  // Status colors. In dark mode `red` is the copper accent, so warnings use
+  // a distinct gold and errors/failures use `danger` (a real red) — never
+  // `red` — so "warning" and "error" can't look the same.
   green: isDark ? "#6FB58A" : "#2F8A56",
-  amber: isDark ? "#C48A4A" : "#B8860B",
+  amber: isDark ? "#E0B44C" : "#B8860B",
+  danger: isDark ? "#F06A62" : "#C81E15",
 });
 
 export const usePalette = () => {

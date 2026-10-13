@@ -15,6 +15,7 @@ import EmptyState from "../components/EmptyState";
 import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { getPalette } from "../utils/palette";
+import { useDebouncedSearch } from "../utils/useDebouncedSearch";
 
 const PAGE_SIZE = 25;
 
@@ -25,9 +26,13 @@ const Users = () => {
   const { users, total, loading, selectedUser, selectedActivity, detailLoading, submitting } =
     useSelector((s) => s.adminUser);
 
-  const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all"); // all | blocked | flagged
   const [page, setPage] = useState(1);
+  const {
+    input: searchInput,
+    setInput: setSearchInput,
+    search,
+  } = useDebouncedSearch(() => setPage(1));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [confirmBlock, setConfirmBlock] = useState(null);
 
@@ -42,9 +47,6 @@ const Users = () => {
     dispatch(fetchAdminUsers(query));
   }, [dispatch, query]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, filter]);
 
   const openDetail = (id) => {
     setDrawerOpen(true);
@@ -75,8 +77,8 @@ const Users = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by name or email..."
             className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
             style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
@@ -90,7 +92,10 @@ const Users = () => {
           ].map((f) => (
             <button
               key={f.key}
-              onClick={() => setFilter(f.key)}
+              onClick={() => {
+                setFilter(f.key);
+                setPage(1);
+              }}
               className="px-3 py-1.5 text-sm rounded-lg border transition-colors"
               style={{
                 backgroundColor: filter === f.key ? C.navy : C.surface,
@@ -164,7 +169,7 @@ const Users = () => {
                   {u.isBlocked ? (
                     <span
                       className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                      style={{ backgroundColor: `${C.red}1A`, color: C.red }}
+                      style={{ backgroundColor: `${C.danger}1A`, color: C.danger }}
                     >
                       <UserX className="w-3 h-3" /> Blocked
                     </span>
@@ -248,7 +253,7 @@ const Users = () => {
                   <button
                     onClick={() => setConfirmBlock(selectedUser)}
                     className="w-full px-4 py-2 text-sm font-medium rounded-lg text-white"
-                    style={{ backgroundColor: selectedUser.isBlocked ? C.green : C.red }}
+                    style={{ backgroundColor: selectedUser.isBlocked ? C.green : C.danger }}
                   >
                     {selectedUser.isBlocked ? "Unblock student" : "Block student"}
                   </button>
