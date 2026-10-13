@@ -26,6 +26,19 @@ export const fetchStaff = createAsyncThunk(
   }
 );
 
+// Per-staff issue workload, first-response time and student ratings.
+export const fetchStaffPerformance = createAsyncThunk(
+  "adminStaff/performance",
+  async (_, { getState }) => {
+    try {
+      const { data } = await axios.get("/api/admin/staff/performance", authHeader(getState));
+      return data;
+    } catch (error) {
+      return { success: false, message: errorMessage(error, "Failed to load staff performance") };
+    }
+  }
+);
+
 export const createStaff = createAsyncThunk(
   "adminStaff/create",
   async ({ name, departmentId, staffTitle }, { getState }) => {
@@ -77,6 +90,10 @@ const adminStaffSlice = createSlice({
     total: 0,
     loading: false,
     submitting: false,
+    performance: [],
+    performanceLoading: false,
+    performanceLoaded: false,
+    performanceError: null,
   },
   reducers: {},
   extraReducers: (builder) => {
@@ -94,6 +111,18 @@ const adminStaffSlice = createSlice({
       .addCase(fetchStaff.rejected, (state) => {
         state.loading = false;
       })
+      .addCase(fetchStaffPerformance.pending, (state) => { state.performanceLoading = true; })
+      .addCase(fetchStaffPerformance.fulfilled, (state, action) => {
+        state.performanceLoading = false;
+        state.performanceLoaded = true;
+        if (action.payload.success) {
+          state.performance = action.payload.staff || [];
+          state.performanceError = null;
+        } else {
+          state.performanceError = action.payload.message;
+        }
+      })
+      .addCase(fetchStaffPerformance.rejected, (state) => { state.performanceLoading = false; })
       .addCase(createStaff.pending, (state) => { state.submitting = true; })
       .addCase(createStaff.fulfilled, (state) => { state.submitting = false; })
       .addCase(createStaff.rejected, (state) => { state.submitting = false; })

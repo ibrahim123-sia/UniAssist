@@ -23,10 +23,13 @@ import {
   fetchDeptStaff,
   clearSelectedIssue,
 } from "../../redux/slices/issueSlice";
+import OverdueBadge from "../../components/OverdueBadge";
+import StarRating from "../../components/StarRating";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 const STATUSES = ["Pending", "In Progress", "Resolved", "Closed", "Rejected"];
 const POLL_MS = 20000;
+const MAX_REPLY_CHARS = 5000;
 
 const statusStyle = (status, isDark) => {
   const palette = {
@@ -198,7 +201,14 @@ const AssigneeStrip = ({ issue, currentUser, deptStaff, onAssign, busy, C }) => 
 const StaffIssueDetail = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
-  const issue = useSelector((s) => s.issue.selectedIssue);
+  // Only trust state for the issue in the URL; a previous page's issue may
+  // still be in the store for a moment after navigating.
+  const issue = useSelector((s) =>
+    s.issue.selectedIssue?._id === id ? s.issue.selectedIssue : null
+  );
+  const issueError = useSelector((s) =>
+    s.issue.issueError?.id === id ? s.issue.issueError : null
+  );
   const deptStaff = useSelector((s) => s.issue.deptStaff);
   const theme = useSelector((s) => s.theme.theme);
   const user = useSelector((s) => s.auth.user);
@@ -235,6 +245,9 @@ const StaffIssueDetail = () => {
 
   // Initial fetch + 20s polling + staff list for reassign dropdown
   useEffect(() => {
+    // New issue, new baseline — don't toast the previous issue's version
+    // as a change made by someone else.
+    seenVersionRef.current = null;
     dispatch(fetchDeptIssueById(id));
     dispatch(fetchDeptStaff());
     const interval = setInterval(() => {
@@ -292,6 +305,10 @@ const StaffIssueDetail = () => {
     const hasReply = reply.trim().length > 0;
     const hasStatusChange = pendingStatus && pendingStatus !== issue.status;
 
+    if (reply.trim().length > MAX_REPLY_CHARS) {
+      toast.error(`Reply is too long (max ${MAX_REPLY_CHARS} characters).`);
+      return;
+    }
     if (!hasReply && !hasStatusChange) {
       toast.error("Type a reply or pick a different status.");
       return;
@@ -358,6 +375,23 @@ const StaffIssueDetail = () => {
   }, [issue, user]);
 
   if (!issue) {
+    if (issueError) {
+      const notFound = issueError.status === 404;
+      const forbidden = issueError.status === 403;
+      return (
+        <div className="h-full flex flex-col items-center justify-center gap-3 p-6 text-center" style={{ backgroundColor: C.bg, color: C.text }}>
+          <p className="text-base font-semibold">
+            {notFound ? "Issue not found" : forbidden ? "You don't have access to this issue" : "Couldn't load this issue"}
+          </p>
+          <p className="text-sm" style={{ color: C.muted }}>
+            {notFound || forbidden ? issueError.message : `${issueError.message}. It will retry automatically.`}
+          </p>
+          <Link to="/staff/issues" className="inline-flex items-center gap-1.5 text-sm" style={{ color: C.navy }}>
+            <ArrowLeft className="w-4 h-4" /> Back to inbox
+          </Link>
+        </div>
+      );
+    }
     return (
       <div className="h-full flex items-center justify-center" style={{ backgroundColor: C.bg, color: C.muted }}>
         Loading…
@@ -388,12 +422,15 @@ const StaffIssueDetail = () => {
         <div className="p-6 rounded-xl border mb-5" style={{ backgroundColor: C.surface, borderColor: C.border }}>
           <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
             <h1 className="text-2xl font-bold">{issue.title}</h1>
-            <span
-              className="text-xs px-2.5 py-1 rounded-full uppercase font-semibold"
-              style={{ backgroundColor: sStyle.bg, color: sStyle.text }}
-            >
-              {issue.status}
-            </span>
+            <div className="flex items-center gap-2 flex-wrap">
+              <OverdueBadge issue={issue} isDark={isDark} />
+              <span
+                className="text-xs px-2.5 py-1 rounded-full uppercase font-semibold"
+                style={{ backgroundColor: sStyle.bg, color: sStyle.text }}
+              >
+                {issue.status}
+              </span>
+            </div>
           </div>
 
           <div
@@ -411,7 +448,10 @@ const StaffIssueDetail = () => {
               <div className="text-xs truncate" style={{ color: C.muted }}>{issue.studentEmail}</div>
             </div>
             <div className="text-xs text-right" style={{ color: C.muted }}>
-              <div>{issue.department?.code} · {issue.category}</div>
+              <div>
+                {issue.department?.code} · {issue.category}
+                {issue.source === "chatbot" && " · from chat"}
+              </div>
               <div className="inline-flex items-center gap-1">
                 <Clock className="w-3 h-3" />
                 {moment(issue.createdAt).format("MMM D, YYYY h:mm A")}
@@ -455,6 +495,28 @@ const StaffIssueDetail = () => {
             </div>
           )}
         </div>
+
+        {issue.feedback?.rating && (
+          <div className="p-4 rounded-xl border mb-5" style={{ backgroundColor: C.surface, borderColor: C.border }}>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.muted }}>
+                Student feedback
+              </span>
+              {issue.feedback.submittedAt && (
+                <span className="text-xs" style={{ color: C.muted }}>
+                  {moment(issue.feedback.submittedAt).fromNow()}
+                </span>
+              )}
+            </div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <StarRating value={issue.feedback.rating} size={18} emptyColor={C.muted} />
+              <span className="text-sm font-medium">{issue.feedback.rating}/5</span>
+            </div>
+            {issue.feedback.comment && (
+              <p className="text-sm whitespace-pre-wrap mt-2">{issue.feedback.comment}</p>
+            )}
+          </div>
+        )}
 
         {/* Assignee strip */}
         <div className="mb-5">
@@ -519,6 +581,7 @@ const StaffIssueDetail = () => {
           <textarea
             value={reply}
             onChange={(e) => setReply(e.target.value)}
+            maxLength={MAX_REPLY_CHARS}
             rows={3}
             placeholder="Reply to the student…"
             className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-y"

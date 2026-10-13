@@ -1,6 +1,20 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Plus, Search, Copy, Check, UserPlus, UserX, ShieldCheck, Trash2, Pencil } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Copy,
+  Check,
+  UserPlus,
+  UserX,
+  ShieldCheck,
+  Trash2,
+  Pencil,
+  Users as UsersIcon,
+  BarChart3,
+  Star,
+  RefreshCw,
+} from "lucide-react";
 import toast from "react-hot-toast";
 import moment from "moment";
 import {
@@ -8,6 +22,7 @@ import {
   createStaff,
   updateStaff,
   deactivateStaff,
+  fetchStaffPerformance,
 } from "../../redux/slices/adminStaffSlice";
 import { fetchDepartments } from "../../redux/slices/departmentSlice";
 import AdminTable, { AdminTableRow, AdminTableCell } from "../components/AdminTable";
@@ -16,15 +31,39 @@ import EmptyState from "../components/EmptyState";
 import AdminModal from "../components/AdminModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { getPalette } from "../utils/palette";
+import { useDebouncedSearch } from "../utils/useDebouncedSearch";
+import { formatHours } from "../../utils/issues";
+
+const VIEWS = [
+  { key: "accounts", label: "Accounts", icon: UsersIcon },
+  { key: "performance", label: "Performance", icon: BarChart3 },
+];
+
+// Count cell that fades zeros so the busy rows stand out.
+const Num = ({ value, C, color }) => (
+  <span className="tabular-nums" style={{ color: value ? color || C.text : C.muted }}>
+    {value ?? 0}
+  </span>
+);
 
 const Staff = () => {
   const dispatch = useDispatch();
   const theme = useSelector((s) => s.theme.theme);
   const C = getPalette(theme === "dark");
-  const { staff, total, loading, submitting } = useSelector((s) => s.adminStaff);
+  const {
+    staff,
+    total,
+    loading,
+    submitting,
+    performance,
+    performanceLoading,
+    performanceLoaded,
+    performanceError,
+  } = useSelector((s) => s.adminStaff);
+  const [view, setView] = useState("accounts");
   const departments = useSelector((s) => s.department.departments);
 
-  const [search, setSearch] = useState("");
+  const { input: searchInput, setInput: setSearchInput, search } = useDebouncedSearch();
   const [deptFilter, setDeptFilter] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState({ name: "", departmentId: "", staffTitle: "" });
@@ -45,8 +84,26 @@ const Staff = () => {
   }, [dispatch, query]);
 
   useEffect(() => {
-    if (!departments || departments.length === 0) dispatch(fetchDepartments());
-  }, [dispatch, departments]);
+    if (view === "performance") dispatch(fetchStaffPerformance());
+  }, [dispatch, view]);
+
+  // Performance comes back for every staff member at once; filter it here
+  // with the same department + search controls as the accounts list.
+  const performanceRows = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return performance.filter((p) => {
+      if (deptFilter && String(p.department?._id || p.department) !== deptFilter) return false;
+      if (!term) return true;
+      return `${p.name || ""} ${p.email || ""}`.toLowerCase().includes(term);
+    });
+  }, [performance, deptFilter, search]);
+
+  // Keyed on emptiness, not the array: each fetch returns a new (possibly
+  // still empty) array, which would otherwise refetch forever.
+  const hasDepartments = departments?.length > 0;
+  useEffect(() => {
+    if (!hasDepartments) dispatch(fetchDepartments());
+  }, [dispatch, hasDepartments]);
 
   const handleCreate = async (e) => {
     e.preventDefault();
@@ -133,12 +190,32 @@ const Staff = () => {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
+        <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: C.border }}>
+          {VIEWS.map((v) => {
+            const Icon = v.icon;
+            const active = view === v.key;
+            return (
+              <button
+                key={v.key}
+                onClick={() => setView(v.key)}
+                className="px-3 py-2 text-sm flex items-center gap-1.5 transition-colors"
+                style={{
+                  backgroundColor: active ? C.navy : C.surface,
+                  color: active ? "#fff" : C.text,
+                }}
+              >
+                <Icon className="w-4 h-4" />
+                {v.label}
+              </button>
+            );
+          })}
+        </div>
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search staff..."
             className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
             style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
@@ -157,122 +234,228 @@ const Staff = () => {
             </option>
           ))}
         </select>
-        <button
-          onClick={() => setCreateOpen(true)}
-          className="px-4 py-2.5 text-sm rounded-lg font-medium text-white flex items-center gap-2"
-          style={{ backgroundColor: C.navy }}
-        >
-          <Plus className="w-4 h-4" />
-          Add Staff
-        </button>
+        {view === "accounts" ? (
+          <button
+            onClick={() => setCreateOpen(true)}
+            className="px-4 py-2.5 text-sm rounded-lg font-medium text-white flex items-center gap-2"
+            style={{ backgroundColor: C.navy }}
+          >
+            <Plus className="w-4 h-4" />
+            Add Staff
+          </button>
+        ) : (
+          <button
+            onClick={() => dispatch(fetchStaffPerformance())}
+            className="px-3 py-2.5 text-sm rounded-lg border flex items-center gap-2"
+            style={{ borderColor: C.border, color: C.text, backgroundColor: C.surface }}
+          >
+            <RefreshCw className={`w-4 h-4 ${performanceLoading ? "animate-spin" : ""}`} />
+            Refresh
+          </button>
+        )}
       </div>
 
-      <AdminTable
-        columns={[
-          { key: "name", label: "Name" },
-          { key: "email", label: "Email" },
-          { key: "department", label: "Department" },
-          { key: "title", label: "Title" },
-          { key: "joined", label: "Joined" },
-          { key: "status", label: "Status" },
-          { key: "actions", label: "" },
-        ]}
-      >
-        {loading ? (
-          <LoadingSkeleton cols={7} />
-        ) : staff.length === 0 ? (
-          <tbody>
-            <tr>
-              <td colSpan={7}>
-                <EmptyState
-                  icon={UserPlus}
-                  title="No staff yet"
-                  description="Click 'Add Staff' to create one. The system generates an email and password automatically."
-                />
-              </td>
-            </tr>
-          </tbody>
-        ) : (
-          <tbody>
-            {staff.map((s) => (
-              <AdminTableRow key={s._id}>
-                <AdminTableCell>
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
-                      style={{ backgroundColor: C.red }}
-                    >
-                      {s.name?.charAt(0)?.toUpperCase() || "S"}
-                    </div>
-                    <span className="font-medium" style={{ color: C.text }}>
-                      {s.name}
-                    </span>
-                  </div>
-                </AdminTableCell>
-                <AdminTableCell>
-                  <span style={{ color: C.muted }}>{s.email}</span>
-                </AdminTableCell>
-                <AdminTableCell>
-                  <span style={{ color: C.muted }}>{s.department?.code || "—"}</span>
-                </AdminTableCell>
-                <AdminTableCell>
-                  <span style={{ color: C.muted }}>{s.staffTitle || "—"}</span>
-                </AdminTableCell>
-                <AdminTableCell>
-                  <span style={{ color: C.muted }}>{moment(s.createdAt).format("MMM D, YYYY")}</span>
-                </AdminTableCell>
-                <AdminTableCell>
-                  {s.isBlocked ? (
-                    <span
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                      style={{ backgroundColor: `${C.red}1A`, color: C.red }}
-                    >
-                      <UserX className="w-3 h-3" /> Deactivated
-                    </span>
-                  ) : (
-                    <span
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                      style={{ backgroundColor: `${C.green}1A`, color: C.green }}
-                    >
-                      <ShieldCheck className="w-3 h-3" /> Active
-                    </span>
-                  )}
-                </AdminTableCell>
-                <AdminTableCell>
-                  <div className="flex items-center gap-1">
-                    <button
-                      onClick={() => openEdit(s)}
-                      className="p-1.5 rounded transition-colors"
-                      style={{ color: C.muted }}
-                      aria-label="Edit"
-                      onMouseEnter={(e) => (e.currentTarget.style.color = C.navy)}
-                      onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                    {!s.isBlocked && (
-                      <button
-                        onClick={() => setConfirmDelete(s)}
-                        className="p-1.5 rounded transition-colors"
-                        style={{ color: C.muted }}
-                        aria-label="Deactivate"
-                        onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
+      {view === "performance" ? (
+        <>
+          <AdminTable
+            columns={[
+              { key: "name", label: "Staff" },
+              { key: "department", label: "Dept" },
+              { key: "assigned", label: "Assigned" },
+              { key: "resolved", label: "Resolved" },
+              { key: "open", label: "Open" },
+              { key: "response", label: "Avg first response" },
+              { key: "rating", label: "Avg rating" },
+            ]}
+          >
+            {performanceLoading && !performanceLoaded ? (
+              <LoadingSkeleton cols={7} />
+            ) : performanceRows.length === 0 ? (
+              <tbody>
+                <tr>
+                  <td colSpan={7}>
+                    <EmptyState
+                      icon={BarChart3}
+                      title={performanceError ? "Couldn't load performance" : "No staff to show"}
+                      description={
+                        performanceError ||
+                        (search || deptFilter
+                          ? "Try a different search or department."
+                          : "Performance appears once staff start handling issues.")
+                      }
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            ) : (
+              <tbody>
+                {performanceRows.map((p) => (
+                  <AdminTableRow key={p._id}>
+                    <AdminTableCell>
+                      <div className="min-w-0">
+                        <div className="font-medium truncate" style={{ color: C.text }}>
+                          {p.name}
+                        </div>
+                        <div className="text-xs truncate" style={{ color: C.muted }}>
+                          {p.email}
+                        </div>
+                      </div>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <span style={{ color: C.muted }} title={p.department?.name}>
+                        {p.department?.code || "—"}
+                      </span>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <Num value={p.assigned} C={C} />
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <Num value={p.resolved} C={C} color={C.green} />
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <Num value={p.open} C={C} color={C.amber} />
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <span
+                        className="whitespace-nowrap tabular-nums"
+                        style={{ color: p.avgFirstResponseHours == null ? C.muted : C.text }}
                       >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    )}
-                  </div>
-                </AdminTableCell>
-              </AdminTableRow>
-            ))}
-          </tbody>
-        )}
-      </AdminTable>
+                        {formatHours(p.avgFirstResponseHours)}
+                      </span>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      {p.avgRating == null ? (
+                        <span style={{ color: C.muted }}>—</span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums" style={{ color: C.text }}>
+                          <Star className="w-3.5 h-3.5" style={{ color: "#E0A526" }} fill="#E0A526" />
+                          {Number(p.avgRating).toFixed(1)}
+                          <span className="text-xs" style={{ color: C.muted }}>
+                            (n={p.ratingsCount ?? 0})
+                          </span>
+                        </span>
+                      )}
+                    </AdminTableCell>
+                  </AdminTableRow>
+                ))}
+              </tbody>
+            )}
+          </AdminTable>
+          <p className="text-xs" style={{ color: C.muted }}>
+            First response = time from a complaint being filed to the first staff reply, status change or
+            assignment. Ratings come from students after an issue is resolved or closed.
+          </p>
+        </>
+      ) : (
+        <>
+          <AdminTable
+            columns={[
+              { key: "name", label: "Name" },
+              { key: "email", label: "Email" },
+              { key: "department", label: "Department" },
+              { key: "title", label: "Title" },
+              { key: "joined", label: "Joined" },
+              { key: "status", label: "Status" },
+              { key: "actions", label: "" },
+            ]}
+          >
+            {loading ? (
+              <LoadingSkeleton cols={7} />
+            ) : staff.length === 0 ? (
+              <tbody>
+                <tr>
+                  <td colSpan={7}>
+                    <EmptyState
+                      icon={UserPlus}
+                      title="No staff yet"
+                      description="Click 'Add Staff' to create one. The system generates an email and password automatically."
+                    />
+                  </td>
+                </tr>
+              </tbody>
+            ) : (
+              <tbody>
+                {staff.map((s) => (
+                  <AdminTableRow key={s._id}>
+                    <AdminTableCell>
+                      <div className="flex items-center gap-3">
+                        <div
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
+                          style={{ backgroundColor: C.red }}
+                        >
+                          {s.name?.charAt(0)?.toUpperCase() || "S"}
+                        </div>
+                        <span className="font-medium" style={{ color: C.text }}>
+                          {s.name}
+                        </span>
+                      </div>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <span style={{ color: C.muted }}>{s.email}</span>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <span style={{ color: C.muted }}>{s.department?.code || "—"}</span>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <span style={{ color: C.muted }}>{s.staffTitle || "—"}</span>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <span style={{ color: C.muted }}>{moment(s.createdAt).format("MMM D, YYYY")}</span>
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      {s.isBlocked ? (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
+                          style={{ backgroundColor: `${C.danger}1A`, color: C.danger }}
+                        >
+                          <UserX className="w-3 h-3" /> Deactivated
+                        </span>
+                      ) : (
+                        <span
+                          className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
+                          style={{ backgroundColor: `${C.green}1A`, color: C.green }}
+                        >
+                          <ShieldCheck className="w-3 h-3" /> Active
+                        </span>
+                      )}
+                    </AdminTableCell>
+                    <AdminTableCell>
+                      <div className="flex items-center gap-1">
+                        <button
+                          onClick={() => openEdit(s)}
+                          className="p-1.5 rounded transition-colors"
+                          style={{ color: C.muted }}
+                          aria-label="Edit"
+                          onMouseEnter={(e) => (e.currentTarget.style.color = C.navy)}
+                          onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
+                        >
+                          <Pencil className="w-4 h-4" />
+                        </button>
+                        {!s.isBlocked && (
+                          <button
+                            onClick={() => setConfirmDelete(s)}
+                            className="p-1.5 rounded transition-colors"
+                            style={{ color: C.muted }}
+                            aria-label="Deactivate"
+                            onMouseEnter={(e) => (e.currentTarget.style.color = C.danger)}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </AdminTableCell>
+                  </AdminTableRow>
+                ))}
+              </tbody>
+            )}
+          </AdminTable>
 
-      <p className="text-xs" style={{ color: C.muted }}>
-        Total: {total} staff
-      </p>
+          <p className="text-xs" style={{ color: C.muted }}>
+            Total: {total} staff
+          </p>
+        </>
+      )}
 
       <AdminModal
         open={createOpen}

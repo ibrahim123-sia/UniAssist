@@ -11,7 +11,7 @@ const errorMessage = (error, fallback) =>
 export const fetchAdminIssues = createAsyncThunk(
   "adminQuery/list",
   async (
-    { departmentId, status, category, search, dateFrom, dateTo, limit = 25, offset = 0 } = {},
+    { departmentId, status, category, search, dateFrom, dateTo, escalated, limit = 25, offset = 0 } = {},
     { getState }
   ) => {
     try {
@@ -22,6 +22,7 @@ export const fetchAdminIssues = createAsyncThunk(
       if (search) params.set("search", search);
       if (dateFrom) params.set("dateFrom", dateFrom);
       if (dateTo) params.set("dateTo", dateTo);
+      if (escalated) params.set("escalated", "true");
       params.set("limit", String(limit));
       params.set("offset", String(offset));
       const { data } = await axios.get(`/api/admin/issues?${params.toString()}`, authHeader(getState));

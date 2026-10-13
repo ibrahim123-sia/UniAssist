@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { Link } from "react-router-dom";
 import {
   Users,
   GraduationCap,
@@ -10,6 +11,9 @@ import {
   MessageSquare,
   Flag,
   UserX,
+  MessageCircleQuestion,
+  AlarmClock,
+  MailWarning,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -22,6 +26,7 @@ import {
 } from "recharts";
 import moment from "moment";
 import { fetchAdminStats } from "../../redux/slices/adminStatsSlice";
+import { fetchEmailSettings } from "../../redux/slices/adminSettingsSlice";
 import StatCard from "../components/StatCard";
 import { getPalette } from "../utils/palette";
 
@@ -31,7 +36,12 @@ const Dashboard = () => {
   const dispatch = useDispatch();
   const theme = useSelector((s) => s.theme.theme);
   const { stats, loading } = useSelector((s) => s.adminStats);
+  const emailSource = useSelector((s) => s.adminSettings.email?.source);
   const C = getPalette(theme === "dark");
+
+  useEffect(() => {
+    dispatch(fetchEmailSettings());
+  }, [dispatch]);
 
   useEffect(() => {
     dispatch(fetchAdminStats());
@@ -47,15 +57,54 @@ const Dashboard = () => {
   const ch = stats?.chats || {};
   const open = (i.byStatus?.Pending || 0) + (i.byStatus?.["In Progress"] || 0);
   const resolved = (i.byStatus?.Resolved || 0) + (i.byStatus?.Closed || 0);
+  // Open issues that got no staff response within their department's SLA.
+  const escalatedOpen = stats?.escalatedOpen ?? i.escalatedOpen ?? 0;
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {emailSource === "none" && (
+        <Link
+          to="/admin/settings"
+          role="alert"
+          className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm"
+          style={{ borderColor: `${C.danger}55`, backgroundColor: `${C.danger}12`, color: C.text }}
+        >
+          <MailWarning className="w-4 h-4 shrink-0" style={{ color: C.danger }} />
+          <span className="flex-1">
+            <strong className="font-semibold">Email is not configured — students can&apos;t register.</strong>{" "}
+            <span style={{ color: C.muted }}>OTPs and notification emails can&apos;t be sent.</span>
+          </span>
+          <span className="font-medium whitespace-nowrap" style={{ color: C.navy }}>
+            Set it up →
+          </span>
+        </Link>
+      )}
+      <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
+        <Link to="/admin/questions" className="block rounded-xl" title="Review unanswered questions">
+          <StatCard
+            icon={MessageCircleQuestion}
+            label="Open Questions"
+            value={stats?.openQuestions ?? 0}
+            hint="Unanswered by the chatbot"
+            accent={C.amber}
+            loading={loading && !stats}
+          />
+        </Link>
         <StatCard icon={GraduationCap} label="Students" value={u.students ?? 0} accent={C.navy} loading={loading && !stats} />
         <StatCard icon={Users} label="Staff" value={u.staff ?? 0} accent={C.red} loading={loading && !stats} />
         <StatCard icon={Shield} label="Admins" value={u.admins ?? 0} accent={C.amber} loading={loading && !stats} />
         <StatCard icon={Building2} label="Departments" value={`${d.active ?? 0} / ${d.total ?? 0}`} hint="active / total" accent={C.navy} loading={loading && !stats} />
         <StatCard icon={AlertCircle} label="Open Issues" value={open} accent={C.red} loading={loading && !stats} />
+        <Link to="/admin/query?escalated=true" className="block rounded-xl" title="Review escalated issues">
+          <StatCard
+            icon={AlarmClock}
+            label="Escalated"
+            value={escalatedOpen}
+            hint="Open past their SLA"
+            accent={escalatedOpen > 0 ? C.red : C.green}
+            loading={loading && !stats}
+          />
+        </Link>
         <StatCard icon={CheckCircle2} label="Resolved Issues" value={resolved} accent={C.green} loading={loading && !stats} />
         <StatCard icon={MessageSquare} label="Total Chats" value={ch.total ?? 0} accent={C.navy} loading={loading && !stats} />
         <StatCard icon={Flag} label="Flagged Students" value={u.flagged ?? 0} hint={u.blocked ? `${u.blocked} blocked` : null} accent={C.red} loading={loading && !stats} />
@@ -121,7 +170,7 @@ const Dashboard = () => {
                   <p className="text-sm font-medium truncate" style={{ color: C.text }}>
                     {s.name}
                     {s.isBlocked && (
-                      <span className="ml-2 inline-flex items-center gap-1 text-xs" style={{ color: C.red }}>
+                      <span className="ml-2 inline-flex items-center gap-1 text-xs" style={{ color: C.danger }}>
                         <UserX className="w-3 h-3" /> blocked
                       </span>
                     )}

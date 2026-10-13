@@ -9,6 +9,7 @@ import {
   X,
   FileText,
   Save,
+  CheckCircle2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -26,7 +27,10 @@ import EmptyState from "../components/EmptyState";
 import Pagination from "../components/Pagination";
 import AdminModal from "../components/AdminModal";
 import ConfirmDialog from "../components/ConfirmDialog";
+import WebsiteSourcesPanel from "../components/WebsiteSourcesPanel";
 import { getPalette } from "../utils/palette";
+import { useDebouncedSearch } from "../utils/useDebouncedSearch";
+import { ProgressLine, UploadProgress } from "../../components/ProgressSteps";
 
 const PAGE_SIZE = 25;
 
@@ -34,12 +38,17 @@ const Data = () => {
   const dispatch = useDispatch();
   const theme = useSelector((s) => s.theme.theme);
   const C = getPalette(theme === "dark");
-  const { chunks, total, loading, selected, detailLoading, submitting } = useSelector(
+  const { chunks, total, loading, selected, detailLoading, submitting, upload } = useSelector(
     (s) => s.adminData
   );
+  const uploading = !!upload.phase;
 
-  const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const {
+    input: searchInput,
+    setInput: setSearchInput,
+    search,
+  } = useDebouncedSearch(() => setPage(1));
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editText, setEditText] = useState("");
   const [addOpen, setAddOpen] = useState(false);
@@ -47,6 +56,9 @@ const Data = () => {
   const [uploadOpen, setUploadOpen] = useState(false);
   const [uploadFile, setUploadFile] = useState(null);
   const [uploadSource, setUploadSource] = useState("");
+  // { chunks, filename } after a successful upload — shown in the modal.
+  const [uploadResult, setUploadResult] = useState(null);
+  const [uploadError, setUploadError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(null);
 
   const reload = () => dispatch(fetchChunks({ search, limit: PAGE_SIZE, offset: (page - 1) * PAGE_SIZE }));
@@ -56,7 +68,35 @@ const Data = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [search, page]);
 
-  useEffect(() => { setPage(1); }, [search]);
+  // Leaving mid-upload would lose the result (the server still finishes);
+  // the browser asks first.
+  useEffect(() => {
+    if (!uploading) return undefined;
+    const warn = (e) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [uploading]);
+
+  const openUpload = () => {
+    setUploadResult(null);
+    setUploadError("");
+    setUploadFile(null);
+    setUploadSource("");
+    setUploadOpen(true);
+  };
+
+  // The modal can't be closed while the file is uploading / being embedded.
+  const closeUpload = () => {
+    if (uploading) {
+      toast("Please wait — the document is still being processed.", { id: "upload-busy" });
+      return;
+    }
+    setUploadOpen(false);
+  };
+
 
   const openDetail = async (id) => {
     setDrawerOpen(true);
@@ -104,14 +144,19 @@ const Data = () => {
       toast.error("Choose a file");
       return;
     }
+    setUploadError("");
+    setUploadResult(null);
     const result = await dispatch(uploadDocument({ file: uploadFile, source: uploadSource })).unwrap();
     if (result.success) {
-      toast.success(`Added ${result.chunks_added} chunks from ${result.filename}`);
+      const added = result.chunks_added ?? 0;
+      const name = result.filename || uploadFile.name;
+      toast.success(`Added ${added} chunk${added === 1 ? "" : "s"} from ${name}`);
+      setUploadResult({ chunks: added, filename: name });
       setUploadFile(null);
       setUploadSource("");
-      setUploadOpen(false);
       reload();
     } else {
+      setUploadError(result.message || "Upload failed");
       toast.error(result.message || "Upload failed");
     }
   };
@@ -131,13 +176,15 @@ const Data = () => {
 
   return (
     <div className="space-y-4">
+      <WebsiteSourcesPanel onImported={reload} />
+
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search chunk content..."
             className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
             style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
@@ -152,7 +199,7 @@ const Data = () => {
           Add Chunk
         </button>
         <button
-          onClick={() => setUploadOpen(true)}
+          onClick={openUpload}
           className="px-4 py-2.5 text-sm rounded-lg font-medium flex items-center gap-2 border"
           style={{ borderColor: C.border, color: C.text, backgroundColor: C.surface }}
         >
@@ -179,7 +226,7 @@ const Data = () => {
                 <EmptyState
                   icon={Database}
                   title="No chunks found"
-                  description={search ? "Try a different search." : "Add a chunk or upload a document to start."}
+                  description={search ? "Try a different search." : "Import a website, add a chunk, or upload a document to start."}
                 />
               </td>
             </tr>
@@ -207,7 +254,7 @@ const Data = () => {
                     onClick={(e) => { e.stopPropagation(); setConfirmDelete(c); }}
                     className="p-1.5 rounded transition-colors"
                     style={{ color: C.muted }}
-                    onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
+                    onMouseEnter={(e) => (e.currentTarget.style.color = C.danger)}
                     onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
                     aria-label="Delete"
                   >
@@ -267,7 +314,7 @@ const Data = () => {
                 onClick={() => setConfirmDelete(selected)}
                 disabled={!selected}
                 className="px-3 py-2 text-sm rounded-lg border flex items-center gap-2 disabled:opacity-50"
-                style={{ borderColor: `${C.red}55`, color: C.red }}
+                style={{ borderColor: `${C.danger}55`, color: C.danger }}
               >
                 <Trash2 className="w-4 h-4" /> Delete
               </button>
@@ -343,30 +390,64 @@ const Data = () => {
 
       <AdminModal
         open={uploadOpen}
-        onClose={() => setUploadOpen(false)}
+        onClose={closeUpload}
         title="Upload Document"
         footer={
-          <>
-            <button
-              type="button"
-              onClick={() => setUploadOpen(false)}
-              className="px-3 py-2 text-sm rounded-lg border"
-              style={{ borderColor: C.border, color: C.text }}
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              form="upload-doc-form"
-              disabled={submitting}
-              className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-              style={{ backgroundColor: C.navy }}
-            >
-              {submitting ? "Uploading..." : "Upload"}
-            </button>
-          </>
+          uploadResult ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setUploadResult(null)}
+                className="px-3 py-2 text-sm rounded-lg border"
+                style={{ borderColor: C.border, color: C.text }}
+              >
+                Upload another
+              </button>
+              <button
+                type="button"
+                onClick={closeUpload}
+                className="px-3 py-2 text-sm rounded-lg font-medium text-white"
+                style={{ backgroundColor: C.navy }}
+              >
+                Done
+              </button>
+            </>
+          ) : (
+            <>
+              <button
+                type="button"
+                onClick={closeUpload}
+                disabled={uploading}
+                className="px-3 py-2 text-sm rounded-lg border disabled:opacity-50"
+                style={{ borderColor: C.border, color: C.text }}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                form="upload-doc-form"
+                disabled={uploading || !uploadFile}
+                className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
+                style={{ backgroundColor: C.navy }}
+              >
+                {upload.phase === "processing" ? "Processing…" : uploading ? "Uploading…" : "Upload"}
+              </button>
+            </>
+          )
         }
       >
+        {uploadResult ? (
+          <div className="flex items-start gap-3" role="status">
+            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" style={{ color: C.green }} />
+            <div className="text-sm" style={{ color: C.text }}>
+              <p className="font-medium">Document added to the knowledge base</p>
+              <p style={{ color: C.muted }}>
+                {uploadResult.chunks} chunk{uploadResult.chunks === 1 ? "" : "s"} added from{" "}
+                <span className="wrap-break-word">{uploadResult.filename}</span>. The chatbot can use them right away.
+              </p>
+            </div>
+          </div>
+        ) : (
         <form id="upload-doc-form" onSubmit={doUpload} className="space-y-4">
           <p className="text-sm" style={{ color: C.muted }}>
             Upload a PDF, DOCX, or TXT file. The server will split it into chunks and embed them automatically.
@@ -385,6 +466,7 @@ const Data = () => {
                 type="file"
                 accept=".pdf,.docx,.txt"
                 onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                disabled={uploading}
                 className="hidden"
               />
             </label>
@@ -398,11 +480,25 @@ const Data = () => {
               value={uploadSource}
               onChange={(e) => setUploadSource(e.target.value)}
               placeholder="defaults to filename"
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
+              disabled={uploading}
+              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none disabled:opacity-60"
               style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
             />
           </div>
+          {upload.phase === "uploading" && <UploadProgress percent={upload.percent} label="Uploading file" />}
+          {upload.phase === "processing" && (
+            <ProgressLine
+              label="Processing: splitting & embedding…"
+              startedAt={upload.processingStartedAt}
+            />
+          )}
+          {uploadError && !uploading && (
+            <p className="text-xs wrap-break-word" role="alert" style={{ color: C.danger }}>
+              {uploadError}
+            </p>
+          )}
         </form>
+        )}
       </AdminModal>
 
       <ConfirmDialog

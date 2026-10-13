@@ -4,6 +4,8 @@ import { Link } from "react-router-dom";
 import { FileText, Clock, RefreshCw, Building2 } from "lucide-react";
 import moment from "moment";
 import { fetchDeptIssues } from "../../redux/slices/issueSlice";
+import OverdueBadge from "../../components/OverdueBadge";
+import { isOverdue } from "../../utils/issues";
 
 const STATUSES = ["All", "Pending", "In Progress", "Resolved", "Closed", "Rejected"];
 
@@ -110,7 +112,10 @@ const StaffIssues = () => {
                   key={issue._id}
                   to={`/staff/issues/${issue._id}`}
                   className="block p-4 rounded-xl border transition-all hover:shadow-md"
-                  style={{ backgroundColor: C.surface, borderColor: C.border }}
+                  style={{
+                    backgroundColor: C.surface,
+                    borderColor: isOverdue(issue) ? (isDark ? "#7A2A22" : "#F1B5B0") : C.border,
+                  }}
                 >
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0">
@@ -122,6 +127,7 @@ const StaffIssues = () => {
                         >
                           {issue.status}
                         </span>
+                        <OverdueBadge issue={issue} isDark={isDark} />
                       </div>
                       <p className="text-sm line-clamp-2" style={{ color: C.muted }}>
                         {issue.description}

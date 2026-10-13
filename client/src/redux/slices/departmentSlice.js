@@ -42,18 +42,43 @@ export const createDepartment = createAsyncThunk(
 
 export const updateDepartment = createAsyncThunk(
   "department/update",
-  async ({ id, name, description, isActive }, { getState }) => {
+  async ({ id, name, description, isActive, slaHours, head }, { getState }) => {
     try {
       const body = {};
       if (name !== undefined) body.name = name;
       if (description !== undefined) body.description = description;
       if (isActive !== undefined) body.isActive = isActive;
+      // null = use the server default SLA / no department head.
+      if (slaHours !== undefined) body.slaHours = slaHours;
+      if (head !== undefined) body.head = head;
       const { data } = await axios.patch(`/api/department/${id}`, body, authHeader(getState));
       return data;
     } catch (error) {
       return {
         success: false,
         message: error.response?.data?.message || "Failed to update department",
+      };
+    }
+  }
+);
+
+// Staff accounts for the "Department head" picker. Not kept in the store —
+// the admin Staff page owns that list.
+export const fetchStaffOptions = createAsyncThunk(
+  "department/staffOptions",
+  async ({ departmentId } = {}, { getState }) => {
+    try {
+      const params = new URLSearchParams();
+      params.set("role", "staff");
+      if (departmentId) params.set("departmentId", departmentId);
+      params.set("limit", "100");
+      const { data } = await axios.get(`/api/admin/users?${params.toString()}`, authHeader(getState));
+      return data;
+    } catch (error) {
+      return {
+        success: false,
+        users: [],
+        message: error.response?.data?.message || "Failed to load staff",
       };
     }
   }

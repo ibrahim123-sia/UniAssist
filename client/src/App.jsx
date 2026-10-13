@@ -1,8 +1,9 @@
-import React, { useEffect } from "react";
+import React, { Suspense, lazy, useEffect } from "react";
 import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { useDispatch, useSelector } from "react-redux";
 import MainLayout from "./components/layouts/MainLayout";
+import PageFallback from "./components/PageFallback";
 import Login from "./auth/Login";
 import Register from "./auth/Register";
 import ProtectedRoute from "./auth/ProtectedRoute";
@@ -14,28 +15,38 @@ import Issues from "./student/pages/Issues";
 import CreateIssue from "./student/pages/CreateIssue";
 import IssueDetail from "./student/pages/IssueDetail";
 import Scholarship from "./student/pages/Scholarship";
-import StaffIssues from "./staff/pages/StaffIssues";
-import StaffIssueDetail from "./staff/pages/StaffIssueDetail";
-import StaffDashboard from "./staff/pages/StaffDashboard";
+import MyQuestions from "./student/pages/MyQuestions";
 import Profile from "./profile/Profile";
-import AdminShell from "./administrator/layout/AdminShell";
-import AdminDashboard from "./administrator/pages/Dashboard";
-import AdminUsers from "./administrator/pages/Users";
-import AdminStaff from "./administrator/pages/Staff";
-import AdminDepartments from "./administrator/pages/Departments";
-import AdminQuery from "./administrator/pages/Query";
-import AdminData from "./administrator/pages/Data";
-import AdminLogs from "./administrator/pages/Logs";
 import { fetchUser, setLoadingUser } from "./redux/slices/authSlice";
 import { fetchUsersChats } from "./redux/slices/chatSlice";
 import { fetchGuestChatHistory } from "./redux/slices/guestSlice";
 import { fetchDepartments } from "./redux/slices/departmentSlice";
+
+// Staff and admin pages (recharts, big tables) are only needed by those
+// roles, so they load on demand instead of bloating the student bundle.
+const StaffIssues = lazy(() => import("./staff/pages/StaffIssues"));
+const StaffIssueDetail = lazy(() => import("./staff/pages/StaffIssueDetail"));
+const StaffDashboard = lazy(() => import("./staff/pages/StaffDashboard"));
+const AdminShell = lazy(() => import("./administrator/layout/AdminShell"));
+const AdminDashboard = lazy(() => import("./administrator/pages/Dashboard"));
+const AdminUsers = lazy(() => import("./administrator/pages/Users"));
+const AdminStaff = lazy(() => import("./administrator/pages/Staff"));
+const AdminDepartments = lazy(() => import("./administrator/pages/Departments"));
+const AdminQuery = lazy(() => import("./administrator/pages/Query"));
+const AdminData = lazy(() => import("./administrator/pages/Data"));
+const AdminLogs = lazy(() => import("./administrator/pages/Logs"));
+const AdminListings = lazy(() => import("./administrator/pages/Listings"));
+const AdminQuestions = lazy(() => import("./administrator/pages/Questions"));
+const AdminHealth = lazy(() => import("./administrator/pages/Health"));
+const AdminSettings = lazy(() => import("./administrator/pages/Settings"));
 
 const App = () => {
   const dispatch = useDispatch();
   const theme = useSelector((s) => s.theme.theme);
   const token = useSelector((s) => s.auth.token);
   const user = useSelector((s) => s.auth.user);
+  const userId = user?._id;
+  const userRole = user?.role;
   const guestSessionId = useSelector((s) => s.guest.guestSessionId);
 
   useEffect(() => {
@@ -50,14 +61,16 @@ const App = () => {
     }
   }, [token, dispatch]);
 
+  // Keyed on id/role, not the user object: profile edits and the
+  // login + fetchUser pair replace the object without changing who it is.
   useEffect(() => {
-    if (user && token) {
-      if (user.role === "student" || !user.role) {
+    if (userId && token) {
+      if (userRole === "student" || !userRole) {
         dispatch(fetchUsersChats());
       }
       dispatch(fetchDepartments());
     }
-  }, [user, token, dispatch]);
+  }, [userId, userRole, token, dispatch]);
 
   useEffect(() => {
     if (guestSessionId && !user) {
@@ -94,6 +107,7 @@ const App = () => {
           },
         }}
       />
+      <Suspense fallback={<PageFallback />}>
       <Routes>
         {/* Public routes */}
         <Route path="/" element={<GuestChat />} />
@@ -107,7 +121,7 @@ const App = () => {
           </ProtectedRoute>
         }>
           <Route path="chat" element={
-            <ProtectedRoute roles={["student", "admin"]}>
+            <ProtectedRoute roles={["student"]}>
               <ChatPage />
             </ProtectedRoute>
           } />
@@ -124,6 +138,11 @@ const App = () => {
           <Route path="scholarships" element={
             <ProtectedRoute roles={["student"]}>
               <Scholarship />
+            </ProtectedRoute>
+          } />
+          <Route path="questions" element={
+            <ProtectedRoute roles={["student"]}>
+              <MyQuestions />
             </ProtectedRoute>
           } />
           <Route path="issues" element={
@@ -175,12 +194,17 @@ const App = () => {
             <Route path="query" element={<AdminQuery />} />
             <Route path="query/:id" element={<AdminQuery />} />
             <Route path="data" element={<AdminData />} />
+            <Route path="listings" element={<AdminListings />} />
+            <Route path="questions" element={<AdminQuestions />} />
             <Route path="logs" element={<AdminLogs />} />
+            <Route path="health" element={<AdminHealth />} />
+            <Route path="settings" element={<AdminSettings />} />
           </Route>
         </Route>
 
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      </Suspense>
     </>
   );
 };

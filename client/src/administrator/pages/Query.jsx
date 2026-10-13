@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   Search,
   HelpCircle,
@@ -7,6 +8,7 @@ import {
   TrendingUp,
   Layers,
   X,
+  AlarmClock,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -31,6 +33,9 @@ import EmptyState from "../components/EmptyState";
 import Pagination from "../components/Pagination";
 import StatCard from "../components/StatCard";
 import { getPalette } from "../utils/palette";
+import { useDebouncedSearch } from "../utils/useDebouncedSearch";
+import OverdueBadge from "../../components/OverdueBadge";
+import StarRating from "../../components/StarRating";
 
 const PAGE_SIZE = 25;
 const STATUSES = ["Pending", "In Progress", "Resolved", "Closed"];
@@ -51,21 +56,34 @@ const Query = () => {
     (s) => s.adminQuery
   );
 
-  const [search, setSearch] = useState("");
+  const navigate = useNavigate();
+  const { id: routeIssueId } = useParams();
+  const [searchParams, setSearchParams] = useSearchParams();
+  // Escalation alerts link here as /admin/query?issue=<id> (or /admin/query/<id>);
+  // the dashboard's Escalated card as ?escalated=true.
+  const linkedIssueId = searchParams.get("issue") || routeIssueId;
+
   const [deptFilter, setDeptFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [escalatedOnly, setEscalatedOnly] = useState(() => searchParams.get("escalated") === "true");
   const [page, setPage] = useState(1);
+  const {
+    input: searchInput,
+    setInput: setSearchInput,
+    search,
+  } = useDebouncedSearch(() => setPage(1));
   const [drawerOpen, setDrawerOpen] = useState(false);
 
   const listQuery = useMemo(
     () => ({
       departmentId: deptFilter || undefined,
       status: statusFilter || undefined,
+      escalated: escalatedOnly || undefined,
       search,
       limit: PAGE_SIZE,
       offset: (page - 1) * PAGE_SIZE,
     }),
-    [deptFilter, statusFilter, search, page]
+    [deptFilter, statusFilter, escalatedOnly, search, page]
   );
 
   useEffect(() => {
@@ -77,9 +95,6 @@ const Query = () => {
     if (!departments?.length) dispatch(fetchDepartments());
   }, [dispatch, departments?.length]);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, deptFilter, statusFilter]);
 
   const openDetail = (id) => {
     setDrawerOpen(true);
@@ -88,7 +103,21 @@ const Query = () => {
   const closeDetail = () => {
     setDrawerOpen(false);
     dispatch(clearSelected());
+    // Drop the deep link so closing the drawer doesn't reopen it.
+    if (routeIssueId) {
+      navigate("/admin/query", { replace: true });
+    } else if (searchParams.get("issue")) {
+      const next = new URLSearchParams(searchParams);
+      next.delete("issue");
+      setSearchParams(next, { replace: true });
+    }
   };
+
+  useEffect(() => {
+    if (!linkedIssueId) return;
+    setDrawerOpen(true);
+    dispatch(fetchAdminIssueById(linkedIssueId));
+  }, [dispatch, linkedIssueId]);
 
   const topCategory = analytics?.byCategory?.[0];
   const totalIssues = (analytics?.byStatus &&
@@ -160,8 +189,8 @@ const Query = () => {
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
           <input
             type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search title, description, student..."
             className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
             style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
@@ -169,7 +198,10 @@ const Query = () => {
         </div>
         <select
           value={deptFilter}
-          onChange={(e) => setDeptFilter(e.target.value)}
+          onChange={(e) => {
+            setDeptFilter(e.target.value);
+            setPage(1);
+          }}
           className="px-3 py-2.5 text-sm rounded-lg border focus:outline-none"
           style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
         >
@@ -180,7 +212,10 @@ const Query = () => {
         </select>
         <select
           value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
+          onChange={(e) => {
+            setStatusFilter(e.target.value);
+            setPage(1);
+          }}
           className="px-3 py-2.5 text-sm rounded-lg border focus:outline-none"
           style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
         >
@@ -189,6 +224,24 @@ const Query = () => {
             <option key={s} value={s}>{s}</option>
           ))}
         </select>
+        <button
+          type="button"
+          onClick={() => {
+            setEscalatedOnly((v) => !v);
+            setPage(1);
+          }}
+          aria-pressed={escalatedOnly}
+          className="px-3 py-2.5 text-sm rounded-lg border flex items-center gap-1.5 transition-colors"
+          style={{
+            backgroundColor: escalatedOnly ? `${C.red}1A` : C.input,
+            borderColor: escalatedOnly ? C.red : C.border,
+            color: escalatedOnly ? C.red : C.text,
+          }}
+          title="Issues that got no staff response within their department's SLA"
+        >
+          <AlarmClock className="w-4 h-4" />
+          Escalated
+        </button>
       </section>
 
       <AdminTable
@@ -209,8 +262,12 @@ const Query = () => {
               <td colSpan={6}>
                 <EmptyState
                   icon={HelpCircle}
-                  title="No queries found"
-                  description="Adjust filters or wait for students to submit issues."
+                  title={escalatedOnly ? "No escalated issues" : "No queries found"}
+                  description={
+                    escalatedOnly
+                      ? "Every issue got a staff response within its department's SLA."
+                      : "Adjust filters or wait for students to submit issues."
+                  }
                 />
               </td>
             </tr>
@@ -221,6 +278,9 @@ const Query = () => {
               <AdminTableRow key={iss._id} onClick={() => openDetail(iss._id)}>
                 <AdminTableCell>
                   <span className="font-medium" style={{ color: C.text }}>{iss.title}</span>
+                  {iss.source === "chatbot" && (
+                    <span className="ml-1.5 text-xs" style={{ color: C.muted }}>· from chat</span>
+                  )}
                 </AdminTableCell>
                 <AdminTableCell>
                   <div className="text-sm" style={{ color: C.muted }}>
@@ -240,15 +300,18 @@ const Query = () => {
                   </span>
                 </AdminTableCell>
                 <AdminTableCell>
-                  <span
-                    className="px-2 py-0.5 text-xs rounded-full font-medium"
-                    style={{
-                      backgroundColor: `${statusColor(iss.status, C)}1A`,
-                      color: statusColor(iss.status, C),
-                    }}
-                  >
-                    {iss.status}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span
+                      className="px-2 py-0.5 text-xs rounded-full font-medium whitespace-nowrap"
+                      style={{
+                        backgroundColor: `${statusColor(iss.status, C)}1A`,
+                        color: statusColor(iss.status, C),
+                      }}
+                    >
+                      {iss.status}
+                    </span>
+                    <OverdueBadge issue={iss} isDark={theme === "dark"} />
+                  </div>
                 </AdminTableCell>
                 <AdminTableCell>
                   <span style={{ color: C.muted }}>{moment(iss.createdAt).fromNow()}</span>
@@ -294,12 +357,32 @@ const Query = () => {
                       >
                         {selected.status}
                       </span>
+                      <OverdueBadge issue={selected} isDark={theme === "dark"} />
                       <span style={{ color: C.muted }}>{selected.department?.code}</span>
                     </div>
+                    {selected.escalated && selected.escalatedAt && (
+                      <p className="text-xs mt-1.5" style={{ color: C.muted }}>
+                        Escalated {moment(selected.escalatedAt).format("MMM D, YYYY h:mm A")}
+                        {selected.firstStaffResponseAt &&
+                          ` · first staff response ${moment(selected.firstStaffResponseAt).format("MMM D, h:mm A")}`}
+                      </p>
+                    )}
                   </div>
-                  <div className="text-sm rounded-lg p-3 border" style={{ borderColor: C.border, backgroundColor: C.surfaceAlt, color: C.text }}>
+                  <div className="text-sm rounded-lg p-3 border whitespace-pre-wrap" style={{ borderColor: C.border, backgroundColor: C.surfaceAlt, color: C.text }}>
                     {selected.description}
                   </div>
+                  {selected.feedback?.rating && (
+                    <div className="text-sm">
+                      <p className="font-semibold mb-1" style={{ color: C.text }}>Student feedback</p>
+                      <div className="flex items-center gap-2">
+                        <StarRating value={selected.feedback.rating} size={16} emptyColor={C.muted} />
+                        <span style={{ color: C.muted }}>{selected.feedback.rating}/5</span>
+                      </div>
+                      {selected.feedback.comment && (
+                        <p className="mt-1 whitespace-pre-wrap" style={{ color: C.muted }}>{selected.feedback.comment}</p>
+                      )}
+                    </div>
+                  )}
                   <div className="text-sm">
                     <p className="font-semibold mb-1" style={{ color: C.text }}>Student</p>
                     <p style={{ color: C.muted }}>{selected.studentName} · {selected.studentEmail}</p>
