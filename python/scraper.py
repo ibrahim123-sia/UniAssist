@@ -19,6 +19,7 @@ import re             # For regular expression cleanup of scraped text and forma
 import json           # For reading and writing the JSON arrays of pages and chunks
 import concurrent.futures  # For concurrent crawling/scraping of multiple URLs using thread pools
 import requests       # For fetching web content and sitemap files from the target website
+from urllib.parse import urlparse  # For comparing a URL's hostname against the allowed domain
 from bs4 import BeautifulSoup, NavigableString, Tag  # For parsing HTML and traversing the DOM tree
 from tqdm import tqdm  # For displaying progress meters during page crawling and processing
 
@@ -43,7 +44,15 @@ def should_include_url(url, allowed_domain):
     """
     url_lower = url.lower().strip()
 
-    if allowed_domain not in url_lower:
+    # Compare the real hostname, not a substring: "jinnah.edu" must not
+    # admit "jinnah.edu.evil.com" or "notjinnah.edu", but should admit
+    # subdomains like "admissions.jinnah.edu".
+    domain = (allowed_domain or "").lower().strip()
+    try:
+        host = (urlparse(url_lower).hostname or "")
+    except ValueError:
+        return False
+    if not domain or not (host == domain or host.endswith("." + domain)):
         return False
 
     for ext in config.BLACKLIST_EXTENSIONS:
@@ -71,8 +80,16 @@ def should_include_url(url, allowed_domain):
 
 
 def get_urls_from_sitemap(sitemap_url, allowed_domain):
+    """Collect page URLs from a sitemap (or sitemap index).
+
+    Raises if the top-level sitemap can't be fetched: an error page parses as
+    "zero URLs", and an empty result must never reach the save step and
+    overwrite a good urls.txt.
+    """
     print(f"  Fetching sitemap: {sitemap_url}")
     response = requests.get(sitemap_url, timeout=config.REQUEST_TIMEOUT)
+    if response.status_code != 200:
+        raise RuntimeError(f"Sitemap {sitemap_url} returned HTTP {response.status_code}")
     soup = BeautifulSoup(response.text, "xml")
 
     sitemap_links = [loc.text for loc in soup.find_all("loc")]
@@ -81,6 +98,12 @@ def get_urls_from_sitemap(sitemap_url, allowed_domain):
     for link in sitemap_links:
         try:
             res = requests.get(link, timeout=config.REQUEST_TIMEOUT)
+            if res.status_code != 200:
+                if link.lower().split("?", 1)[0].endswith(".xml"):
+                    # A failed child sitemap is not itself a page.
+                    print(f"  Warning: sub-sitemap {link} returned HTTP {res.status_code}; skipped")
+                    continue
+                raise requests.HTTPError(f"HTTP {res.status_code}")
             sub_soup = BeautifulSoup(res.text, "xml")
             page_urls = [loc.text for loc in sub_soup.find_all("loc")]
 
@@ -191,10 +214,43 @@ def extract_structured(url):
     """
     try:
         response = requests.get(url, timeout=config.REQUEST_TIMEOUT)
-        soup = BeautifulSoup(response.text, "lxml")
     except Exception as exc:
         print(f"  Error fetching {url}: {exc}")
         return None, []
+    # 404/500/maintenance pages still have HTML; without this check their
+    # "Page not found" text was chunked into the knowledge base.
+    if response.status_code != 200:
+        return None, []
+    try:
+        return extract_structured_from_html(response.text)
+    except Exception as exc:
+        print(f"  Error parsing {url}: {exc}")
+        return None, []
+
+
+def parse_html(html, encoding=None):
+    """BeautifulSoup (lxml) for a str or bytes document.
+
+    Bytes are preferred for pages fetched by `url_safety`: BeautifulSoup then
+    honours the page's own <meta charset> when the HTTP header names none,
+    instead of requests' ISO-8859-1 default mangling UTF-8 text.
+    """
+    if isinstance(html, bytes):
+        return BeautifulSoup(html, "lxml", from_encoding=encoding)
+    return BeautifulSoup(html, "lxml")
+
+
+def extract_structured_from_html(html, encoding=None):
+    """Structural elements of an already-fetched page.
+
+    Same output as `extract_structured` — `(title, elements)`, or
+    `(None, [])` for archive/search pages — but without doing the HTTP
+    request itself, so callers that must fetch through the SSRF-safe
+    `url_safety.fetch_public_url` (admin URL ingestion) reuse the exact
+    same cleaning rules as the bulk scrape. `html` may be a str, bytes or
+    an existing BeautifulSoup (which is modified in place).
+    """
+    soup = html if isinstance(html, BeautifulSoup) else parse_html(html, encoding)
 
     # Quick reject: pages whose <title> screams "archive" / "search results"
     title_tag = soup.find("title")
@@ -361,14 +417,24 @@ def chunk_elements(elements, page_title=None):
     section_heading = None
     buf = []
     buf_size = 0
+    # Elements of a too-short section waiting to be merged into the next
+    # chunk. (flush() used to silently drop them, despite the rule above —
+    # a heading followed directly by a sub-heading, or a one-line section,
+    # just vanished from the knowledge base.)
+    carry = []
 
     def flush():
-        nonlocal buf, buf_size
+        nonlocal buf, buf_size, carry
         if not buf:
             return
         text = "\n\n".join(buf).strip()
-        if len(text) >= config.MIN_CHUNK_LENGTH or contains_important_info(text):
+        if len(text) >= config.MIN_CHUNK_LENGTH:
             chunks.append({"heading": section_heading or page_title or "", "text": text})
+        else:
+            # Even "important" short text (a lone "Programs" heading, a
+            # one-line contact) is better as context for the next section
+            # than as a near-empty chunk of its own; nothing is lost.
+            carry = list(buf)
         buf = []
         buf_size = 0
 
@@ -380,9 +446,10 @@ def chunk_elements(elements, page_title=None):
             flush()
             section_heading = text
             # Heading itself isn't a chunk yet — it'll be the topic line
-            # of the next chunk we open.
-            buf = [text]
-            buf_size = len(text)
+            # of the next chunk we open (after any carried short section).
+            buf = carry + [text]
+            buf_size = sum(len(t) for t in buf)
+            carry = []
             continue
 
         # Oversized single paragraph -> sentence split, each piece its
@@ -391,8 +458,12 @@ def chunk_elements(elements, page_title=None):
             flush()
             for piece in _split_paragraph(text, config.MAX_CHUNK_SIZE):
                 topic = section_heading or page_title or ""
-                body = f"{topic}\n\n{piece}" if topic else piece
-                chunks.append({"heading": topic, "text": body.strip()})
+                parts = list(carry)
+                if topic and topic not in parts:
+                    parts.append(topic)
+                parts.append(piece)
+                carry = []  # only the first piece absorbs the carried text
+                chunks.append({"heading": topic, "text": "\n\n".join(parts).strip()})
             continue
 
         # Would adding this element bust the target? Flush first.
@@ -410,6 +481,15 @@ def chunk_elements(elements, page_title=None):
         buf_size += len(text)
 
     flush()
+
+    # A short trailing section has no "next" chunk — append it to the
+    # previous one instead (or keep it alone if it carries contact/fee info).
+    if carry:
+        tail = "\n\n".join(carry).strip()
+        if chunks:
+            chunks[-1]["text"] = chunks[-1]["text"] + "\n\n" + tail
+        elif contains_important_info(tail):
+            chunks.append({"heading": section_heading or page_title or "", "text": tail})
 
     # Final pass: drop chunks that look like junk widgets
     cleaned = []
@@ -541,17 +621,66 @@ def load_chunks():
 # PIPELINE
 # =============================================================
 
-def run_full_pipeline():
-    """Fresh scrape: URLs -> structured pages -> context-aware chunks."""
+# A fresh run whose output shrinks by more than this fraction versus what's
+# already on disk is treated as a broken scrape (site down, sitemap moved,
+# WAF blocking us) rather than real content loss.
+MAX_SHRINK_RATIO = 0.5
+
+
+def _count_existing(path):
+    """How many items the saved file at `path` holds (0 if missing/unreadable)."""
+    if not os.path.exists(path):
+        return 0
+    try:
+        if path.endswith(".json"):
+            with open(path, "r", encoding="utf-8") as f:
+                return len(json.load(f))
+        with open(path, "r", encoding="utf-8") as f:
+            return sum(1 for line in f if line.strip())
+    except Exception:
+        return 0
+
+
+def _shrink_problem(label, new_count, path):
+    """Return a reason string if `new_count` must not overwrite `path`, else None."""
+    if new_count == 0:
+        return f"0 {label} produced"
+    old_count = _count_existing(path)
+    if old_count and new_count < old_count * (1 - MAX_SHRINK_RATIO):
+        return (f"{label} dropped from {old_count} to {new_count} "
+                f"(more than {int(MAX_SHRINK_RATIO * 100)}% fewer than {os.path.basename(path)})")
+    return None
+
+
+def run_full_pipeline(force=False):
+    """Fresh scrape: URLs -> structured pages -> context-aware chunks.
+
+    Nothing is written until every stage has finished and passed a sanity
+    check: a run that yields zero URLs/pages/chunks, or less than half of
+    what's already saved, aborts and leaves the existing files untouched.
+    Pass force=True (`python run.py scrape --force`) to accept a genuine
+    large shrink.
+    """
     print("=" * 60)
     print("SCRAPING PIPELINE - FULL RUN (structural)")
     print("=" * 60)
 
     os.makedirs(config.DATA_DIR, exist_ok=True)
 
+    def _abort(reason):
+        print("\n" + "!" * 60)
+        print(f"ABORTED: {reason}.")
+        print("Existing data files were NOT overwritten.")
+        if not force:
+            print("If this shrink is expected, re-run with: python run.py scrape --force")
+        print("!" * 60)
+        return None
+
     print("\nStep 1: Discovering URLs from sitemaps...")
     urls = get_all_urls()
-    save_urls(urls)
+    problem = _shrink_problem("URLs", len(urls), config.URLS_FILE)
+    if problem and (not force or not urls):
+        return _abort(problem)
 
     print(f"\nStep 2: Extracting structured content from {len(urls)} pages (workers={SCRAPE_WORKERS})...")
     pages = []
@@ -576,8 +705,10 @@ def run_full_pipeline():
                 continue
             pages.append({"url": url, "title": title or "", "elements": elements})
 
-    save_pages(pages)
     print(f"  Kept {len(pages)} pages, skipped {skipped}")
+    problem = _shrink_problem("pages", len(pages), config.CLEAN_PAGES_FILE)
+    if problem and (not force or not pages):
+        return _abort(problem)
 
     print(f"\nStep 3: Building context-aware chunks from {len(pages)} pages...")
     all_chunks = []
@@ -591,6 +722,13 @@ def run_full_pipeline():
                 "page_title": page.get("title", ""),
             })
 
+    problem = _shrink_problem("chunks", len(all_chunks), config.CHUNKS_FILE)
+    if problem and (not force or not all_chunks):
+        return _abort(problem)
+
+    # Every stage passed — only now replace the saved files.
+    save_urls(urls)
+    save_pages(pages)
     save_chunks(all_chunks)
 
     print("\n" + "=" * 60)
@@ -605,12 +743,13 @@ def run_full_pipeline():
     return all_chunks
 
 
-def run_rechunk():
+def run_rechunk(force=False):
     """Re-chunk without re-fetching. Reads pages.json, rebuilds chunks.json.
 
     Supports both the new structured page format (pages have `elements`)
     and the legacy flat-text format (pages have `content`) — useful when
-    you upgrade the chunker but haven't re-scraped yet.
+    you upgrade the chunker but haven't re-scraped yet. Same shrink guard
+    as `run_full_pipeline` before chunks.json is replaced.
     """
     print("=" * 60)
     print("RE-CHUNKING EXISTING DATA")
@@ -650,6 +789,13 @@ def run_rechunk():
                     "heading": c.get("heading", ""),
                     "page_title": page.get("title", ""),
                 })
+
+    problem = _shrink_problem("chunks", len(all_chunks), config.CHUNKS_FILE)
+    if problem and (not force or not all_chunks):
+        print(f"\nABORTED: {problem}. chunks.json was NOT overwritten.")
+        if not force:
+            print("If this shrink is expected, re-run with: python run.py rechunk --force")
+        return
 
     save_chunks(all_chunks)
     print(f"\n  Total chunks: {len(all_chunks)}")

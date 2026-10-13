@@ -28,6 +28,14 @@ ADDING A NEW WEBSITE:
 
 import sys            # For parsing command line arguments and managing process exit codes
 
+# Windows consoles (cp1252) crash on printing Urdu text / emoji from scraped
+# pages or provider errors; escape what the console can't encode instead.
+for _stream in (sys.stdout, sys.stderr):
+    try:
+        _stream.reconfigure(errors="backslashreplace")
+    except (AttributeError, ValueError, OSError):
+        pass
+
 
 
 def print_help():
@@ -37,8 +45,8 @@ def print_help():
     print("=" * 60)
     print()
     print("Commands:")
-    print("  scrape     Scrape all websites and create chunks")
-    print("  rechunk    Re-chunk existing pages (no re-scraping)")
+    print("  scrape     Scrape all websites and create chunks (--force to accept a >50% shrink)")
+    print("  rechunk    Re-chunk existing pages (no re-scraping; --force as above)")
     print("  build      Build the vector database from chunks")
     print("  server     Start the FastAPI server (port 8000)")
     print("  ask \"...\"  Ask a question (for testing)")
@@ -56,16 +64,16 @@ def print_help():
     print("  3. python run.py server   (start API)")
 
 
-def cmd_scrape():
+def cmd_scrape(force=False):
     """Run the full scraping pipeline."""
     from scraper import run_full_pipeline  # For executing the site scraper to fetch and process web content
-    run_full_pipeline()
+    run_full_pipeline(force=force)
 
 
-def cmd_rechunk():
+def cmd_rechunk(force=False):
     """Re-chunk existing data."""
     from scraper import run_rechunk  # For rebuilding text chunks without scraping the websites again
-    run_rechunk()
+    run_rechunk(force=force)
 
 
 def cmd_build():
@@ -89,7 +97,11 @@ def cmd_ask(question):
 
     print(f"\nQuestion: {question}")
     print("-" * 60)
-    answer = rag.ask(question)
+    try:
+        answer = rag.ask(question)
+    except rag.LLMUnavailableError as exc:
+        # The API returns 503 for this; on the CLI just show why.
+        answer = f"[LLM unavailable] {exc}"
     print(f"\nAnswer:\n{answer}")
 
 
@@ -113,7 +125,10 @@ def cmd_test():
     for i, question in enumerate(test_questions, 1):
         print(f"\nTest {i}: {question}")
         print("-" * 60)
-        answer = rag.ask(question)
+        try:
+            answer = rag.ask(question)
+        except rag.LLMUnavailableError as exc:
+            answer = f"[LLM unavailable] {exc}"
         print(f"Answer:\n{answer}")
         print("=" * 60)
 
@@ -129,10 +144,14 @@ if __name__ == "__main__":
 
     command = sys.argv[1].lower()
 
+    # --force: accept a scrape/rechunk whose output is less than half of
+    # what's already saved (otherwise it aborts without overwriting).
+    force = "--force" in sys.argv[2:]
+
     if command == "scrape":
-        cmd_scrape()
+        cmd_scrape(force=force)
     elif command == "rechunk":
-        cmd_rechunk()
+        cmd_rechunk(force=force)
     elif command == "build":
         cmd_build()
     elif command == "server":

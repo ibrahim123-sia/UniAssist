@@ -23,6 +23,12 @@ from dotenv import load_dotenv  # For loading environment variables from a .env 
 # Load API keys from .env file
 load_dotenv()
 
+# Directory containing this file (python/). Data and ChromaDB paths are
+# anchored here so they resolve the same no matter which directory the
+# process was started from — running from the repo root used to create a
+# stray ./chroma_db there.
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 # =============================================================
 # WEBSITES TO SCRAPE
@@ -170,7 +176,7 @@ UNWANTED_TEXT_PATTERNS = [
 
 EMBEDDING_MODEL = "all-MiniLM-L6-v2"   # Lightweight, fast, 384 dimensions
 EMBEDDING_DIMENSION = 384               # Output size of the embedding model
-CHROMA_DB_PATH = "./chroma_db"          # Where ChromaDB stores its files
+CHROMA_DB_PATH = os.path.join(BASE_DIR, "chroma_db")  # Where ChromaDB stores its files
 COLLECTION_NAME = "university_chunks"   # Name of the vector collection
 BATCH_SIZE = 100                        # Chunks processed at a time during build
 
@@ -178,14 +184,17 @@ BATCH_SIZE = 100                        # Chunks processed at a time during buil
 # =============================================================
 # LLM (LARGE LANGUAGE MODEL) SETTINGS
 # =============================================================
-# Two backends are supported and switched via USE_LOCAL_LLM:
-#   true  -> local Ollama daemon (default, no cloud calls)
-#   false -> Groq cloud API (requires GROQ_API_KEY)
-#
-# Local setup: `ollama serve` (or Ollama tray on Windows), then
-# `ollama pull llama3.2:3b` once before booting this service.
+# One switch picks the backend — USE_LOCAL_LLM in python/.env:
+#   false -> cloud (default): Groq, then Gemini, in CLOUD_LLM_ORDER
+#            (needs GROQ_API_KEY and/or GEMINI_API_KEY)
+#   true  -> local Ollama daemon at OLLAMA_HOST (no cloud calls). Install
+#            Ollama, run `ollama pull llama3.2:3b` (or set OLLAMA_MODEL /
+#            OLLAMA_MODEL_SIZE=1b), and keep it running before booting this
+#            service.
+# Every other OLLAMA_* / GROQ_* / GEMINI_* setting can stay in .env either way;
+# only the backend selected by the flag is used.
 
-USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM", "true").strip().lower() in ("1", "true", "yes", "on")
+USE_LOCAL_LLM = os.getenv("USE_LOCAL_LLM", "false").strip().lower() in ("1", "true", "yes", "on")
 
 # Convenience presets: set OLLAMA_MODEL_SIZE=1b or 3b to pick a Llama 3.2 variant
 # without typing the full model id. OLLAMA_MODEL still wins if explicitly set to
@@ -205,7 +214,17 @@ OLLAMA_MODEL = (
 
 GROQ_API_KEY = os.getenv("GROQ_API_KEY", "")
 GROQ_API_KEY_2 = os.getenv("GROQ_API_KEY_2", "")
-GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")
+# llama-3.3-70b-versatile is decommissioned on the project key (HTTP 404), so
+# the default is gpt-oss-120b. gpt-oss is a reasoning model: its hidden
+# reasoning tokens count against the completion budget, so we keep reasoning
+# effort low and give it a larger budget than LLM_MAX_TOKENS — otherwise a
+# long think can consume the whole budget and return empty content.
+GROQ_MODEL = os.getenv("GROQ_MODEL", "openai/gpt-oss-120b")
+GROQ_REASONING_EFFORT = os.getenv("GROQ_REASONING_EFFORT", "low")
+# Groq counts the whole requested budget against the per-minute token limit
+# (8K TPM on the free tier) before generating, so a large budget throttles
+# students even though real answers use ~300-600 tokens.
+GROQ_MAX_COMPLETION_TOKENS = int(os.getenv("GROQ_MAX_COMPLETION_TOKENS", "1000"))
 
 # Ordered list of Groq API keys. When the primary key hits its rate/quota
 # limit (HTTP 429) the client automatically rolls over to the next key —
@@ -242,11 +261,35 @@ LLM_TEMPERATURE = 0.3                       # Lower = more focused answers (0-1)
 # Increased max tokens to 1000 to allow complete and comprehensive long answers
 LLM_MAX_TOKENS = 1000                       # Max length of generated answer (Ollama `num_predict`)
 LLM_REQUEST_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "300"))  # seconds; 3B on CPU is slow (cold start ~30-60s + generation)
+# Cloud providers (Groq / Gemini) answer in seconds; a request that hangs for
+# OLLAMA_TIMEOUT's 5 minutes would just tie up a worker. Per request.
+CLOUD_LLM_TIMEOUT = int(os.getenv("CLOUD_LLM_TIMEOUT", "60"))  # seconds
 # Pass to Ollama's `keep_alive` so the model stays in RAM between requests.
 # Default is 5 min — every cold-after-idle request then pays the ~30-60s reload.
 LLM_KEEP_ALIVE = os.getenv("OLLAMA_KEEP_ALIVE", "24h")
 TOP_K_RESULTS = 8                            # Number of chunks to retrieve per question (increased for more context)
 KEYWORD_BOOST_TOP_K = 8                      # Extra chunks pulled by keyword fallback before merging
+
+
+# =============================================================
+# ADMIN SCRAPING: LISTINGS (/listings/extract) + KB INGESTION (/kb/*)
+# =============================================================
+# Node calls /listings/extract with a 60 s timeout, so the whole extraction
+# (fetch <= 20 s + LLM) is kept under LISTING_TOTAL_BUDGET; an LLM that is
+# slower than LISTING_LLM_TIMEOUT is abandoned for the heuristic result.
+LISTING_TOTAL_BUDGET = int(os.getenv("LISTING_TOTAL_BUDGET", "50"))        # seconds
+LISTING_LLM_TIMEOUT = int(os.getenv("LISTING_LLM_TIMEOUT", "40"))          # seconds
+LISTING_LLM_MAX_CHARS = 12000        # page text sent to a cloud LLM
+LISTING_LLM_MAX_CHARS_LOCAL = 6000   # Ollama's default 2k-4k token context can't take 12k chars
+LISTING_LLM_MAX_TOKENS = 1500
+LISTING_JOB_WORKERS = 4              # background /listings/extract-jobs running at once
+LISTING_JOB_TTL = 15 * 60            # seconds a finished extract job stays pollable
+LISTING_JOB_MAX = 200                # extract jobs kept in memory (oldest finished dropped first)
+
+KB_INGEST_DEFAULT_PAGES = 50         # /kb/ingest-url maxPages default
+KB_INGEST_MAX_PAGES = 500            # hard ceiling for one site crawl
+KB_CRAWL_DELAY = float(os.getenv("KB_CRAWL_DELAY", "0.5"))  # polite pause between page fetches (s)
+KB_MAX_RUNNING_JOBS = 5              # queued+running ingest jobs at once (only 1 may be a site crawl)
 
 
 # =============================================================
@@ -267,11 +310,10 @@ WHISPER_COMPUTE_TYPE = os.getenv("WHISPER_COMPUTE_TYPE", "int8")  # int8 = faste
 # =============================================================
 # Where scraped data is saved on disk.
 
-DATA_DIR = "./data"
+DATA_DIR = os.path.join(BASE_DIR, "data")
 URLS_FILE = os.path.join(DATA_DIR, "urls.txt")
 CLEAN_PAGES_FILE = os.path.join(DATA_DIR, "clean_pages.json")
 CHUNKS_FILE = os.path.join(DATA_DIR, "chunks.json")
-METADATA_FILE = os.path.join(CHROMA_DB_PATH, "metadata.json")
 
 
 # =============================================================

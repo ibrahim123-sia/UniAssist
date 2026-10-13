@@ -7,11 +7,14 @@ Pipeline:
   Question -> Vector Search -> Relevant Chunks -> LLM Prompt -> Answer
 
 LLM backend is selected by `config.USE_LOCAL_LLM`:
-  true  -> local Ollama daemon (default)
-  false -> Groq cloud API (requires GROQ_API_KEY)
+  false -> cloud (default): the providers in CLOUD_LLM_ORDER, Groq first
+           (GROQ_API_KEY, optional GROQ_API_KEY_2 failover) then Gemini
+           (GEMINI_API_KEY); each call is capped by CLOUD_LLM_TIMEOUT
+  true  -> local Ollama daemon (OLLAMA_HOST / OLLAMA_MODEL, OLLAMA_TIMEOUT)
 """
 
 import re             # For regular expression operations in source matching and text cleanup
+import threading      # Guards lazy one-time initialization against concurrent requests
 
 import ollama         # The Ollama library for local LLM inference
 
@@ -109,7 +112,7 @@ NO_INFO_FALLBACK = {
 }
 
 
-def create_prompt(question, relevant_chunks, language="en"):
+def create_prompt(question, relevant_chunks, language="en", guest=False):
     """Build the RAG prompt around four answer-states.
 
     The prompt is organized around what *kind* of question the student
@@ -128,6 +131,12 @@ def create_prompt(question, relevant_chunks, language="en"):
     context = "\n\n---\n\n".join(blocks)
     lang_hint = _LANGUAGE_HINT.get(language, _LANGUAGE_HINT["en"])
     no_info = NO_INFO_FALLBACK.get(language, NO_INFO_FALLBACK["en"])
+    # Guests have no "Register a complaint" button — they must log in first.
+    complaint_hint = (
+        'tell them in one sentence, in the reply language, that they can log in to the MAJU student portal and register a complaint with the right department from there'
+        if guest else
+        'tell them in one sentence, in the reply language, that they can tap "Register a complaint" below this message to send it to the right department (keep the button name "Register a complaint" in English)'
+    )
 
     prompt = f"""CONTEXT FROM MAJU WEBSITE (only for the current question — earlier turns of this conversation are in the chat history above):
 {context}
@@ -162,13 +171,13 @@ E) MAJU-RELATED QUESTION (admissions, fees, programs, courses, faculty, schedule
    - If the context fully answers, give a direct answer.
    - If the context partially answers, share what's covered and briefly note what's missing — do not refuse over one missing detail.
    - If the context does not contain the specific answer but lists a relevant office contact (email, phone, or office location) for admissions, registration, or finance, share that contact info rather than returning the fallback "{no_info}".
-   - If the student is describing a personal issue or complaint (e.g. registry error, payment issue, IT portal problem), let them know they can log in and register an official ticket/issue in the student portal under the SFC, HOD, or IT departments.
+   - If the student is describing a personal issue or complaint (e.g. registry error, payment issue, IT portal problem), {complaint_hint}.
    - If neither the context nor the chat history can answer, reply exactly with: {no_info}
 
 F) DRAFT / COMPOSE / WRITE request ("draft an email", "write a leave application", "email likh do", "compose a message", "draft it", "I said draft it", "likh ke do"):
    - The student wants you to actually WRITE the content, not just explain how. Produce the finished piece.
    - For an email, write a complete email: a salutation, a clear body covering the student's stated purpose (reason, dates, etc.), and a polite closing.
-   - Resolve WHO it is for and any address/email from BOTH the chat history and the context. If you already named a recipient or gave their email in an earlier turn (e.g. Dr. Syed Imran Jami / **imran.jami@jinnah.edu**), use that same recipient and email here — do NOT claim you lack it.
+   - Resolve WHO it is for and any address/email from BOTH the chat history and the context. If you already named a recipient or gave their email in an earlier turn (e.g. [recipient name] / **[recipient email]**), use that same recipient and email here — do NOT claim you lack it.
    - Only include details the student actually gave or that are in context/history; for genuinely unknown specifics (exact dates, student name/ID) leave a short clear placeholder like [your name] or [dates] rather than inventing them.
    - Do not refuse a drafting request for missing minor details — draft it with placeholders and the student can fill them in.
 
@@ -191,14 +200,27 @@ ANSWER:"""
 # LLM INTEGRATION (Ollama local / Groq cloud)
 # =============================================================
 
+class LLMUnavailableError(RuntimeError):
+    """Every configured LLM backend failed (or returned nothing usable).
+
+    Raised instead of returning an error string, so provider error text can
+    never be shown to a student as if it were an answer. The API maps this to
+    HTTP 503 and Node shows its own friendly fallback; the underlying details
+    are only logged server-side.
+    """
+
+
 _ollama_client = None
 _groq_clients = {}  # api_key -> Groq client, so each key keeps its own connection
+_client_lock = threading.Lock()
 
 
 def _get_ollama_client():
     global _ollama_client
     if _ollama_client is None:
-        _ollama_client = ollama.Client(host=config.OLLAMA_HOST, timeout=config.LLM_REQUEST_TIMEOUT)
+        with _client_lock:
+            if _ollama_client is None:
+                _ollama_client = ollama.Client(host=config.OLLAMA_HOST, timeout=config.LLM_REQUEST_TIMEOUT)
     return _ollama_client
 
 
@@ -206,10 +228,13 @@ def _get_groq_client(api_key):
     """Return a cached Groq client for the given API key (one per key)."""
     client = _groq_clients.get(api_key)
     if client is None:
-        from groq import Groq  # Groq client SDK for calling Groq cloud LLM API, imported lazily so local-only installs don't need the dependency
+        with _client_lock:
+            client = _groq_clients.get(api_key)
+            if client is None:
+                from groq import Groq  # Groq client SDK for calling Groq cloud LLM API, imported lazily so local-only installs don't need the dependency
 
-        client = Groq(api_key=api_key, timeout=config.LLM_REQUEST_TIMEOUT)
-        _groq_clients[api_key] = client
+                client = Groq(api_key=api_key, timeout=config.CLOUD_LLM_TIMEOUT)
+                _groq_clients[api_key] = client
     return client
 
 
@@ -217,8 +242,7 @@ def _is_rate_limit_error(exc):
     """Heuristic: did this Groq error come from hitting a rate / quota limit?
 
     We match on the SDK's status_code (429) when present, otherwise on the
-    message text. Used only for logging clarity — the failover tries the next
-    key on ANY error so a dead/expired key also rolls over.
+    message text.
     """
     status = getattr(exc, "status_code", None) or getattr(exc, "code", None)
     if status == 429:
@@ -227,13 +251,29 @@ def _is_rate_limit_error(exc):
     return any(s in msg for s in ("rate limit", "rate_limit", "429", "quota", "too many requests"))
 
 
-def _llm_chat_gemini(messages, temperature):
+def _should_rotate_groq_key(exc):
+    """Is this a per-key failure that another Groq key could get past?
+
+    Rotate on rate/quota limits (429), auth/permission problems with this
+    key (401/403 — e.g. an expired or revoked key) and Groq-side 5xx errors.
+    Anything else is a request problem that every key would hit identically:
+    404 (model decommissioned / not available), 400 (bad parameter), 413/422,
+    or a network failure — retrying it on the next key only doubles latency,
+    so we fail straight through to the next provider instead.
+    """
+    status = getattr(exc, "status_code", None)
+    if isinstance(status, int):
+        return status in (401, 403, 429) or status >= 500
+    return _is_rate_limit_error(exc)
+
+
+def _llm_chat_gemini(messages, temperature, timeout=None):
     """Call Google Gemini OpenAI-compatible API via standard requests.
     Omit max_tokens to prevent the OpenAI proxy from truncating output.
     """
     if not config.GEMINI_API_KEY:
         raise ValueError("GEMINI_API_KEY is not configured in environment.")
-    
+
     import requests    # Standard library for sending HTTP requests to the Gemini API endpoint
 
     url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
@@ -246,26 +286,45 @@ def _llm_chat_gemini(messages, temperature):
         "messages": messages,
         "temperature": temperature
     }
-    
-    response = requests.post(url, headers=headers, json=payload, timeout=config.LLM_REQUEST_TIMEOUT)
+
+    response = requests.post(url, headers=headers, json=payload, timeout=timeout or config.CLOUD_LLM_TIMEOUT)
     if response.status_code == 200:
         res_json = response.json()
         try:
-            return res_json["choices"][0]["message"]["content"] or ""
-        except (KeyError, IndexError) as e:
+            content = res_json["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError, TypeError) as e:
             raise RuntimeError(f"Unexpected response structure from Gemini API: {res_json}") from e
+        if not content.strip():
+            # Safety blocks / max-token stops come back as 200 with no text.
+            raise RuntimeError("Gemini returned empty content")
+        return content
     else:
         raise RuntimeError(f"Gemini API returned status {response.status_code}: {response.text}")
 
 
-def _llm_chat_groq(messages, temperature, max_tokens):
+def _groq_completion_kwargs(max_tokens):
+    """Token-budget / reasoning parameters for the configured Groq model.
+
+    gpt-oss models spend hidden reasoning tokens out of the same completion
+    budget, so they get `reasoning_effort` plus a larger budget. Other models
+    reject `reasoning_effort` with a 400, so it's only sent to gpt-oss.
+    """
+    if "gpt-oss" in config.GROQ_MODEL.lower():
+        return {
+            "max_completion_tokens": max(max_tokens, config.GROQ_MAX_COMPLETION_TOKENS),
+            "reasoning_effort": config.GROQ_REASONING_EFFORT,
+        }
+    return {"max_completion_tokens": max_tokens}
+
+
+def _llm_chat_groq(messages, temperature, max_tokens, timeout=None):
     """Call Groq, rolling over to the next API key when one is exhausted.
 
     `config.GROQ_API_KEYS` holds the keys in priority order (primary first,
-    then keys from secondary accounts). We try them in turn: on a rate-limit
-    (HTTP 429) — or any other failure — we move to the next key. Only when
-    every key has failed do we raise, so the caller can fail over to the next
-    provider in CLOUD_LLM_ORDER.
+    then keys from secondary accounts). We move to the next key only for
+    per-key failures (see `_should_rotate_groq_key`); a bad model name or bad
+    request raises immediately so the caller can fail over to the next
+    provider in CLOUD_LLM_ORDER without burning every key on the same error.
     """
     keys = config.GROQ_API_KEYS
     if not keys:
@@ -282,13 +341,19 @@ def _llm_chat_groq(messages, temperature, max_tokens):
                 model=config.GROQ_MODEL,
                 messages=messages,
                 temperature=temperature,
-                max_tokens=max_tokens,
+                timeout=timeout or config.CLOUD_LLM_TIMEOUT,
+                **_groq_completion_kwargs(max_tokens),
             )
-            if idx > 0:
-                print(f"  Groq answered on key #{idx + 1} (primary key was unavailable).")
-            return (response.choices[0].message.content or "") if response.choices else ""
         except Exception as exc:
-            reason = "rate-limited" if _is_rate_limit_error(exc) else "failed"
+            status = getattr(exc, "status_code", None)
+            if not _should_rotate_groq_key(exc):
+                if status in (400, 404):
+                    print(
+                        f"  Groq rejected the request (HTTP {status}) — check GROQ_MODEL "
+                        f"'{config.GROQ_MODEL}' is still available on this key. Not rotating keys."
+                    )
+                raise RuntimeError(f"Groq key#{idx + 1} failed (not retryable): {exc}") from exc
+            reason = "rate-limited" if _is_rate_limit_error(exc) else f"failed (HTTP {status})"
             errors.append(f"key#{idx + 1}: {exc}")
             if idx < len(keys) - 1:
                 print(f"  Groq key #{idx + 1} {reason}; rolling over to key #{idx + 2}...")
@@ -298,33 +363,61 @@ def _llm_chat_groq(messages, temperature, max_tokens):
                 f"All {len(keys)} Groq key(s) failed. Errors: {'; '.join(errors)}"
             ) from exc
 
+        content = (response.choices[0].message.content or "") if response.choices else ""
+        if not content.strip():
+            # e.g. a reasoning model that spent its whole budget thinking
+            # (finish_reason "length"). Another key would do the same.
+            finish = response.choices[0].finish_reason if response.choices else None
+            raise RuntimeError(f"Groq returned empty content (finish_reason={finish})")
+        if idx > 0:
+            print(f"  Groq answered on key #{idx + 1} (primary key was unavailable).")
+        return content
 
-def _llm_chat(messages, temperature, max_tokens):
-    """Backend-agnostic chat call. Returns the assistant text or raises.
+
+def _llm_chat(messages, temperature, max_tokens, timeout=None):
+    """Backend-agnostic chat call. Returns non-empty assistant text or raises.
+
+    `timeout` (seconds) caps each cloud provider request; default
+    CLOUD_LLM_TIMEOUT. A caller with its own budget (listing extraction)
+    passes what it has left so an abandoned call doesn't keep running.
+    Ollama keeps its client-level OLLAMA_TIMEOUT (a cold local model is slow).
 
     Routes to local Ollama or cloud models based on `config.USE_LOCAL_LLM`.
     If USE_LOCAL_LLM is false, attempts to query cloud models using the preferred order
     defined in `config.CLOUD_LLM_ORDER`, failing over to secondary options if a provider fails.
+    Raises LLMUnavailableError when nothing produced an answer.
     """
     if config.USE_LOCAL_LLM:
-        client = _get_ollama_client()
-        response = client.chat(
-            model=config.OLLAMA_MODEL,
-            messages=messages,
-            options={
-                "temperature": temperature,
-                "num_predict": max_tokens,
-            },
-            keep_alive=config.LLM_KEEP_ALIVE,
-        )
-        return (response.get("message") or {}).get("content", "")
+        try:
+            client = _get_ollama_client()
+            response = client.chat(
+                model=config.OLLAMA_MODEL,
+                messages=messages,
+                options={
+                    "temperature": temperature,
+                    "num_predict": max_tokens,
+                },
+                keep_alive=config.LLM_KEEP_ALIVE,
+            )
+        except ollama.ResponseError as exc:
+            if "not found" in str(exc).lower():
+                print(f"  Ollama model `{config.OLLAMA_MODEL}` is not installed. "
+                      f"Run: `ollama pull {config.OLLAMA_MODEL}`")
+            raise LLMUnavailableError(f"Ollama error: {exc}") from exc
+        except Exception as exc:
+            print(f"  Cannot reach Ollama at {config.OLLAMA_HOST}. Is the daemon running?")
+            raise LLMUnavailableError(f"Ollama unreachable: {exc}") from exc
+        content = (response.get("message") or {}).get("content", "") or ""
+        if not content.strip():
+            raise LLMUnavailableError("Ollama returned empty content")
+        return content
 
     errors = []
     for provider in config.CLOUD_LLM_ORDER:
         if provider == "gemini":
             try:
                 print(f"  Attempting to call Gemini ({config.GEMINI_MODEL})...")
-                return _llm_chat_gemini(messages, temperature)
+                return _llm_chat_gemini(messages, temperature, timeout=timeout)
             except Exception as exc:
                 err_msg = f"Gemini call failed: {exc}"
                 print(f"  Warning: {err_msg}")
@@ -332,7 +425,7 @@ def _llm_chat(messages, temperature, max_tokens):
         elif provider == "groq":
             try:
                 print(f"  Attempting to call Groq ({config.GROQ_MODEL})...")
-                return _llm_chat_groq(messages, temperature, max_tokens)
+                return _llm_chat_groq(messages, temperature, max_tokens, timeout=timeout)
             except Exception as exc:
                 err_msg = f"Groq call failed: {exc}"
                 print(f"  Warning: {err_msg}")
@@ -340,7 +433,7 @@ def _llm_chat(messages, temperature, max_tokens):
         else:
             print(f"  Warning: Unknown provider '{provider}' in CLOUD_LLM_ORDER")
 
-    raise RuntimeError(f"All configured cloud LLM providers failed. Errors: {'; '.join(errors)}")
+    raise LLMUnavailableError(f"All configured cloud LLM providers failed. Errors: {'; '.join(errors)}")
 
 
 def _sanitize_history(history):
@@ -374,6 +467,9 @@ def get_llm_response(prompt, language="en", history=None):
     prompt so the model can resolve follow-ups ("and its fee?") without
     re-explaining context. The RAG prompt itself still gets fresh
     retrieved chunks for THIS question — retrieval is not history-aware.
+
+    Raises LLMUnavailableError if no backend produced an answer — callers
+    must not turn that into answer text.
     """
     system_msg = (
         "You are MAJU Assistant — the official virtual helpdesk for Muhammad "
@@ -392,44 +488,40 @@ def get_llm_response(prompt, language="en", history=None):
 
     try:
         return _llm_chat(messages, config.LLM_TEMPERATURE, config.LLM_MAX_TOKENS)
-    except ollama.ResponseError as exc:
-        if "not found" in str(exc).lower():
-            return (
-                f"Error: model `{config.OLLAMA_MODEL}` is not installed in Ollama. "
-                f"Run: `ollama pull {config.OLLAMA_MODEL}`"
-            )
-        return f"Error from Ollama: {exc}"
+    except LLMUnavailableError:
+        raise
     except Exception as exc:
-        if config.USE_LOCAL_LLM:
-            return (
-                f"Error: cannot reach Ollama at {config.OLLAMA_HOST}. "
-                f"Is the daemon running? ({exc})"
-            )
-        return f"Error from Cloud LLM: {exc}"
+        raise LLMUnavailableError(f"LLM call failed: {exc}") from exc
 
 
 # Llama 3.2:3b reliably opens replies with one of these throat-clearing
 # phrases despite a "no preamble" rule. Strip whichever one shows up at
 # the very start (case-insensitive, optional trailing comma/colon/dash).
+#
+# Every literal word ends in \b so "Surely ..." or "Sureshot" isn't cut to
+# "ly ..." / "shot". Clause-stripping patterns only end on a comma/period
+# that is followed by whitespace (or end of text): "Rs 9,000" contains a
+# comma, and stopping there used to leave the answer starting at "000**".
+_CLAUSE_END = r"[^,.\n]*[,.](?:\s+|$)"
 _PREAMBLE_PATTERNS = [
-    r"sure[!,.\s]*",
-    r"of course[!,.\s]*",
-    r"certainly[!,.\s]*",
-    r"absolutely[!,.\s]*",
-    r"great question[!,.\s]*",
-    r"here(?:'s| is)(?: the answer)?[:,\s\-]*",
-    r"based on the (?:context|information|provided context|provided information)[:,\s\-]*",
-    r"according to the (?:context|information|provided context)[:,\s\-]*",
-    r"as (?:per|stated in) the (?:context|information)[:,\s\-]*",
-    r"the answer (?:is|to your question is)[:,\s\-]*",
-    # "It seems / sounds / looks like ..." sympathy preambles. We strip up
-    # to the next comma or period, because these phrases usually paraphrase
-    # the user's question before the actual answer ("It seems like you're
-    # having trouble with X, ..." — drop everything up to that comma).
-    r"it (?:seems|sounds|looks)(?: like)?[^,.\n]*[,.][\s\-]*",
-    r"i (?:see|understand)(?: that)?[^,.\n]*[,.][\s\-]*",
-    r"i (?:can|will) (?:help|try to help)[^,.\n]*[,.][\s\-]*",
-    r"thanks? for (?:asking|your question)[!,.\s]*",
+    r"sure\b[!,.\s]*",
+    r"of course\b[!,.\s]*",
+    r"certainly\b[!,.\s]*",
+    r"absolutely\b[!,.\s]*",
+    r"great question\b[!,.\s]*",
+    r"here(?:'s| is)\b(?: the answer\b)?[:,\s\-]*",
+    r"based on the (?:context|information|provided context|provided information)\b[:,\s\-]*",
+    r"according to the (?:context|information|provided context)\b[:,\s\-]*",
+    r"as (?:per|stated in) the (?:context|information)\b[:,\s\-]*",
+    r"the answer (?:is|to your question is)\b[:,\s\-]*",
+    # "It seems / sounds / looks like you ..." sympathy preambles that
+    # paraphrase the user's question before the actual answer ("It sounds
+    # like you're having trouble with X, ..."). Only when the clause is about
+    # "you" — "It looks like the fee is Rs 9,000" IS the answer.
+    r"it (?:seems|sounds|looks) like you(?:'re|'ve| are| have)?\b" + _CLAUSE_END,
+    r"i (?:see|understand)(?: that)? (?:you|your)\b" + _CLAUSE_END,
+    r"i (?:can|will) (?:help|try to help)\b" + _CLAUSE_END,
+    r"thanks? for (?:asking|your question)\b[!,.\s]*",
 ]
 _PREAMBLE_RE = re.compile(
     r"^\s*(?:" + "|".join(_PREAMBLE_PATTERNS) + r")",
@@ -442,9 +534,11 @@ def clean_answer(answer):
     if not answer:
         return ""
     answer = re.sub(r"\[\d+\]", "", answer)
-    answer = re.sub(r"(?i)(sources?:.*?)(?=\n\n|\Z)", "", answer, flags=re.DOTALL)
+    # A "Sources:" / "References:" block only counts when it starts a line.
+    # The old unanchored pattern also matched inside words and phrases —
+    # "Human Resources: hr@jinnah.edu" lost everything after "Re".
     answer = re.sub(
-        r"(?i)\n\n(?:📎\s*)?(?:source|references?):.*", "", answer, flags=re.DOTALL
+        r"(?ims)^[ \t]*(?:📎\s*)?(?:sources?|references?)\s*:.*?(?=\n\n|\Z)", "", answer
     )
     # Strip up to two stacked preambles ("Sure! Based on the context, ...").
     for _ in range(2):
@@ -592,21 +686,61 @@ def _warm_llm():
         print(f"  LLM warmup skipped: {exc}")
 
 
-def _initialize():
-    global _collection, _model
-    if _collection is None:
-        print("Initializing RAG system...")
-        client = database.get_chroma_client()
-        _collection = database.get_collection(client)
-        print(f"  Database loaded: {_collection.count()} documents")
+_init_lock = threading.Lock()
+
+
+def get_embedding_model():
+    """The process-wide SentenceTransformer, loaded once on first use.
+
+    Shared with the admin endpoints in api.py so the ~90MB model isn't held
+    in memory twice. Double-checked locking: requests run on FastAPI's
+    threadpool, and two cold requests must not both load the model.
+    """
+    global _model
     if _model is None:
-        _model = database.get_embedding_model()
-        print(f"  Embedding model loaded: {config.EMBEDDING_MODEL}")
-    if config.USE_LOCAL_LLM:
-        print(f"  LLM: {config.OLLAMA_MODEL} via Ollama @ {config.OLLAMA_HOST}")
-    else:
-        print(f"  LLM: Cloud LLM failover order: {', '.join(config.CLOUD_LLM_ORDER)}")
+        with _init_lock:
+            if _model is None:
+                _model = database.get_embedding_model()
+                print(f"  Embedding model loaded: {config.EMBEDDING_MODEL}")
+    return _model
+
+
+def _initialize():
+    """Load the collection + embedding model once. Returns the collection.
+
+    Callers use the returned handle rather than re-reading the `_collection`
+    global, which `_reset_collection` may set to None from another thread.
+    """
+    global _collection
+    collection = _collection
+    if collection is None:
+        with _init_lock:
+            if _collection is None:
+                print("Initializing RAG system...")
+                client = database.get_chroma_client()
+                # get_or_create: the KB legitimately starts empty (no
+                # chroma_db folder at all) and is filled from the admin
+                # panel; a plain get_collection made every /ask a 500 then.
+                collection = database.get_or_create_collection(client)
+                print(f"  Database loaded: {collection.count()} documents")
+                if config.USE_LOCAL_LLM:
+                    print(f"  LLM: {config.OLLAMA_MODEL} via Ollama @ {config.OLLAMA_HOST}")
+                else:
+                    print(f"  LLM: Cloud LLM failover order: {', '.join(config.CLOUD_LLM_ORDER)}")
+                _collection = collection  # publish only once fully set up
+            else:
+                collection = _collection
+    get_embedding_model()
     _warm_llm()
+    return collection
+
+
+def _reset_collection():
+    """Drop the cached collection handle (e.g. after `run.py build` replaced it)."""
+    global _collection
+    with _init_lock:
+        _collection = None
+    database.clear_keyword_cache()
 
 
 # Markers that signal a question is an ELLIPTICAL follow-up — it leans on the
@@ -618,8 +752,11 @@ def _initialize():
 # chunks that actually answer it.
 _ELLIPTICAL_PREFIXES = (
     "or ", "and ", "also ", "plus ", "what about", "how about", "whatabout",
-    "aur ", "ya ", "phir ", "to ", "tou ", "ab ",
+    "aur ", "phir ", "tou ", "ab ",
 )
+# ("to " and "ya " are deliberately absent: "to apply for BSCS what do I
+# need?" and "ya ..." openers are usually complete questions, and prepending
+# the previous turn to them only diluted retrieval.)
 # Back-reference pronouns that, when present, mean the subject lives in history.
 _BACKREF_WORDS = {
     "it", "its", "it's", "they", "them", "their", "this", "that", "these",
@@ -680,17 +817,19 @@ def _build_retrieval_query(question, history):
 
 
 def _merge_search_results(result_sets, top_k):
-    """Merge several (chunks, sources, scores) tuples into one ranked list.
+    """Merge several (chunks, sources, scores, ids) tuples into one ranked list.
 
-    Dedup key is the first 120 chars of the chunk text (same convention as
-    `database.search`). When a chunk appears in more than one result set we
-    keep its HIGHEST score. Used to combine a standalone-question retrieval
-    with the history-prepended one so neither view's relevant chunks are lost.
+    Dedup key is the Chroma chunk id (same convention as `database.search`;
+    the old 120-char text prefix merged distinct chunks that open with the
+    same page title + heading). When a chunk appears in more than one result
+    set we keep its HIGHEST score. Used to combine a standalone-question
+    retrieval with the history-prepended one so neither view's relevant
+    chunks are lost.
     """
     merged = {}
-    for chunks, sources, scores in result_sets:
-        for c, m, s in zip(chunks, sources, scores):
-            key = (c or "")[:120]
+    for chunks, sources, scores, ids in result_sets:
+        for c, m, s, cid in zip(chunks, sources, scores, ids):
+            key = cid or c
             existing = merged.get(key)
             if existing is None or s > existing["score"]:
                 merged[key] = {"text": c, "meta": m, "score": s}
@@ -702,8 +841,109 @@ def _merge_search_results(result_sets, top_k):
     )
 
 
-def ask(question, language="en", history=None):
+def _retrieve(question, history, collection):
+    """Hybrid retrieval for the question (+ history-prepended variant) over
+    `collection` (the handle `_initialize` returned)."""
+    # Retrieve for the standalone question FIRST — a complete question like
+    # "Admission requirements?" must not be diluted by the previous turn.
+    # Then, if this looks like a follow-up, ALSO retrieve with the prior user
+    # turn prepended (helps elliptical follow-ups like "or fee?") and merge.
+    # Merging keeps the best of both views instead of letting the prepended
+    # query bury the chunks that actually answer a self-contained question.
+    queries = [question]
+    retrieval_query = _build_retrieval_query(question, history)
+    if retrieval_query != question:
+        queries.append(retrieval_query)
+    result_sets = [
+        database.search(
+            question=q,
+            collection=collection,
+            model=get_embedding_model(),
+            top_k=config.TOP_K_RESULTS,
+        )
+        for q in queries
+    ]
+    return _merge_search_results(result_sets, config.TOP_K_RESULTS)
+
+
+def _normalize_for_match(text):
+    """Lower-case, unify apostrophes, drop markdown emphasis and punctuation
+    runs, collapse whitespace — so "**I don’t have information about that in
+    my database.**" still matches the fallback text."""
+    text = (text or "").lower().replace("’", "'").replace("‘", "'")
+    text = re.sub(r"[*_`#>]+", " ", text)
+    text = re.sub(r"[.!?,;:]+", " ", text)
+    return " ".join(text.split())
+
+
+_NO_INFO_NORMALIZED = tuple({_normalize_for_match(t) for t in NO_INFO_FALLBACK.values()})
+
+
+def is_no_info_answer(answer):
+    """True if the answer is (or contains) one of the NO_INFO_FALLBACK texts.
+
+    The prompt tells the model to reply with exactly that sentence when it
+    can't answer, so its presence is the signal that the question went
+    unanswered (Node then files it under "Unanswered Questions").
+    """
+    norm = _normalize_for_match(answer)
+    if not norm:
+        return True  # an empty answer answered nothing
+    return any(fallback in norm for fallback in _NO_INFO_NORMALIZED)
+
+
+# Pure greetings / thanks get a fixed reply instead of an LLM call. With chat
+# history attached, the model tends to echo its previous turn (e.g. repeating
+# "I don't have information..." in reply to "hi"), and skipping the call also
+# saves Groq's per-minute token budget. Only exact matches — "hi, what is the
+# fee?" still goes through the normal pipeline.
+_GREETINGS = {
+    "hi", "hii", "hello", "hey", "salam", "salaam", "aoa", "assalamualaikum",
+    "assalam o alaikum", "asalam o alaikum", "assalamu alaikum", "assalam-o-alaikum",
+    "good morning", "good afternoon", "good evening", "hello there", "hi there",
+}
+_THANKS = {
+    "thanks", "thank you", "thankyou", "thx", "shukriya", "shukria", "thanks a lot",
+    "thank you so much", "jazakallah", "ok thanks", "okay thanks",
+}
+_SMALL_TALK_REPLIES = {
+    "greeting": {
+        "en": "Hello! I'm MAJU Assistant. Ask me anything about admissions, fees, programs, scholarships or campus life at MAJU.",
+        "roman_urdu": "Assalam o Alaikum! Main MAJU Assistant hoon. Admission, fee, programs, scholarships ya MAJU ke baare mein kuch bhi poochein.",
+    },
+    "thanks": {
+        "en": "You're welcome! Let me know if there's anything else about MAJU I can help with.",
+        "roman_urdu": "Koi baat nahi! MAJU ke baare mein aur kuch poochna ho to zaroor batayein.",
+    },
+}
+
+
+def small_talk_reply(question, language="en"):
+    """Fixed reply for a bare greeting / thank-you, else None."""
+    norm = _normalize_for_match(question).replace("-", " ")
+    if norm in _GREETINGS:
+        kind = "greeting"
+    elif norm in _THANKS:
+        kind = "thanks"
+    else:
+        return None
+    replies = _SMALL_TALK_REPLIES[kind]
+    roman = language == "roman_urdu" or norm in {"salam", "salaam", "aoa", "shukriya", "shukria", "jazakallah"} or "alaikum" in norm
+    return replies["roman_urdu"] if roman else replies["en"]
+
+
+def ask(question, language="en", history=None, guest=False):
+    """Run the RAG pipeline and return just the answer text (CLI / legacy callers)."""
+    answer, _answered = ask_detailed(question, language=language, history=history, guest=guest)
+    return answer
+
+
+def ask_detailed(question, language="en", history=None, guest=False):
     """Run the full RAG pipeline for a student question.
+
+    Returns `(answer, answered)`. `answered` is False when retrieval found
+    nothing (empty knowledge base) or the model fell back to the
+    NO_INFO_FALLBACK sentence — see `is_no_info_answer`.
 
     `language` should be one of "en", "roman_urdu", "mixed" — it controls the
     language of the generated answer. The retrieval step is language-agnostic
@@ -714,39 +954,32 @@ def ask(question, language="en", history=None):
     follow-ups conversationally, and (2) the latest prior user turn is
     prepended to the retrieval query so follow-ups like "or fee" still
     pull topic-relevant chunks instead of generic ones.
-    """
-    _initialize()
 
-    # Retrieve for the standalone question FIRST — a complete question like
-    # "Admission requirements?" must not be diluted by the previous turn.
-    # Then, if this looks like a follow-up, ALSO retrieve with the prior user
-    # turn prepended (helps elliptical follow-ups like "or fee?") and merge.
-    # Merging keeps the best of both views instead of letting the prepended
-    # query bury the chunks that actually answer a self-contained question.
-    result_sets = [
-        database.search(
-            question=question,
-            collection=_collection,
-            model=_model,
-            top_k=config.TOP_K_RESULTS,
-        )
-    ]
-    retrieval_query = _build_retrieval_query(question, history)
-    if retrieval_query != question:
-        result_sets.append(
-            database.search(
-                question=retrieval_query,
-                collection=_collection,
-                model=_model,
-                top_k=config.TOP_K_RESULTS,
-            )
-        )
-    chunks, _sources, _scores = _merge_search_results(result_sets, config.TOP_K_RESULTS)
+    Raises LLMUnavailableError when no LLM backend could answer.
+    """
+    canned = small_talk_reply(question, language)
+    if canned:
+        return canned, True
+
+    collection = _initialize()
+
+    try:
+        chunks, _sources, _scores = _retrieve(question, history, collection)
+    except Exception as exc:
+        # `run.py build` deletes and recreates the collection, which leaves
+        # our cached handle pointing at a collection that no longer exists.
+        # Re-fetch it once instead of failing every request until restart.
+        if not database.is_missing_collection_error(exc):
+            raise
+        print("  Cached collection no longer exists (rebuilt?); reloading it")
+        _reset_collection()
+        collection = _initialize()
+        chunks, _sources, _scores = _retrieve(question, history, collection)
 
     if not chunks:
-        return NO_INFO_FALLBACK.get(language, NO_INFO_FALLBACK["en"])
+        return NO_INFO_FALLBACK.get(language, NO_INFO_FALLBACK["en"]), False
 
-    prompt = create_prompt(question, chunks, language=language)
+    prompt = create_prompt(question, chunks, language=language, guest=guest)
     answer = get_llm_response(prompt, language=language, history=history)
     cleaned = clean_answer(answer)
 
@@ -774,4 +1007,4 @@ def ask(question, language="en", history=None):
     if language in ("roman_urdu", "mixed"):
         cleaned = _replace_hindi_words(cleaned)
 
-    return cleaned
+    return cleaned, not is_no_info_answer(cleaned)

@@ -53,7 +53,8 @@ ROMAN_URDU_FUNCTION_WORDS = {
     "karna", "karta", "karti", "karte", "karo", "karenge", "karunga", "karoge",
     "kiya", "kiye", "kr", "krna", "krta", "krte",
     "jata", "jati", "jate", "jaye", "jaunga", "jaungi", "jana", "gaya", "gayi", "gaye",
-    "ata", "ati", "ate", "aya", "ayi", "aye", "ana", "aana",
+    # ("ate" is deliberately absent — "I ate lunch" is English.)
+    "ata", "ati", "aya", "ayi", "aye", "ana", "aana",
     "raha", "rahi", "rahe", "rehna", "rehta", "rehti", "rehte",
     # SMS-short forms — students drop vowels constantly ("horha" for ho raha,
     # "nh" for nahi, "rha" for raha). Without these, sentences that are
@@ -72,6 +73,7 @@ ROMAN_URDU_FUNCTION_WORDS = {
     # drop vowels in chat ("tm" for tum, "ap" for aap, "mjhe" for mujhe).
     # Adding these fixes detection of ultra-short queries like "tm kon ho".
     "tm", "ap", "tu", "tjhe", "tujhe", "tujh", "mujh", "mjhe", "mje", "mjh",
+    "mujhe", "mujhay", "humein", "hamein", "hume", "tumhe", "unhe", "unhein", "inhe",
     "iska", "iski", "iske", "uska", "uski", "uske", "inka", "inki", "inke",
     "unka", "unki", "unke", "mera", "meri", "mere", "tera", "teri", "tere",
     "mra", "mri", "mre",  # SMS short forms of mera/meri/mere
@@ -93,6 +95,9 @@ ROMAN_URDU_FUNCTION_WORDS = {
     # University-specific patterns we expect
     "kitna", "kitni", "kitne", "kahaan",
     "samajh", "samjha", "samjhi",
+    # Requests — "mujhe fee batao" had no lexicon hit at all before these.
+    "batao", "btao", "bataen", "bataein", "batain", "batayein", "bataiye",
+    "samjhao", "shuru", "baare",
 }
 
 # Endings / suffixes that strongly suggest Roman Urdu when seen on multiple tokens.
@@ -118,12 +123,15 @@ def _tokenize(text: str) -> List[str]:
     return [t.lower() for t in _TOKEN_RE.findall(text or "")]
 
 
-def _score_roman_urdu(tokens: List[str]) -> Dict[str, float]:
+def _score_roman_urdu(tokens: List[str], raw_tokens: List[str] = None) -> Dict[str, float]:
     """Return urdu_score, en_score, and the matched tokens for explainability.
 
     The scoring is intentionally simple — counts of distinctive function words
     normalised by sentence length. This trumps `langdetect` whenever the
     Roman-Urdu signal is strong, regardless of how confident langdetect is.
+
+    `raw_tokens` are the same tokens with their original casing; they let the
+    suffix heuristic skip capitalized words (names/places).
     """
     if not tokens:
         return {"urdu": 0.0, "en": 0.0, "matched": []}
@@ -131,11 +139,21 @@ def _score_roman_urdu(tokens: List[str]) -> Dict[str, float]:
     urdu_hits = [t for t in tokens if t in ROMAN_URDU_FUNCTION_WORDS]
     en_hits = sum(1 for t in tokens if t in ENGLISH_STOPWORDS)
 
-    # Suffix signal: only count if not already a direct lexicon hit.
-    suffix_hits = sum(
-        1 for t in tokens
-        if t not in ROMAN_URDU_FUNCTION_WORDS and t.endswith(ROMAN_URDU_SUFFIXES) and len(t) >= 5
-    )
+    # Suffix signal: a soft booster only. It counts only when the sentence
+    # already has a real function-word hit, and never on words capitalized in
+    # the original text — otherwise English questions about people and
+    # places ("Dr. Farhana email", "Indiana University exchange", "Montana
+    # scholarship") or plain words ("protein lab timing") scored as Roman
+    # Urdu purely on their -ana / -ein / -iya endings.
+    suffix_hits = 0
+    if urdu_hits:
+        raw = raw_tokens if raw_tokens and len(raw_tokens) == len(tokens) else tokens
+        suffix_hits = sum(
+            1 for t, r in zip(tokens, raw)
+            if t not in ROMAN_URDU_FUNCTION_WORDS
+            and not r[:1].isupper()
+            and t.endswith(ROMAN_URDU_SUFFIXES) and len(t) >= 5
+        )
 
     n = len(tokens)
     urdu_raw = len(urdu_hits) + 0.5 * suffix_hits
@@ -209,7 +227,7 @@ def detect_language(text: str) -> Dict:
             "matched_urdu_tokens": [],
         }
 
-    scored = _score_roman_urdu(tokens)
+    scored = _score_roman_urdu(tokens, _TOKEN_RE.findall(text))
     urdu = scored["urdu"]
     en = scored["en"]
     matched = sorted(set(scored["matched"]))

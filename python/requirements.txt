@@ -2,51 +2,50 @@
 # Python Dependencies for University RAG System
 # ===========================================
 # Install with: pip install -r requirements.txt
+# Tested on Python 3.12. Pins match the versions this service actually runs
+# with (taken from `pip freeze` of the working environment) — the previous
+# pins (pydantic 1.x, chromadb 0.4, sentence-transformers 2.2) no longer
+# matched what the code was running against.
 
 # --- Use CPU-only PyTorch (no NVIDIA/CUDA) ---
 --extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.1.0+cpu
+torch==2.10.0
 
 # --- Web Scraping ---
-requests==2.31.0              # HTTP requests (fetching web pages)
-beautifulsoup4>=4.12.0        # HTML parsing
-lxml>=4.9.0                   # Fast XML/HTML parser (used by BeautifulSoup)
+requests==2.32.3              # HTTP requests (fetching web pages, Node webhooks, Gemini)
+beautifulsoup4==4.12.2        # HTML parsing
+lxml==6.1.0                   # Fast XML/HTML parser (used by BeautifulSoup)
 
 # --- Vector Database ---
-chromadb==0.4.18              # Vector database for semantic search
-protobuf==3.20.3              # Required by ChromaDB
+chromadb==1.4.1               # Vector database for semantic search
 
 # --- Embeddings ---
-sentence-transformers==2.2.2  # Text-to-vector embedding models
-huggingface-hub==0.19.4       # Model downloads from HuggingFace
+sentence-transformers==5.3.0  # Text-to-vector embedding models
+huggingface-hub==1.8.0        # Model downloads from HuggingFace
 
 # --- LLM (AI Model) ---
-ollama>=0.3.0                 # Local Llama 3.2 via Ollama daemon (http://localhost:11434) — used when USE_LOCAL_LLM=true
-groq>=0.11.0                  # Cloud LLM fallback — used when USE_LOCAL_LLM=false (requires GROQ_API_KEY)
+ollama==0.6.2                 # Local Llama 3.2 via Ollama daemon (http://localhost:11434) — used when USE_LOCAL_LLM=true
+groq==1.0.0                   # Cloud LLM (primary when USE_LOCAL_LLM=false); needs reasoning_effort support for gpt-oss
 
 # --- Language Detection ---
-langdetect>=1.0.9             # Proper-script language detection; paired with a Roman-Urdu lexicon scorer
+langdetect==1.0.9             # Proper-script language detection; paired with a Roman-Urdu lexicon scorer
 
 # --- Speech-to-Text (local, replaces AssemblyAI) ---
-faster-whisper>=1.0.0         # CTranslate2-powered Whisper, CPU-friendly. Model is auto-downloaded on first use.
+faster-whisper==1.2.1         # CTranslate2-powered Whisper, CPU-friendly. Model is auto-downloaded on first use.
 
 # --- Web API ---
-fastapi>=0.104.0              # REST API framework
-uvicorn>=0.24.0               # ASGI server (runs FastAPI)
-pydantic==1.10.13             # Data validation (used by FastAPI)
+fastapi==0.115.0              # REST API framework
+uvicorn==0.30.6               # ASGI server (runs FastAPI)
+pydantic==2.13.5              # Data validation (used by FastAPI; request models use v2 Field limits)
 
 # --- Utilities ---
-python-dotenv==1.0.0          # Load .env file variables
-tqdm==4.66.0                  # Progress bars
-numpy==1.24.3                 # Numerical computing
+numpy==2.3.5                  # Embedding math (question clustering); pinned to the tested version
+urllib3>=2.6,<3               # url_safety subclasses urllib3 connections and reads resp.raw.read1()
+python-dotenv==1.0.1          # Load .env file variables
+tqdm==4.67.1                  # Progress bars
 
 # --- Admin / Vector CRUD ---
-pyjwt>=2.8.0                  # Decode Node-issued JWTs
-python-multipart>=0.0.6       # Required for FastAPI file uploads
-pypdf>=4.0.0                  # PDF text extraction
-python-docx>=1.1.0            # DOCX text extraction
-langchain-text-splitters>=0.0.1  # RecursiveCharacterTextSplitter
-
-# --- Build Tools ---
-setuptools==75.5.0
-wheel==0.44.0
+pyjwt==2.12.1                 # Decode Node-issued JWTs
+python-multipart==0.0.21      # Required for FastAPI file uploads
+pypdf==6.11.0                 # PDF text extraction
+python-docx==1.2.0            # DOCX text extraction

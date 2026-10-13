@@ -18,6 +18,7 @@ Output:
 from __future__ import annotations  # For modern typing annotations in older Python runtimes
 
 import os             # For verifying if the audio file exists at the given path
+import threading      # Guards the one-time Whisper model load against concurrent requests
 from typing import Optional  # For using Optional type hint for the language parameter
 
 import config         # Local application configuration for Whisper model parameters
@@ -25,26 +26,35 @@ import config         # Local application configuration for Whisper model parame
 
 
 _model = None
+_model_lock = threading.Lock()
 
 
 def _get_model():
-    """Lazy-load the Whisper model; cached for the process lifetime."""
+    """Lazy-load the Whisper model; cached for the process lifetime.
+
+    /transcribe runs on FastAPI's threadpool, so two cold requests can arrive
+    together; the lock (double-checked) makes sure only one of them loads the
+    model instead of both paying the load and memory cost.
+    """
     global _model
     if _model is not None:
         return _model
 
-    from faster_whisper import WhisperModel  # Local Whisper speech-to-text model for transcribing voice messages
+    with _model_lock:
+        if _model is not None:
+            return _model
 
+        from faster_whisper import WhisperModel  # Local Whisper speech-to-text model for transcribing voice messages
 
-    print(f"Loading Whisper model: {config.WHISPER_MODEL} "
-          f"(device={config.WHISPER_DEVICE}, compute={config.WHISPER_COMPUTE_TYPE})")
-    _model = WhisperModel(
-        config.WHISPER_MODEL,
-        device=config.WHISPER_DEVICE,
-        compute_type=config.WHISPER_COMPUTE_TYPE,
-    )
-    print("  Whisper model ready")
-    return _model
+        print(f"Loading Whisper model: {config.WHISPER_MODEL} "
+              f"(device={config.WHISPER_DEVICE}, compute={config.WHISPER_COMPUTE_TYPE})")
+        _model = WhisperModel(
+            config.WHISPER_MODEL,
+            device=config.WHISPER_DEVICE,
+            compute_type=config.WHISPER_COMPUTE_TYPE,
+        )
+        print("  Whisper model ready")
+        return _model
 
 
 def transcribe_audio(file_path: str, language: Optional[str] = None) -> dict:
