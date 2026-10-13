@@ -1,13 +1,80 @@
-import React from 'react';
+import React, { memo, useCallback } from 'react';
 import { useSelector } from 'react-redux';
-import { User, Bot, Mail, Calendar, Image as ImageIcon, Volume2, Mic } from 'lucide-react';
-import Markdown from 'react-markdown';
+import {
+  User,
+  Bot,
+  Mail,
+  Calendar,
+  Image as ImageIcon,
+  Volume2,
+  Mic,
+  Info,
+  MessageCircleQuestion,
+  Check,
+  Loader2,
+  FileWarning,
+} from 'lucide-react';
+import MarkdownContent from '../../components/MarkdownContent';
+import ComplaintForm, { ComplaintResult } from './ComplaintForm';
 import moment from 'moment';
 
-const Message = ({ message }) => {
+// One chat bubble. Memoised and fed only stable props (primitives, the
+// message object from the store, and index-taking callbacks the page
+// creates once), so typing in the composer or a new reply arriving doesn't
+// re-render — or re-parse the markdown of — every earlier message.
+//
+// `askState` drives the "Ask an admin" action on assistant replies:
+// undefined (not asked) | 'sending' | 'sent'. Omit `onAskAdmin` to hide it.
+// "Register a complaint": `complaint` is undefined | { open: true } (form
+// showing) | { result } (filed); omit `onRegisterComplaint` to hide it.
+// `question` is the user question this reply answered (for the complaint
+// form's department suggestion).
+const Message = ({
+  message,
+  index,
+  chatId,
+  question,
+  onAskAdmin,
+  askState,
+  onRegisterComplaint,
+  complaint,
+  onComplaintCancel,
+  onComplaintFiled,
+}) => {
   const theme = useSelector((s) => s.theme.theme);
   const isUser = message.role === 'user';
   const isDark = theme === 'dark';
+  const muted = isDark ? '#9AA5BD' : '#5A6372';
+  // The server already forwarded this one to the admins (auto-captured). A
+  // stored message may only carry the questionId, so that counts too.
+  const escalated =
+    !isUser &&
+    message.answered === false &&
+    (message.escalated === true || !!message.questionId);
+  const askStatus = escalated ? 'sent' : askState;
+  const showAsk = !isUser && !message.isImage && typeof onAskAdmin === 'function';
+  const showComplaint = !isUser && !message.isImage && typeof onRegisterComplaint === 'function';
+  const complaintState = complaint?.result ? 'filed' : complaint?.open ? 'open' : undefined;
+  // The server flagged the question as a likely personal complaint: offer it
+  // up front instead of only as a small action.
+  const promptComplaint = showComplaint && message.suggestComplaint === true && !complaintState;
+
+  const ask = useCallback(() => onAskAdmin?.(index), [onAskAdmin, index]);
+  const openComplaint = useCallback(() => onRegisterComplaint?.(index), [onRegisterComplaint, index]);
+  const cancelComplaint = useCallback(() => onComplaintCancel?.(index), [onComplaintCancel, index]);
+  const filedComplaint = useCallback((result) => onComplaintFiled?.(index, result), [onComplaintFiled, index]);
+
+  const complaintPanel = complaint?.result ? (
+    <ComplaintResult result={complaint.result} isDark={isDark} />
+  ) : complaint?.open ? (
+    <ComplaintForm
+      chatId={chatId}
+      question={question}
+      isDark={isDark}
+      onCancel={cancelComplaint}
+      onFiled={filedComplaint}
+    />
+  ) : null;
 
   return (
     <div className={`flex items-start gap-3 my-3 sm:my-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
@@ -90,41 +157,8 @@ const Message = ({ message }) => {
               loading="lazy"
             />
           ) : (
-            <div className="wrap-break-words">
-              <Markdown
-                components={{
-                  code({ className, children, ...props }) {
-                    return (
-                      <code
-                        className={`${className} px-1 py-0.5 rounded text-sm`}
-                        style={{
-                          backgroundColor: isDark ? '#0B1120' : '#F2F3F8',
-                          color: isDark ? '#ECEEF5' : '#1F2330',
-                        }}
-                        {...props}
-                      >
-                        {children}
-                      </code>
-                    );
-                  },
-                  pre({ children, ...props }) {
-                    return (
-                      <pre
-                        className="p-3 rounded-lg overflow-x-auto my-2 text-sm"
-                        style={{
-                          backgroundColor: isDark ? '#0B1120' : '#F2F3F8',
-                          color: isDark ? '#ECEEF5' : '#1F2330',
-                        }}
-                        {...props}
-                      >
-                        {children}
-                      </pre>
-                    );
-                  },
-                }}
-              >
-                {message.content}
-              </Markdown>
+            <div className="wrap-break-word">
+              <MarkdownContent content={message.content} isDark={isDark} />
             </div>
           )}
 
@@ -144,16 +178,97 @@ const Message = ({ message }) => {
           )}
         </div>
 
-        {/* Timestamp */}
+        {escalated && (
+          <div
+            className="flex items-start gap-1.5 text-xs mt-2 px-2 py-1.5 rounded-lg"
+            style={{
+              backgroundColor: isDark ? 'rgba(196,138,74,0.12)' : '#FFF4E0',
+              color: isDark ? '#E0B887' : '#7A5300',
+            }}
+          >
+            <Info className="w-3.5 h-3.5 mt-px shrink-0" />
+            <span>
+              I couldn&apos;t answer this — it has been sent to the university admin. You&apos;ll be
+              notified when they reply.
+            </span>
+          </div>
+        )}
+
+        {promptComplaint && (
+          <div
+            className="flex flex-wrap items-center gap-2 text-xs mt-2 px-2 py-1.5 rounded-lg"
+            style={{
+              backgroundColor: isDark ? 'rgba(230,48,39,0.10)' : '#FCE6E4',
+              color: isDark ? '#ECEEF5' : '#1F2330',
+            }}
+          >
+            <FileWarning className="w-3.5 h-3.5 shrink-0" style={{ color: isDark ? '#C48A4A' : '#E63027' }} />
+            <span className="flex-1 min-w-[160px]">Is this a complaint? Register it with the department.</span>
+            <button
+              type="button"
+              onClick={openComplaint}
+              className="px-2 py-1 rounded-md font-medium text-white"
+              style={{ backgroundColor: isDark ? '#E63027' : '#1E2A66' }}
+            >
+              Register a complaint
+            </button>
+          </div>
+        )}
+
+        {complaintPanel}
+
+        {/* Timestamp + actions */}
         <div
-          className="text-xs mt-3"
-          style={{
-            color: isUser
-              ? 'rgba(255,255,255,0.7)'
-              : isDark ? '#9AA5BD' : '#5A6372',
-          }}
+          className="flex items-center gap-3 text-xs mt-2"
+          style={{ color: isUser ? 'rgba(255,255,255,0.7)' : muted }}
         >
-          {moment(message.timestamp).format('h:mm A')}
+          <span>{moment(message.timestamp).format('h:mm A')}</span>
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
+            {showComplaint && !promptComplaint && (
+              <button
+                type="button"
+                onClick={openComplaint}
+                disabled={!!complaintState}
+                className="inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors disabled:cursor-default enabled:hover:underline"
+                style={{ color: complaintState === 'filed' ? (isDark ? '#6FB58A' : '#2F8A56') : muted }}
+                title={
+                  complaintState === 'filed'
+                    ? 'A complaint was registered from this chat'
+                    : 'Send this problem to the right department as an official complaint'
+                }
+              >
+                {complaintState === 'filed' ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <FileWarning className="w-3.5 h-3.5" />
+                )}
+                {complaintState === 'filed' ? 'Complaint registered' : 'Register a complaint'}
+              </button>
+            )}
+            {showAsk && (
+              <button
+                type="button"
+                onClick={ask}
+                disabled={!!askStatus}
+                className="inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors disabled:cursor-default enabled:hover:underline"
+                style={{ color: askStatus === 'sent' ? (isDark ? '#6FB58A' : '#2F8A56') : muted }}
+                title={
+                  askStatus === 'sent'
+                    ? 'The university admin has this question'
+                    : 'Send the question above to the university admin'
+                }
+              >
+                {askStatus === 'sending' ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : askStatus === 'sent' ? (
+                  <Check className="w-3.5 h-3.5" />
+                ) : (
+                  <MessageCircleQuestion className="w-3.5 h-3.5" />
+                )}
+                {askStatus === 'sending' ? 'Sending…' : askStatus === 'sent' ? 'Sent to admin' : 'Ask an admin'}
+              </button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -173,4 +288,4 @@ const Message = ({ message }) => {
   );
 };
 
-export default Message;
+export default memo(Message);

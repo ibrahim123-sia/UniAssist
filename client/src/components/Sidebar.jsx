@@ -4,8 +4,9 @@ import axios from "../utils/axios";
 import {
   createNewChat,
   deleteChat,
-  fetchUsersChats,
+  renameChat,
   setSelectedChat,
+  MAX_CHAT_NAME,
 } from "../redux/slices/chatSlice";
 import { setTheme } from "../redux/slices/themeSlice";
 import { logoutUser } from "../redux/slices/authSlice";
@@ -31,11 +32,23 @@ import {
   Database,
   Activity,
   GraduationCap,
+  MessageCircleQuestion,
+  HeartPulse,
+  Pencil,
+  Settings as SettingsIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import moment from "moment";
 import { useNavigate, useLocation } from "react-router-dom";
 import NotificationBell from "./NotificationBell";
+import ConfirmDialog from "../administrator/components/ConfirmDialog";
+
+// Sidebar title: the server auto-names a chat after its first question (or
+// the student renamed it); fall back to the first message for old chats.
+const chatTitle = (chat) =>
+  (chat.name && chat.name !== "New Chat" ? chat.name : chat.messages?.[0]?.content?.slice(0, 30)) ||
+  chat.name ||
+  "New Chat";
 
 const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   const dispatch = useDispatch();
@@ -50,6 +63,14 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   const [search, setSearch] = useState("");
   const sidebarRef = useRef(null);
   const [loadingChatId, setLoadingChatId] = useState(null);
+  const creatingChat = useSelector((s) => s.chat.creatingChat);
+  // Only the most recent chat click may apply its response, so a slow
+  // earlier one can't switch the view back to another chat.
+  const openSeqRef = useRef(0);
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [deleting, setDeleting] = useState(false);
+  // Inline rename: { id, value, original } while editing a chat title.
+  const [renaming, setRenaming] = useState(null);
   const isDark = theme === "dark";
 
   const isStudent = user?.role === "student" || !user?.role;
@@ -67,6 +88,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     muted: isDark ? "#9AA5BD" : "#5A6372",
     navy: isDark ? "#E63027" : "#1E2A66",
     red: isDark ? "#C48A4A" : "#E63027",
+    danger: isDark ? "#F06A62" : "#C81E15",
   };
 
   // Close sidebar when clicking outside on mobile
@@ -88,8 +110,9 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     };
   }, [isMenuOpen, setIsMenuOpen]);
 
+  // Close the mobile drawer on navigation (a no-op when it's already closed).
   useEffect(() => {
-    if (isMenuOpen && window.innerWidth < 768) {
+    if (window.innerWidth < 768) {
       setIsMenuOpen(false);
     }
   }, [location.pathname, setIsMenuOpen]);
@@ -114,71 +137,86 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   };
 
   const handleChatClick = async (chat) => {
+    const id = chat._id || chat.id;
+    const seq = ++openSeqRef.current;
     try {
-      setLoadingChatId(chat._id || chat.id);
+      setLoadingChatId(id);
       navigate("/chat");
 
-      const { data } = await axios.get(`/api/chat/${chat._id || chat.id}`, {
+      const { data } = await axios.get(`/api/chat/${id}`, {
         headers: { Authorization: token },
       });
+      if (seq !== openSeqRef.current) return;
 
       if (data.success) {
         dispatch(setSelectedChat(data.chat));
-        toast.success("Chat loaded successfully");
       } else {
         toast.error("Failed to load chat messages");
         dispatch(setSelectedChat(chat));
       }
     } catch (error) {
+      if (seq !== openSeqRef.current) return;
       console.error("Error loading chat:", error);
       toast.error("Failed to load chat");
       dispatch(setSelectedChat(chat));
     } finally {
-      setLoadingChatId(null);
-      if (window.innerWidth < 768) {
-        setIsMenuOpen(false);
+      if (seq === openSeqRef.current) {
+        setLoadingChatId(null);
+        if (window.innerWidth < 768) {
+          setIsMenuOpen(false);
+        }
       }
     }
   };
 
-  const handleDeleteChat = async (e, chatId) => {
-    e.stopPropagation();
-    const confirm = window.confirm(
-      "Are you sure you want to delete this chat?"
-    );
-    if (!confirm) return;
-
+  const handleDeleteChat = async () => {
+    const chatId = confirmDeleteId;
+    if (!chatId) return;
+    setDeleting(true);
     try {
       const result = await dispatch(deleteChat({ chatId })).unwrap();
       if (result.success) {
-        toast.success("Chat deleted successfully");
-        if (selectedChat && selectedChat._id === chatId) {
-          dispatch(setSelectedChat(null));
-        }
-        await dispatch(fetchUsersChats());
-        if (window.innerWidth < 768) {
-          setIsMenuOpen(false);
-        }
+        // deleteChat already refetched the list, which re-selects a
+        // surviving chat if the deleted one was open.
+        toast.success("Chat deleted");
+        setConfirmDeleteId(null);
       } else {
         toast.error(result.message || "Failed to delete chat");
       }
     } catch (error) {
       toast.error(error.message || "Failed to delete chat");
+    } finally {
+      setDeleting(false);
     }
   };
 
   const handleNewChat = async () => {
-    try {
-      const result = await dispatch(createNewChat()).unwrap();
-      if (result.success) {
-        await dispatch(fetchUsersChats());
-        navigate("/chat");
-      } else {
-        toast.error(result.message || "Failed to create new chat");
-      }
-    } catch {
-      toast.error("Error creating new chat");
+    if (creatingChat) return;
+    const action = await dispatch(createNewChat());
+    // Skipped by the thunk's guard: a create is already in flight.
+    if (action.meta?.condition) return;
+    const result = action.payload;
+    if (result?.success) {
+      navigate("/chat");
+    } else {
+      toast.error(result?.message || "Failed to create new chat");
     }
+  };
+
+  const startRename = (e, chat) => {
+    e.stopPropagation();
+    const title = chatTitle(chat);
+    setRenaming({ id: chat._id, value: title, original: title });
+  };
+
+  const commitRename = async () => {
+    if (!renaming) return;
+    const { id, value, original } = renaming;
+    setRenaming(null);
+    const name = value.trim().slice(0, MAX_CHAT_NAME);
+    if (!name || name === original) return;
+    const result = await dispatch(renameChat({ chatId: id, name })).unwrap();
+    if (!result.success) toast.error(result.message || "Failed to rename chat");
   };
 
   const NavLink = ({ to, icon, label, accent }) => {
@@ -186,7 +224,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     return (
       <Link
         to={to}
-        className="w-full flex items-center gap-3 p-2 rounded-lg transition-all text-sm"
+        className="w-full flex items-center gap-3 px-2 py-1.5 rounded-lg transition-all text-sm"
         style={{
           color: C.text,
           backgroundColor: active ? C.surfaceAlt : "transparent",
@@ -300,7 +338,9 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           <div className="p-3">
             <button
               onClick={handleNewChat}
-              className="w-full text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm cursor-pointer"
+              disabled={creatingChat}
+              aria-busy={creatingChat}
+              className="w-full text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm cursor-pointer disabled:opacity-70 disabled:cursor-wait"
               style={{ backgroundColor: C.navy }}
               onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isDark ? "#C81E15" : "#16204D")}
               onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.navy)}
@@ -375,11 +415,28 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
                           <MessageSquare className="w-4 h-4 shrink-0" style={{ color: C.muted }} />
-                          <p className="text-sm font-medium truncate" style={{ color: C.text }}>
-                            {chat.messages?.[0]?.content?.slice(0, 30) ||
-                              chat.name ||
-                              "New Chat"}
-                          </p>
+                          {renaming?.id === chat._id ? (
+                            <input
+                              autoFocus
+                              value={renaming.value}
+                              maxLength={MAX_CHAT_NAME}
+                              aria-label="Chat name"
+                              onClick={(e) => e.stopPropagation()}
+                              onChange={(e) => setRenaming((r) => r && { ...r, value: e.target.value })}
+                              onBlur={commitRename}
+                              onKeyDown={(e) => {
+                                e.stopPropagation();
+                                if (e.key === "Enter") e.currentTarget.blur();
+                                else if (e.key === "Escape") setRenaming(null);
+                              }}
+                              className="flex-1 min-w-0 text-sm px-1 py-0.5 rounded border focus:outline-none"
+                              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+                            />
+                          ) : (
+                            <p className="text-sm font-medium truncate" style={{ color: C.text }}>
+                              {chatTitle(chat)}
+                            </p>
+                          )}
                           {isLoading && (
                             <div
                               className="ml-2 w-3 h-3 border-2 rounded-full animate-spin shrink-0"
@@ -394,17 +451,37 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                         </p>
                       </div>
 
-                      <button
-                        onClick={(e) => handleDeleteChat(e, chat._id || chat.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
-                        aria-label="Delete chat"
-                        disabled={isLoading}
-                        style={{ color: C.muted }}
-                        onMouseEnter={(e) => (e.currentTarget.style.color = C.red)}
-                        onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
+                      {renaming?.id !== chat._id && (
+                        <div className="flex items-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                          <button
+                            onClick={(e) => startRename(e, chat)}
+                            className="p-1 rounded"
+                            aria-label="Rename chat"
+                            title="Rename"
+                            disabled={isLoading}
+                            style={{ color: C.muted }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = C.text)}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
+                          >
+                            <Pencil className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmDeleteId(chat._id || chat.id);
+                            }}
+                            className="p-1 rounded"
+                            aria-label="Delete chat"
+                            title="Delete"
+                            disabled={isLoading}
+                            style={{ color: C.muted }}
+                            onMouseEnter={(e) => (e.currentTarget.style.color = C.danger)}
+                            onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -461,6 +538,18 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
               accent={C.red}
             />
             <NavLink
+              to="/admin/questions"
+              icon={<MessageCircleQuestion className="w-4 h-4" />}
+              label="Questions"
+              accent={C.red}
+            />
+            <NavLink
+              to="/admin/listings"
+              icon={<Briefcase className="w-4 h-4" />}
+              label="Listings"
+              accent={C.navy}
+            />
+            <NavLink
               to="/admin/data"
               icon={<Database className="w-4 h-4" />}
               label="Data"
@@ -470,6 +559,18 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
               to="/admin/logs"
               icon={<Activity className="w-4 h-4" />}
               label="Logs & Activity"
+              accent={C.red}
+            />
+            <NavLink
+              to="/admin/health"
+              icon={<HeartPulse className="w-4 h-4" />}
+              label="System Health"
+              accent={C.navy}
+            />
+            <NavLink
+              to="/admin/settings"
+              icon={<SettingsIcon className="w-4 h-4" />}
+              label="Settings"
               accent={C.red}
             />
           </div>
@@ -489,10 +590,28 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 accent={C.red}
               />
               <NavLink
+                to="/questions"
+                icon={<MessageCircleQuestion className="w-4 h-4" />}
+                label="My Questions"
+                accent={C.navy}
+              />
+              <NavLink
+                to="/jobs"
+                icon={<Briefcase className="w-4 h-4" />}
+                label="Jobs"
+                accent={C.red}
+              />
+              <NavLink
                 to="/scholarships"
                 icon={<GraduationCap className="w-4 h-4" />}
                 label="Scholarships"
                 accent={C.navy}
+              />
+              <NavLink
+                to="/events"
+                icon={<Calendar className="w-4 h-4" />}
+                label="Events"
+                accent={C.red}
               />
             </>
           )}
@@ -559,6 +678,17 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
           </button>
         </div>
       </aside>
+
+      <ConfirmDialog
+        open={!!confirmDeleteId}
+        onClose={() => !deleting && setConfirmDeleteId(null)}
+        onConfirm={handleDeleteChat}
+        title="Delete chat?"
+        message="This conversation and its messages will be permanently deleted."
+        confirmLabel="Delete"
+        destructive
+        loading={deleting}
+      />
     </>
   );
 };

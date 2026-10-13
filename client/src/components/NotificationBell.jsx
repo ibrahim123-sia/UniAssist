@@ -10,6 +10,13 @@ import {
   markAllRead,
 } from "../redux/slices/notificationSlice";
 
+// Where a notification type should open, regardless of the stored link
+// (question notifications always go to the matching role's page).
+const TYPE_LINKS = {
+  question_answered: "/questions",
+  question_new: "/admin/questions",
+};
+
 const NotificationBell = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -54,7 +61,8 @@ const NotificationBell = () => {
   const handleClickItem = async (n) => {
     if (!n.isRead) await dispatch(markRead(n._id));
     setOpen(false);
-    if (n.link) navigate(n.link);
+    const target = TYPE_LINKS[n.type] || n.link;
+    if (target) navigate(target);
   };
 
   const handleMarkAll = async () => {

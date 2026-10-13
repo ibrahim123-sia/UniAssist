@@ -18,6 +18,24 @@ const CATEGORIES = [
 
 const MAX_FILE_SIZE = 5 * 1024 * 1024;
 const MAX_FILES = 3;
+const MAX_TITLE_CHARS = 200;
+const MAX_DESCRIPTION_CHARS = 5000;
+// Exactly what the server accepts. `image/*` would let SVG through, which
+// the server rejects (SVG can carry script).
+const ALLOWED_TYPES = {
+  "application/pdf": [".pdf"],
+  "image/jpeg": [".jpg", ".jpeg"],
+  "image/png": [".png"],
+  "image/gif": [".gif"],
+  "image/webp": [".webp"],
+};
+const ACCEPT = Object.entries(ALLOWED_TYPES).flat(2).join(",");
+
+const isAllowedFile = (f) => {
+  const exts = ALLOWED_TYPES[f.type];
+  const name = f.name.toLowerCase();
+  return !!exts && exts.some((ext) => name.endsWith(ext));
+};
 
 const CreateIssue = () => {
   const dispatch = useDispatch();
@@ -67,10 +85,8 @@ const CreateIssue = () => {
         toast.error(`${f.name} exceeds 5MB`);
         continue;
       }
-      const isPdf = f.type === "application/pdf";
-      const isImage = f.type.startsWith("image/");
-      if (!isPdf && !isImage) {
-        toast.error(`${f.name}: only PDF or images allowed`);
+      if (!isAllowedFile(f)) {
+        toast.error(`${f.name}: only PDF, JPEG, PNG, GIF or WebP allowed`);
         continue;
       }
       allowed.push(f);
@@ -86,6 +102,18 @@ const CreateIssue = () => {
     e.preventDefault();
     if (!title.trim() || !description.trim() || !departmentId) {
       toast.error("Title, description, and department are required");
+      return;
+    }
+    if (title.trim().length > MAX_TITLE_CHARS) {
+      toast.error(`Title must be at most ${MAX_TITLE_CHARS} characters`);
+      return;
+    }
+    if (description.trim().length > MAX_DESCRIPTION_CHARS) {
+      toast.error(`Description must be at most ${MAX_DESCRIPTION_CHARS} characters`);
+      return;
+    }
+    if (files.length > MAX_FILES) {
+      toast.error(`Max ${MAX_FILES} files`);
       return;
     }
     const result = await dispatch(
@@ -118,7 +146,7 @@ const CreateIssue = () => {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Brief summary of your issue"
-              maxLength={200}
+              maxLength={MAX_TITLE_CHARS}
               className="w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none"
               style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
             />
@@ -165,6 +193,7 @@ const CreateIssue = () => {
             <textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
+              maxLength={MAX_DESCRIPTION_CHARS}
               rows={6}
               placeholder="Describe your issue in detail. Include relevant dates, IDs, screenshots references."
               className="w-full px-3 py-2.5 rounded-lg border text-sm focus:outline-none resize-y"
@@ -175,7 +204,7 @@ const CreateIssue = () => {
           <div className="p-5 rounded-xl border" style={{ backgroundColor: C.surface, borderColor: C.border }}>
             <label className="block text-sm font-medium mb-1.5">Attachments (optional)</label>
             <p className="text-xs mb-3" style={{ color: C.muted }}>
-              PDF or image. Max {MAX_FILES} files, 5MB each.
+              PDF, JPEG, PNG, GIF or WebP. Max {MAX_FILES} files, 5MB each.
             </p>
             <label
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer text-sm"
@@ -185,7 +214,7 @@ const CreateIssue = () => {
               <input
                 type="file"
                 multiple
-                accept="application/pdf,image/*"
+                accept={ACCEPT}
                 onChange={onFileChange}
                 className="hidden"
               />
@@ -227,7 +256,7 @@ const CreateIssue = () => {
               className="px-5 py-2.5 rounded-lg text-white font-medium text-sm disabled:opacity-60"
               style={{ backgroundColor: C.navy }}
             >
-              {submitting ? "Submitting…" : "Submit issue"}
+              {submitting ? "Registering…" : "Submit issue"}
             </button>
             <Link
               to="/issues"

@@ -1,10 +1,20 @@
 import React, { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
-import { ArrowLeft, Send, Paperclip, FileText, Image as ImageIcon, Clock } from "lucide-react";
+import { ArrowLeft, Send, Paperclip, FileText, Image as ImageIcon, Clock, MessageSquare } from "lucide-react";
 import moment from "moment";
 import toast from "react-hot-toast";
-import { fetchIssueById, addStudentReply, clearSelectedIssue } from "../../redux/slices/issueSlice";
+import {
+  fetchIssueById,
+  addStudentReply,
+  clearSelectedIssue,
+  submitIssueFeedback,
+} from "../../redux/slices/issueSlice";
+import StarRating from "../../components/StarRating";
+
+const MAX_REPLY_CHARS = 5000;
+const MAX_FEEDBACK_CHARS = 1000;
+const RATABLE_STATUSES = ["Resolved", "Closed"];
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 
@@ -21,10 +31,20 @@ const statusStyle = (status, isDark) => {
 const IssueDetail = () => {
   const { id } = useParams();
   const dispatch = useDispatch();
-  const issue = useSelector((s) => s.issue.selectedIssue);
+  // Only trust state for the issue in the URL; a previous page's issue may
+  // still be in the store for a moment after navigating.
+  const issue = useSelector((s) =>
+    s.issue.selectedIssue?._id === id ? s.issue.selectedIssue : null
+  );
+  const issueError = useSelector((s) =>
+    s.issue.issueError?.id === id ? s.issue.issueError : null
+  );
   const theme = useSelector((s) => s.theme.theme);
   const [reply, setReply] = useState("");
   const [sending, setSending] = useState(false);
+  const [rating, setRating] = useState(0);
+  const [feedbackComment, setFeedbackComment] = useState("");
+  const [sendingFeedback, setSendingFeedback] = useState(false);
   const isDark = theme === "dark";
 
   const C = {
@@ -53,6 +73,10 @@ const IssueDetail = () => {
   const onSendReply = async (e) => {
     e.preventDefault();
     if (!reply.trim()) return;
+    if (reply.trim().length > MAX_REPLY_CHARS) {
+      toast.error(`Reply is too long (max ${MAX_REPLY_CHARS} characters).`);
+      return;
+    }
     setSending(true);
     const result = await dispatch(addStudentReply({ id, message: reply.trim() })).unwrap();
     setSending(false);
@@ -64,7 +88,44 @@ const IssueDetail = () => {
     }
   };
 
+  const onSendFeedback = async (e) => {
+    e.preventDefault();
+    if (!rating) {
+      toast.error("Pick a rating from 1 to 5 stars.");
+      return;
+    }
+    setSendingFeedback(true);
+    const result = await dispatch(
+      submitIssueFeedback({ id, rating, comment: feedbackComment.trim() })
+    ).unwrap();
+    setSendingFeedback(false);
+    if (result.success) {
+      toast.success("Thanks for your feedback");
+    } else {
+      toast.error(result.message || "Failed to submit your feedback");
+      // 409 = already rated (e.g. from another tab); show the saved rating.
+      if (result.status === 409 || result.status === 400) dispatch(fetchIssueById(id));
+    }
+  };
+
   if (!issue) {
+    if (issueError) {
+      const notFound = issueError.status === 404;
+      const forbidden = issueError.status === 403;
+      return (
+        <div className="h-full flex flex-col items-center justify-center gap-3 p-6 text-center" style={{ backgroundColor: C.bg, color: C.text }}>
+          <p className="text-base font-semibold">
+            {notFound ? "Issue not found" : forbidden ? "You don't have access to this issue" : "Couldn't load this issue"}
+          </p>
+          <p className="text-sm" style={{ color: C.muted }}>
+            {notFound || forbidden ? issueError.message : `${issueError.message}. It will retry automatically.`}
+          </p>
+          <Link to="/issues" className="inline-flex items-center gap-1.5 text-sm" style={{ color: C.navy }}>
+            <ArrowLeft className="w-4 h-4" /> Back to issues
+          </Link>
+        </div>
+      );
+    }
     return (
       <div className="h-full flex items-center justify-center" style={{ backgroundColor: C.bg, color: C.muted }}>
         Loading…
@@ -94,6 +155,11 @@ const IssueDetail = () => {
           <div className="flex items-center gap-4 text-xs mb-4" style={{ color: C.muted }}>
             <span>{issue.department?.code} — {issue.department?.name}</span>
             <span>Category: {issue.category}</span>
+            {issue.source === "chatbot" && (
+              <span className="inline-flex items-center gap-1">
+                <MessageSquare className="w-3.5 h-3.5" /> From chat
+              </span>
+            )}
             <span className="inline-flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
               {moment(issue.createdAt).format("MMM D, YYYY h:mm A")}
@@ -165,11 +231,70 @@ const IssueDetail = () => {
           })}
         </div>
 
+        {issue.feedback?.rating ? (
+          <div className="p-4 rounded-xl border mb-5" style={{ backgroundColor: C.surface, borderColor: C.border }}>
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.muted }}>
+                Your feedback
+              </span>
+              {issue.feedback.submittedAt && (
+                <span className="text-xs" style={{ color: C.muted }}>
+                  {moment(issue.feedback.submittedAt).format("MMM D, YYYY")}
+                </span>
+              )}
+            </div>
+            <div className="mt-1.5">
+              <StarRating value={issue.feedback.rating} size={18} emptyColor={C.muted} />
+            </div>
+            {issue.feedback.comment && (
+              <p className="text-sm whitespace-pre-wrap mt-2" style={{ color: C.text }}>
+                {issue.feedback.comment}
+              </p>
+            )}
+          </div>
+        ) : (
+          RATABLE_STATUSES.includes(issue.status) && (
+            <form
+              onSubmit={onSendFeedback}
+              className="p-4 rounded-xl border mb-5 space-y-3"
+              style={{ backgroundColor: C.surface, borderColor: C.border }}
+            >
+              <div>
+                <p className="text-sm font-semibold">How did the department handle this?</p>
+                <p className="text-xs mt-0.5" style={{ color: C.muted }}>
+                  Your rating helps the university improve. You can rate once.
+                </p>
+              </div>
+              <StarRating value={rating} onChange={setRating} size={26} emptyColor={C.muted} disabled={sendingFeedback} />
+              <textarea
+                value={feedbackComment}
+                onChange={(e) => setFeedbackComment(e.target.value)}
+                maxLength={MAX_FEEDBACK_CHARS}
+                rows={2}
+                placeholder="Anything to add? (optional)"
+                className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-y"
+                style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              />
+              <div className="flex justify-end">
+                <button
+                  type="submit"
+                  disabled={sendingFeedback || !rating}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60"
+                  style={{ backgroundColor: C.navy }}
+                >
+                  {sendingFeedback ? "Submitting…" : "Submit feedback"}
+                </button>
+              </div>
+            </form>
+          )
+        )}
+
         {issue.status !== "Closed" && (
           <form onSubmit={onSendReply} className="p-4 rounded-xl border" style={{ backgroundColor: C.surface, borderColor: C.border }}>
             <textarea
               value={reply}
               onChange={(e) => setReply(e.target.value)}
+              maxLength={MAX_REPLY_CHARS}
               rows={3}
               placeholder="Add a follow-up reply…"
               className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-y"

@@ -1,6 +1,5 @@
 import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import axios from "../../utils/axios";
-import { validateMajuEmail } from "../../utils/validation";
 
 const authHeader = (getState) => ({
   headers: { Authorization: getState().auth.token },
@@ -8,17 +7,14 @@ const authHeader = (getState) => ({
 
 export const createNewChat = createAsyncThunk(
   "chat/createNew",
-  async (_, { getState, dispatch }) => {
+  async (_, { getState }) => {
     try {
       const { user } = getState().auth;
       if (!user) return { success: false, message: "Please login first" };
 
       const { data } = await axios.post("/api/chat/create", {}, authHeader(getState));
 
-      if (data.success) {
-        await dispatch(fetchUsersChats());
-        return { success: true, chatId: data.chatId };
-      }
+      if (data.success) return { success: true, chat: data.chat };
       return { success: false, message: data.message };
     } catch (error) {
       let message = "Failed to create chat";
@@ -26,6 +22,11 @@ export const createNewChat = createAsyncThunk(
       else if (error.code === "ERR_NETWORK") message = "Network error";
       return { success: false, message };
     }
+  },
+  {
+    // A double click on "New chat" (or the empty-list auto-create racing a
+    // click) must not create two empty chats.
+    condition: (_, { getState }) => !getState().chat.creatingChat,
   }
 );
 
@@ -40,8 +41,10 @@ export const fetchUsersChats = createAsyncThunk(
 
       if (data.success) {
         if (data.chats.length === 0) {
-          await dispatch(createNewChat());
-          return { success: true, refetch: true };
+          const created = await dispatch(createNewChat()).unwrap();
+          return created.success
+            ? { success: true, chats: [created.chat] }
+            : { success: false, message: created.message };
         }
         return { success: true, chats: data.chats };
       }
@@ -50,6 +53,11 @@ export const fetchUsersChats = createAsyncThunk(
       const unauthorized = error.response?.status === 401;
       return { success: false, unauthorized };
     }
+  },
+  {
+    // A second concurrent fetch for a brand-new user would also see zero
+    // chats and create a duplicate empty one.
+    condition: (_, { getState }) => !getState().chat.fetchingChats,
   }
 );
 
@@ -76,104 +84,33 @@ export const deleteChat = createAsyncThunk(
   }
 );
 
-export const sendTextMessage = createAsyncThunk(
-  "chat/sendText",
-  async ({ chatId, prompt }, { getState }) => {
+// PUT /api/chat/rename { chatId, name } -> { success, chat: { _id, name } }
+export const renameChat = createAsyncThunk(
+  "chat/rename",
+  async ({ chatId, name }, { getState }) => {
     try {
-      const { user } = getState().auth;
-      if (!user) return { success: false, message: "Please login to continue" };
-      if (!prompt || prompt.trim().length === 0) {
-        return { success: false, message: "Message cannot be empty" };
-      }
-
-      const { data } = await axios.post(
-        "/api/message/text",
-        { chatId, prompt },
+      const { data } = await axios.put(
+        "/api/chat/rename",
+        { chatId, name },
         authHeader(getState)
       );
-      return data;
+      if (data.success) return { success: true, chatId, name: data.chat?.name ?? name };
+      return { success: false, message: data.message };
     } catch (error) {
-      let message = "Failed to send message";
-      if (error.response?.status === 401) message = "Session expired";
-      else if (error.response?.status === 429) message = "Too many requests";
-      else if (error.code === "ERR_NETWORK") message = "Network error";
+      let message = error.response?.data?.message || "Failed to rename chat";
+      if (error.code === "ERR_NETWORK") message = "Network error";
       return { success: false, message };
     }
   }
 );
 
-export const sendEmailMessage = createAsyncThunk(
-  "chat/sendEmail",
-  async ({ chatId, prompt, recipient, subject }, { getState }) => {
-    try {
-      const { user } = getState().auth;
-      if (!user) return { success: false, message: "Please login to continue" };
-
-      const emailValidation = validateMajuEmail(recipient);
-      if (!emailValidation.isValid) {
-        return { success: false, message: "Invalid recipient email" };
-      }
-      if (!prompt || prompt.trim().length === 0) {
-        return { success: false, message: "Email content cannot be empty" };
-      }
-      if (!subject || subject.trim().length === 0) {
-        return { success: false, message: "Email subject cannot be empty" };
-      }
-
-      const { data } = await axios.post(
-        "/api/message/email",
-        { chatId, prompt, recipient: emailValidation.email, subject },
-        authHeader(getState)
-      );
-      return data;
-    } catch (error) {
-      let message = "Failed to send email";
-      if (error.response?.status === 401) message = "Session expired";
-      else if (error.response?.status === 400) message = "Invalid email data";
-      else if (error.code === "ERR_NETWORK") message = "Network error";
-      return { success: false, message };
-    }
-  }
-);
-
-export const sendVoiceMessage = createAsyncThunk(
-  "chat/sendVoice",
-  async ({ chatId, audioUrl, duration, fileSize }, { getState }) => {
-    try {
-      const { user } = getState().auth;
-      if (!user) return { success: false, message: "Please login to continue" };
-      if (!audioUrl || audioUrl.length === 0) {
-        return { success: false, message: "Audio file is required" };
-      }
-      if (fileSize > 10 * 1024 * 1024) {
-        return { success: false, message: "Audio file too large (max 10MB)" };
-      }
-
-      const { data } = await axios.post(
-        "/api/message/voice",
-        { chatId, audioUrl, duration, fileSize },
-        {
-          headers: {
-            Authorization: getState().auth.token,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-      return data;
-    } catch (error) {
-      let message = "Failed to send voice message";
-      if (error.response?.status === 413) message = "Audio file too large";
-      else if (error.response?.status === 400) message = "Invalid audio format";
-      else if (error.response?.status === 401) message = "Session expired";
-      else if (error.code === "ERR_NETWORK") message = "Network error";
-      return { success: false, message };
-    }
-  }
-);
+export const MAX_CHAT_NAME = 100;
 
 const initialState = {
   chats: [],
   selectedChat: null,
+  fetchingChats: false,
+  creatingChat: false,
 };
 
 const chatSlice = createSlice({
@@ -183,25 +120,63 @@ const chatSlice = createSlice({
     setSelectedChat(state, action) {
       state.selectedChat = action.payload;
     },
-    setChats(state, action) {
-      state.chats = action.payload;
-    },
     resetChat(state) {
       state.chats = [];
       state.selectedChat = null;
     },
+    // Persist a completed exchange so it survives switching chats; the
+    // server may also have auto-named the chat after its first question.
+    appendMessages(state, action) {
+      const { chatId, messages, chatName } = action.payload;
+      const apply = (chat) => {
+        chat.messages = [...(chat.messages || []), ...messages];
+        if (chatName) chat.name = chatName;
+        chat.updatedAt = new Date().toISOString();
+      };
+      const listed = state.chats.find((c) => c._id === chatId);
+      if (listed) apply(listed);
+      if (state.selectedChat?._id === chatId) apply(state.selectedChat);
+    },
   },
   extraReducers: (builder) => {
-    builder.addCase(fetchUsersChats.fulfilled, (state, action) => {
-      if (action.payload.success && action.payload.chats) {
-        state.chats = action.payload.chats;
-        if (!state.selectedChat) {
-          state.selectedChat = action.payload.chats[0];
+    builder
+      .addCase(fetchUsersChats.pending, (state) => {
+        state.fetchingChats = true;
+      })
+      .addCase(fetchUsersChats.rejected, (state) => {
+        state.fetchingChats = false;
+      })
+      .addCase(fetchUsersChats.fulfilled, (state, action) => {
+        state.fetchingChats = false;
+        if (action.payload.success && action.payload.chats) {
+          state.chats = action.payload.chats;
+          const current = state.selectedChat
+            && action.payload.chats.find((c) => c._id === state.selectedChat._id);
+          state.selectedChat = current || action.payload.chats[0] || null;
         }
-      }
-    });
+      })
+      .addCase(createNewChat.pending, (state) => {
+        state.creatingChat = true;
+      })
+      .addCase(createNewChat.rejected, (state) => {
+        state.creatingChat = false;
+      })
+      .addCase(renameChat.fulfilled, (state, action) => {
+        const { success, chatId, name } = action.payload;
+        if (!success) return;
+        const listed = state.chats.find((c) => c._id === chatId);
+        if (listed) listed.name = name;
+        if (state.selectedChat?._id === chatId) state.selectedChat.name = name;
+      })
+      .addCase(createNewChat.fulfilled, (state, action) => {
+        state.creatingChat = false;
+        const { success, chat } = action.payload;
+        if (!success || !chat) return;
+        state.chats = [chat, ...state.chats.filter((c) => c._id !== chat._id)];
+        state.selectedChat = chat;
+      });
   },
 });
 
-export const { setSelectedChat, setChats, resetChat } = chatSlice.actions;
+export const { setSelectedChat, resetChat, appendMessages } = chatSlice.actions;
 export default chatSlice.reducer;

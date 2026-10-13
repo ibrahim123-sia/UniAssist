@@ -1,10 +1,13 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import {
   sendGuestMessage,
   clearGuestSession,
+  MAX_GUEST_MESSAGE_CHARS,
 } from "../redux/slices/guestSlice";
+import MarkdownContent from "../components/MarkdownContent";
+import ChatWaitIndicator from "../components/ChatWaitIndicator";
 import { toggleTheme as toggleThemeAction } from "../redux/slices/themeSlice";
 import {
   Send,
@@ -26,6 +29,124 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+const formatClock = (timestamp) =>
+  new Date(timestamp || Date.now()).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+// One guest chat bubble. Memoised on the stored message object, so typing in
+// the composer never re-renders (or re-parses the markdown of) old messages.
+const GuestMessage = memo(({ message, isDark, onRegister }) => {
+  const isUser = message.role === "user";
+  return (
+    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
+      <div
+        className={`max-w-[85%] md:max-w-[80%] rounded-2xl px-3 py-2 ${
+          isUser
+            ? "bg-[#1E2A66] text-white rounded-br-none"
+            : isDark
+            ? "bg-[#16203A] text-[#ECEEF5] rounded-bl-none border border-[#2A3656]"
+            : "bg-white text-[#1F2330] rounded-bl-none border border-[#D8DAE6] shadow-sm"
+        }`}
+      >
+        <div className="flex items-start gap-2">
+          {!isUser && <Brain className="w-4 h-4 text-[#1E2A66] dark:text-[#E63027] mt-0.5 shrink-0" />}
+          {!isUser ? (
+            <div className="text-sm md:text-base wrap-break-word min-w-0">
+              <MarkdownContent content={message.content} isDark={isDark} />
+            </div>
+          ) : (
+            <p className="text-sm md:text-base wrap-break-word whitespace-pre-wrap">{message.content}</p>
+          )}
+        </div>
+        {!isUser && message.answered === false && (
+          <p
+            className={`text-xs mt-2 px-2 py-1.5 rounded-lg ${
+              isDark ? "bg-[#C48A4A]/10 text-[#E0B887]" : "bg-[#FFF4E0] text-[#7A5300]"
+            }`}
+          >
+            <button type="button" onClick={onRegister} className="font-semibold underline underline-offset-2">
+              Register
+            </button>{" "}
+            to ask the university admin directly.
+          </p>
+        )}
+        <p
+          className={`text-xs mt-2 ${
+            isUser ? "text-white/70" : isDark ? "text-[#9AA5BD]" : "text-[#5A6372]"
+          }`}
+        >
+          {formatClock(message.timestamp)}
+        </p>
+      </div>
+    </div>
+  );
+});
+GuestMessage.displayName = "GuestMessage";
+
+// The guest input box. Its text lives here, so keystrokes only re-render
+// this component. onSend(text) -> Promise<{ restore?: boolean }>.
+const GuestComposer = memo(({ busy, onSend, onRegister }) => {
+  const [inputMessage, setInputMessage] = useState("");
+
+  const submit = async (e) => {
+    e.preventDefault();
+    const text = inputMessage.trim();
+    if (!text || busy) return;
+    setInputMessage("");
+    const result = await onSend(text);
+    // Give the question back so the user can retry without retyping it.
+    if (result?.restore) setInputMessage((current) => current || text);
+  };
+
+  const blocked = busy || !inputMessage.trim();
+  const sendLabel = busy ? "Wait for UniAssist to finish replying" : "Send message";
+  return (
+    <form
+      onSubmit={submit}
+      className="p-1 rounded-xl border bg-white dark:bg-[#16203A] border-[#D8DAE6] dark:border-[#2A3656] shadow-sm"
+    >
+      <div className="flex gap-1.5">
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            value={inputMessage}
+            onChange={(e) => setInputMessage(e.target.value)}
+            maxLength={MAX_GUEST_MESSAGE_CHARS}
+            aria-label="Message"
+            placeholder="Ask about MAJU…"
+            className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-[#1F2330] dark:text-[#ECEEF5] placeholder-[#5A6372] dark:placeholder-[#9AA5BD] text-sm rounded-lg border border-[#D8DAE6] dark:border-[#2A3656] focus:border-[#1E2A66] dark:focus:border-[#E63027] focus:ring-1 focus:ring-[#1E2A66]/20 dark:focus:ring-[#E63027]/20"
+          />
+        </div>
+        <button
+          type="submit"
+          disabled={blocked}
+          aria-label={sendLabel}
+          title={sendLabel}
+          className={`px-3 py-1.5 rounded-lg transition-all shrink-0 flex items-center justify-center ${
+            blocked ? "bg-[#D8DAE6] dark:bg-[#2A3656] cursor-not-allowed" : "bg-[#1E2A66] hover:bg-[#16204D]"
+          }`}
+        >
+          <Send className={`w-3.5 h-3.5 ${blocked ? "text-[#9AA5BD]" : "text-white"}`} />
+        </button>
+      </div>
+
+      <div className="flex items-center justify-between mt-1.5 px-1">
+        <div className="flex items-center gap-1">
+          <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
+          <span className="text-[10px] text-[#5A6372] dark:text-[#9AA5BD]">
+            Guest Mode • Unlimited Messages
+          </span>
+        </div>
+        <div className="text-[10px] text-[#5A6372] dark:text-[#9AA5BD]">
+          <button type="button" onClick={onRegister} className="text-[#E63027] dark:text-[#C48A4A] hover:underline">
+            Register for voice & email →
+          </button>
+        </div>
+      </div>
+    </form>
+  );
+});
+GuestComposer.displayName = "GuestComposer";
+
 const GuestChat = () => {
   const dispatch = useDispatch();
   const theme = useSelector((s) => s.theme.theme);
@@ -36,73 +157,52 @@ const GuestChat = () => {
   const messagesEndRef = useRef(null);
   const messagesContainerRef = useRef(null);
 
-  const [inputMessage, setInputMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+  // Timestamp while a reply is awaited (drives the typing indicator).
+  const [pendingSince, setPendingSince] = useState(null);
+  const isLoading = pendingSince !== null;
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const busyRef = useRef(false);
 
   const toggleTheme = () => {
     dispatch(toggleThemeAction());
   };
 
-  // Improved scrollToBottom function
-  const scrollToBottom = () => {
-    if (messagesContainerRef.current) {
-      const { scrollHeight, clientHeight } = messagesContainerRef.current;
-      messagesContainerRef.current.scrollTo({
-        top: scrollHeight,
-        behavior: "smooth"
-      });
-    }
-  };
-
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages arrive or the typing indicator appears.
   useEffect(() => {
-    scrollToBottom();
-  }, [guestMessages]);
+    const el = messagesContainerRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+  }, [guestMessages.length, isLoading]);
 
-  // Also scroll when loading state changes (when response starts coming)
-  useEffect(() => {
-    if (!isLoading) {
-      // Small delay to ensure DOM is updated
-      setTimeout(scrollToBottom, 100);
-    }
-  }, [isLoading]);
+  const goRegister = useCallback(() => navigate("/register"), [navigate]);
 
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!inputMessage.trim() || isLoading) return;
-
-    const userMessage = inputMessage.trim();
-    setInputMessage("");
-    setIsLoading(true);
-    
-    // Scroll immediately when user sends message
-    setTimeout(scrollToBottom, 50);
-
-    try {
-      const result = await dispatch(
-        sendGuestMessage({ message: userMessage })
-      ).unwrap();
-
-      if (!result.success) {
-        toast.error(result.message || "Failed to send message");
+  // Stable so the memoised composer never re-renders while the user types.
+  const handleSend = useCallback(
+    async (text) => {
+      if (busyRef.current) return { restore: true };
+      busyRef.current = true;
+      setPendingSince(Date.now());
+      try {
+        const result = await dispatch(sendGuestMessage({ message: text })).unwrap();
+        if (!result.success) {
+          toast.error(result.message || "Failed to send message");
+          return { restore: true };
+        }
+        return {};
+      } catch (error) {
+        console.error("Chat error:", error);
+        toast.error("Failed to get response. Please try again.");
+        return { restore: true };
+      } finally {
+        busyRef.current = false;
+        setPendingSince(null);
       }
+    },
+    [dispatch]
+  );
 
-      setTimeout(scrollToBottom, 100);
-    } catch (error) {
-      console.error("Chat error:", error);
-      toast.error("Failed to get response. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSuggestedTopic = async (topic) => {
-    setInputMessage(topic);
-    // Auto-send after a short delay
-    setTimeout(() => {
-      document.querySelector('button[type="submit"]')?.click();
-    }, 100);
+  const handleSuggestedTopic = (topic) => {
+    setIsMenuOpen(false);
+    handleSend(topic);
   };
 
   const handleClearChat = () => {
@@ -132,15 +232,6 @@ const GuestChat = () => {
       text: "Does MAJU offer any scholarships?",
     },
   ];
-
-  // Format messages from context for display
-  const displayMessages = guestMessages.map((msg, index) => ({
-    id: index,
-    text: msg.content,
-    sender: msg.role === "user" ? "user" : "bot",
-    timestamp: msg.timestamp || Date.now(),
-    type: msg.type || "text",
-  }));
 
   return (
     <div
@@ -402,7 +493,7 @@ const GuestChat = () => {
         {/* Chat Container */}
         <div className="flex-1 flex flex-col py-4 md:py-6 max-md:py-2 overflow-hidden">
           {/* Welcome Message when no chats */}
-          {displayMessages.length === 0 && (
+          {guestMessages.length === 0 && (
             <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
             <div
               className={`mb-4 p-4 md:p-6 rounded-xl border ${
@@ -449,82 +540,17 @@ const GuestChat = () => {
             }}
           >
             <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
-            {displayMessages.map((message) => (
-              <div
-                key={message.id}
-                className={`flex ${
-                  message.sender === "user" ? "justify-end" : "justify-start"
-                } mb-3`}
-              >
-                <div
-                  className={`max-w-[85%] md:max-w-[80%] rounded-2xl px-3 py-2 ${
-                    message.sender === "user"
-                      ? "bg-[#1E2A66] text-white rounded-br-none"
-                      : theme === "dark"
-                      ? "bg-[#16203A] text-[#ECEEF5] rounded-bl-none border border-[#2A3656]"
-                      : "bg-white text-[#1F2330] rounded-bl-none border border-[#D8DAE6] shadow-sm"
-                  }`}
-                >
-                  <div className="flex items-start gap-2">
-                    {message.sender === "bot" && (
-                      <Brain className="w-4 h-4 text-[#1E2A66] dark:text-[#E63027] mt-0.5 shrink-0" />
-                    )}
-                    <p className="text-sm md:text-base wrap-break-words whitespace-pre-wrap">
-                      {message.text}
-                    </p>
-                  </div>
-                  <p
-                    className={`text-xs mt-2 ${
-                      message.sender === "user"
-                        ? "text-white/70"
-                        : theme === "dark"
-                        ? "text-[#9AA5BD]"
-                        : "text-[#5A6372]"
-                    }`}
-                  >
-                    {new Date(message.timestamp).toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit",
-                    })}
-                  </p>
-                </div>
-              </div>
+            {guestMessages.map((message, index) => (
+              <GuestMessage
+                key={`${index}:${message.role}`}
+                message={message}
+                isDark={theme === "dark"}
+                onRegister={goRegister}
+              />
             ))}
 
-            {/* Loading Indicator */}
-            {isLoading && (
-              <div className="flex justify-start">
-                <div
-                  className={`max-w-[80%] rounded-2xl px-3 py-2 ${
-                    theme === "dark"
-                      ? "bg-[#16203A] border border-[#2A3656]"
-                      : "bg-white border border-[#D8DAE6]"
-                  }`}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="flex space-x-1">
-                      <div className="w-2 h-2 bg-[#E63027] rounded-full animate-bounce"></div>
-                      <div
-                        className="w-2 h-2 bg-[#E63027] rounded-full animate-bounce"
-                        style={{ animationDelay: "0.2s" }}
-                      ></div>
-                      <div
-                        className="w-2 h-2 bg-[#E63027] rounded-full animate-bounce"
-                        style={{ animationDelay: "0.4s" }}
-                      ></div>
-                    </div>
-                    <span
-                      className={`text-sm ${
-                        theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
-                      }`}
-                    >
-                      Thinking...
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )}
-            
+            {isLoading && <ChatWaitIndicator startedAt={pendingSince} isDark={theme === "dark"} />}
+
             {/* Invisible element at the end for scrolling reference */}
             <div ref={messagesEndRef} />
             </div>
@@ -532,67 +558,7 @@ const GuestChat = () => {
 
           {/* Input Area */}
           <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
-          <form
-            onSubmit={handleSendMessage}
-            className="p-1 rounded-xl border bg-white dark:bg-[#16203A] border-[#D8DAE6] dark:border-[#2A3656] shadow-sm"
-          >
-            <div className="flex gap-1.5">
-              {/* Input Field */}
-              <div className="flex-1 relative">
-                <input
-                  type="text"
-                  value={inputMessage}
-                  onChange={(e) => setInputMessage(e.target.value)}
-                  placeholder="Ask about MAJU…"
-                  className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-[#1F2330] dark:text-[#ECEEF5] placeholder-[#5A6372] dark:placeholder-[#9AA5BD] text-sm rounded-lg border border-[#D8DAE6] dark:border-[#2A3656] focus:border-[#1E2A66] dark:focus:border-[#E63027] focus:ring-1 focus:ring-[#1E2A66]/20 dark:focus:ring-[#E63027]/20"
-                  disabled={isLoading}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && !e.shiftKey) {
-                      e.preventDefault();
-                      handleSendMessage(e);
-                    }
-                  }}
-                />
-              </div>
-
-              {/* Send Button */}
-              <button
-                type="submit"
-                disabled={isLoading || !inputMessage.trim()}
-                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 flex items-center justify-center ${
-                  isLoading || !inputMessage.trim()
-                    ? "bg-[#D8DAE6] dark:bg-[#2A3656] cursor-not-allowed"
-                    : "bg-linear-to-r from-[#1E2A66] to-[#1E2A66] hover:from-[#16204D] hover:to-[#16204D]"
-                }`}
-              >
-                <Send
-                  className={`w-3.5 h-3.5 ${
-                    isLoading || !inputMessage.trim()
-                      ? "text-[#9AA5BD]"
-                      : "text-white"
-                  }`}
-                />
-              </button>
-            </div>
-
-            {/* Guest Info */}
-            <div className="flex items-center justify-between mt-1.5 px-1">
-              <div className="flex items-center gap-1">
-                <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
-                <span className="text-[10px] text-[#5A6372] dark:text-[#9AA5BD]">
-                  Guest Mode • Unlimited Messages
-                </span>
-              </div>
-              <div className="text-[10px] text-[#5A6372] dark:text-[#9AA5BD]">
-                <button
-                  onClick={() => navigate("/register")}
-                  className="text-[#E63027] dark:text-[#C48A4A] hover:underline"
-                >
-                  Register for voice & email →
-                </button>
-              </div>
-            </div>
-          </form>
+          <GuestComposer busy={isLoading} onSend={handleSend} onRegister={goRegister} />
           </div>
         </div>
       </div>
