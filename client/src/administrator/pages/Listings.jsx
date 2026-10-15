@@ -39,7 +39,7 @@ import EmptyState from "../components/EmptyState";
 import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
 import ProgressSteps, { UploadProgress } from "../../components/ProgressSteps";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 import { useDebouncedSearch } from "../utils/useDebouncedSearch";
 import {
   KIND_LABELS,
@@ -81,15 +81,18 @@ const STATUS_FILTERS = [
   { key: "archived", label: "Archived" },
 ];
 
-const statusColor = (status, C) =>
-  status === "published" ? C.green : status === "draft" ? C.amber : C.muted;
+const statusTone = (status) =>
+  status === "published"
+    ? { color: C.success, backgroundColor: C.successBg }
+    : status === "draft"
+      ? { color: C.warning, backgroundColor: C.warningBg }
+      : { color: C.muted, backgroundColor: C.surfaceMuted };
 
-const StatusBadge = ({ status, C }) => {
-  const color = statusColor(status, C);
+const StatusBadge = ({ status }) => {
   return (
     <span
       className="inline-flex items-center px-2 py-0.5 text-xs rounded-full font-medium capitalize"
-      style={{ backgroundColor: `${color}1A`, color }}
+      style={statusTone(status)}
     >
       {status || "draft"}
     </span>
@@ -145,7 +148,7 @@ const validate = (form, kind, isNew, publishing) => {
 };
 
 // Poster field: paste an image link or upload one; previews either.
-const PosterField = ({ value, onChange, C, inputStyle }) => {
+const PosterField = ({ value, onChange }) => {
   const dispatch = useDispatch();
   const fileRef = useRef(null);
   const [uploading, setUploading] = useState(false);
@@ -191,8 +194,8 @@ const PosterField = ({ value, onChange, C, inputStyle }) => {
   return (
     <div className="flex gap-3 items-start">
       <div
-        className="w-20 h-24 rounded-lg border shrink-0 flex items-center justify-center overflow-hidden"
-        style={{ borderColor: C.border, backgroundColor: C.surfaceAlt }}
+        className="w-20 h-24 rounded-control border shrink-0 flex items-center justify-center overflow-hidden"
+        style={{ borderColor: C.border, backgroundColor: C.surfaceMuted }}
       >
         {src && !broken ? (
           <img src={src} alt="Poster preview" className="w-full h-full object-cover" onError={() => setBroken(true)} />
@@ -210,16 +213,14 @@ const PosterField = ({ value, onChange, C, inputStyle }) => {
             onChange(e.target.value);
           }}
           placeholder="https://… image link, or upload one"
-          className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-          style={inputStyle}
+          className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring"
         />
         <div className="flex flex-wrap items-center gap-2">
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
             disabled={uploading}
-            className="px-3 py-1.5 text-xs rounded-lg border flex items-center gap-1.5 disabled:opacity-50"
-            style={{ borderColor: C.border, color: C.text }}
+            className="px-3 py-1.5 text-xs rounded-control border flex items-center gap-1.5 disabled:opacity-50 bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
           >
             {uploading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Upload className="w-3.5 h-3.5" />}
             {uploading ? "Uploading..." : "Upload image"}
@@ -228,8 +229,7 @@ const PosterField = ({ value, onChange, C, inputStyle }) => {
             <button
               type="button"
               onClick={() => onChange("")}
-              className="px-3 py-1.5 text-xs rounded-lg border flex items-center gap-1.5"
-              style={{ borderColor: C.border, color: C.muted }}
+              className="px-3 py-1.5 text-xs rounded-control border flex items-center gap-1.5 bg-surface border-border-strong text-muted hover:bg-nav-hover transition-colors focus-ring"
             >
               <X className="w-3.5 h-3.5" /> Remove
             </button>
@@ -254,9 +254,8 @@ const EXTRACTED_BY = {
   manual: "Added manually.",
 };
 
-const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDeleted }) => {
+const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted }) => {
   const dispatch = useDispatch();
-  const isDark = useSelector((s) => s.theme.theme) === "dark";
   const isNew = !listing?._id;
   const fields = LISTING_FIELDS[kind];
   const [form, setForm] = useState(() => toForm(listing, kind));
@@ -352,13 +351,12 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
     }
   };
 
-  const inputStyle = { backgroundColor: C.input, borderColor: C.border, color: C.text };
-  const btn = "px-3 py-1.5 text-sm rounded-lg flex items-center gap-1.5 disabled:opacity-50";
+  const btn = "px-3 py-1.5 text-sm rounded-control flex items-center gap-1.5 disabled:opacity-50 transition-colors focus-ring";
 
   return (
     <>
       <div className="fixed inset-0 z-50 flex" onClick={requestClose}>
-        <div className="flex-1" style={{ backgroundColor: "rgba(15, 22, 38, 0.5)" }} />
+        <div className="flex-1" style={{ backgroundColor: C.overlay }} />
         <aside
           className="w-full sm:w-[600px] h-full border-l flex flex-col"
           style={{ backgroundColor: C.surface, borderColor: C.border }}
@@ -372,12 +370,12 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
             style={{ borderColor: C.border }}
           >
             <div className="min-w-0">
-              <h2 className="text-base font-semibold truncate" style={{ color: C.text }}>
+              <h2 className="text-base font-semibold truncate" style={{ color: C.heading }}>
                 {isNew ? `New ${KIND_LABELS[kind].one.toLowerCase()}` : listing.title || "Untitled"}
               </h2>
               {!isNew && (
                 <div className="flex items-center gap-2 mt-0.5 text-xs" style={{ color: C.muted }}>
-                  <StatusBadge status={status} C={C} />
+                  <StatusBadge status={status} />
                   <span>{KIND_LABELS[kind].one}</span>
                   {listing.publishedAt && status === "published" && (
                     <span>· published {moment(listing.publishedAt).fromNow()}</span>
@@ -393,22 +391,22 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
           <div className="p-5 space-y-3 flex-1 overflow-y-auto">
             {!isNew && listing.extractedBy && (
               <p
-                className="text-xs px-3 py-2 rounded-lg border flex items-start gap-2"
+                className="text-xs px-3 py-2 rounded-control border flex items-start gap-2"
                 style={{
-                  borderColor: listing.extractedBy === "heuristic" ? `${C.amber}66` : C.border,
-                  backgroundColor: listing.extractedBy === "heuristic" ? `${C.amber}14` : C.surfaceAlt,
+                  borderColor: listing.extractedBy === "heuristic" ? C.warningBorder : C.border,
+                  backgroundColor: listing.extractedBy === "heuristic" ? C.warningBg : C.surfaceMuted,
                   color: listing.extractedBy === "heuristic" ? C.text : C.muted,
                 }}
               >
                 {listing.extractedBy === "heuristic" && (
-                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: C.amber }} />
+                  <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" style={{ color: C.warning }} />
                 )}
                 {EXTRACTED_BY[listing.extractedBy] || ""}
               </p>
             )}
   
             <div>
-              <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+              <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
                 Source link{isNew && " *"}
               </label>
               {isNew ? (
@@ -417,8 +415,7 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
                   value={form.sourceUrl}
                   onChange={set("sourceUrl")}
                   placeholder="https://… (where this was posted)"
-                  className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-                  style={inputStyle}
+                  className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring"
                 />
               ) : (
                 <a
@@ -426,7 +423,7 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm inline-flex items-center gap-1 break-all"
-                  style={{ color: C.navy }}
+                  style={{ color: C.link }}
                 >
                   {listing.sourceUrl}
                   <ExternalLink className="w-3.5 h-3.5 shrink-0" />
@@ -458,16 +455,13 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
                       <PosterField
                         value={value}
                         onChange={(v) => setForm((cur) => ({ ...cur, [f.key]: v }))}
-                        C={C}
-                        inputStyle={inputStyle}
                       />
                     ) : f.long ? (
                       <textarea
                         value={value}
                         onChange={set(f.key)}
                         rows={f.rows}
-                        className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-                        style={inputStyle}
+                        className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring"
                       />
                     ) : (
                       <input
@@ -476,8 +470,7 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
                         onChange={set(f.key)}
                         placeholder={f.placeholder}
                         maxLength={f.max}
-                        className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-                        style={{ ...inputStyle, colorScheme: isDark ? "dark" : "light" }}
+                        className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring"
                       />
                     )}
                   </div>
@@ -487,9 +480,9 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
   
             {error && (
               <p
-                className="text-sm px-3 py-2 rounded-lg border"
+                className="text-sm px-3 py-2 rounded-control border"
                 role="alert"
-                style={{ borderColor: `${C.danger}55`, backgroundColor: `${C.danger}10`, color: C.danger }}
+                style={{ borderColor: C.dangerBorder, backgroundColor: C.dangerBg, color: C.danger }}
               >
                 {error}
               </p>
@@ -504,8 +497,7 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
               <button
                 onClick={() => setConfirmDelete(true)}
                 disabled={submitting}
-                className={`${btn} border mr-auto`}
-                style={{ borderColor: `${C.danger}55`, color: C.danger }}
+                className={`${btn} border mr-auto bg-surface border-danger-border text-danger hover:bg-danger-bg`}
               >
                 <Trash2 className="w-4 h-4" /> Delete
               </button>
@@ -514,8 +506,7 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
               <button
                 onClick={() => save("archived")}
                 disabled={submitting}
-                className={`${btn} border`}
-                style={{ borderColor: C.border, color: C.text }}
+                className={`${btn} border bg-surface border-border-strong text-label hover:bg-nav-hover`}
               >
                 <Archive className="w-4 h-4" /> Archive
               </button>
@@ -524,8 +515,7 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
               <button
                 onClick={() => save("draft")}
                 disabled={submitting}
-                className={`${btn} border`}
-                style={{ borderColor: C.border, color: C.text }}
+                className={`${btn} border bg-surface border-border-strong text-label hover:bg-nav-hover`}
                 title={status === "archived" ? "Restore as a draft" : "Hide from students"}
               >
                 <Undo2 className="w-4 h-4" /> {status === "archived" ? "Restore" : "Unpublish"}
@@ -534,8 +524,7 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
             <button
               onClick={() => save(isNew ? "draft" : undefined)}
               disabled={submitting || (!isNew && !dirty)}
-              className={`${btn} border`}
-              style={{ borderColor: C.border, color: C.text }}
+              className={`${btn} border bg-surface border-border-strong text-label hover:bg-nav-hover`}
             >
               <Save className="w-4 h-4" /> {isNew ? "Save draft" : "Save"}
             </button>
@@ -543,8 +532,7 @@ const ListingEditor = ({ listing, kind, C, submitting, onClose, onSaved, onDelet
               <button
                 onClick={() => save("published")}
                 disabled={submitting}
-                className={`${btn} font-medium text-white`}
-                style={{ backgroundColor: C.navy }}
+                className={`${btn} font-bold text-on-primary bg-primary border-primary hover:bg-primary-hover`}
               >
                 <Send className="w-4 h-4" /> {submitting ? "Saving..." : "Publish"}
               </button>
@@ -614,7 +602,7 @@ const jobErrorMessage = (job) => {
 // "Add from link": starts a server-side scrape job, polls it every second and
 // shows its stages. Polling stops on unmount; the job itself keeps running on
 // the server, so the draft is still created if the admin leaves the page.
-const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
+const ScrapePanel = ({ kind, onDraft, onOpen }) => {
   const dispatch = useDispatch();
   const [url, setUrl] = useState("");
   const [starting, setStarting] = useState(false);
@@ -761,11 +749,11 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
   return (
     <form
       onSubmit={onSubmit}
-      className="rounded-xl border p-4 space-y-3"
+      className="rounded-card border p-4 space-y-3 shadow-card"
       style={{ backgroundColor: C.surface, borderColor: C.border }}
     >
       <div>
-        <h3 className="text-sm font-semibold" style={{ color: C.text }}>
+        <h3 className="text-sm font-semibold" style={{ color: C.heading }}>
           Add {kindLabel.one.toLowerCase()} from link
         </h3>
         <p className="text-xs mt-0.5" style={{ color: C.muted }}>
@@ -784,15 +772,13 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
             disabled={busy}
             placeholder={SCRAPE_PLACEHOLDERS[kind]}
             aria-label={`Link to the ${kindLabel.one.toLowerCase()} page`}
-            className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border focus:outline-none disabled:opacity-60"
-            style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            className="w-full pl-10 pr-4 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring disabled:opacity-60 bg-input-bg border-input-border text-text"
           />
         </div>
         <button
           type="submit"
           disabled={busy || !url.trim()}
-          className="px-4 py-2 text-sm rounded-lg font-medium text-white flex items-center gap-2 disabled:opacity-50"
-          style={{ backgroundColor: C.navy }}
+          className="px-4 py-2 text-sm rounded-control font-bold text-on-primary flex items-center gap-2 disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
         >
           {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Link2 className="w-4 h-4" />}
           {starting ? "Starting..." : running ? "Scraping..." : "Scrape"}
@@ -800,7 +786,7 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
       </div>
 
       {run && !run.duplicate && (
-        <div className="rounded-lg border px-3 py-2.5" style={{ borderColor: C.border, backgroundColor: C.surfaceAlt }}>
+        <div className="rounded-control border px-3 py-2.5" style={{ borderColor: C.border, backgroundColor: C.surfaceMuted }}>
           <ProgressSteps
             title={
               succeeded
@@ -824,8 +810,7 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
                 <button
                   type="button"
                   onClick={() => start(run.url, run.kind)}
-                  className="px-3 py-1 text-xs rounded-lg font-medium text-white inline-flex items-center gap-1.5"
-                  style={{ backgroundColor: C.navy }}
+                  className="px-3 py-1 text-xs rounded-control font-bold text-on-primary inline-flex items-center gap-1.5 bg-primary hover:bg-primary-hover transition-colors focus-ring"
                 >
                   <RotateCcw className="w-3.5 h-3.5" /> Retry
                 </button>
@@ -834,8 +819,7 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
                 <button
                   type="button"
                   onClick={() => onOpen(job.listing)}
-                  className="px-3 py-1 text-xs rounded-lg font-medium text-white inline-flex items-center gap-1.5"
-                  style={{ backgroundColor: C.navy }}
+                  className="px-3 py-1 text-xs rounded-control font-bold text-on-primary inline-flex items-center gap-1.5 bg-primary hover:bg-primary-hover transition-colors focus-ring"
                 >
                   <CheckCircle2 className="w-3.5 h-3.5" /> Open draft
                 </button>
@@ -843,8 +827,7 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
               <button
                 type="button"
                 onClick={() => setRun(null)}
-                className="px-3 py-1 text-xs rounded-lg border"
-                style={{ borderColor: C.border, color: C.muted }}
+                className="px-3 py-1 text-xs rounded-control border bg-surface border-border-strong text-muted hover:bg-nav-hover transition-colors focus-ring"
               >
                 Dismiss
               </button>
@@ -856,8 +839,8 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
       {notice?.type === "error" && (
         <p
           role="alert"
-          className="text-sm px-3 py-2 rounded-lg border"
-          style={{ borderColor: `${C.danger}55`, backgroundColor: `${C.danger}10`, color: C.danger }}
+          className="text-sm px-3 py-2 rounded-control border"
+          style={{ borderColor: C.dangerBorder, backgroundColor: C.dangerBg, color: C.danger }}
         >
           {notice.message}
         </p>
@@ -865,10 +848,10 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
 
       {notice?.type === "duplicate" && (
         <div
-          className="text-sm px-3 py-2 rounded-lg border flex flex-wrap items-center gap-2"
-          style={{ borderColor: `${C.amber}66`, backgroundColor: `${C.amber}14`, color: C.text }}
+          className="text-sm px-3 py-2 rounded-control border flex flex-wrap items-center gap-2"
+          style={{ borderColor: C.warningBorder, backgroundColor: C.warningBg, color: C.text }}
         >
-          <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: C.amber }} />
+          <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: C.warning }} />
           <span className="flex-1 min-w-[200px]">
             <span className="font-medium">Already added.</span>{" "}
             {notice.message && !/^already added/i.test(notice.message) ? `${notice.message} ` : ""}
@@ -882,8 +865,7 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
             <button
               type="button"
               onClick={() => onOpen(notice.listing)}
-              className="px-3 py-1 text-xs rounded-lg font-medium text-white"
-              style={{ backgroundColor: C.navy }}
+              className="px-3 py-1 text-xs rounded-control font-bold text-on-primary bg-primary hover:bg-primary-hover transition-colors focus-ring"
             >
               Open existing
             </button>
@@ -896,8 +878,6 @@ const ScrapePanel = ({ kind, C, onDraft, onOpen }) => {
 
 const Listings = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const { listings, total, loading, error, submitting } = useSelector((s) => s.adminListing);
 
   const [kind, setKind] = useState("job");
@@ -974,11 +954,11 @@ const Listings = () => {
             <button
               key={t.key}
               onClick={() => switchKind(t.key)}
-              className="px-3 py-2 text-sm rounded-lg border flex items-center gap-2 transition-colors"
+              className="px-3 py-2 text-sm rounded-control border flex items-center gap-2 transition-colors"
               style={{
-                backgroundColor: active ? C.navy : C.surface,
-                color: active ? "#fff" : C.text,
-                borderColor: active ? C.navy : C.border,
+                backgroundColor: active ? C.primary : C.surface,
+                color: active ? C.onPrimary : C.label,
+                borderColor: active ? C.primary : C.borderStrong,
               }}
             >
               <Icon className="w-4 h-4" />
@@ -988,15 +968,14 @@ const Listings = () => {
         })}
         <button
           onClick={() => openEditor(null, kind)}
-          className="ml-auto px-3 py-2 text-sm rounded-lg border flex items-center gap-2"
-          style={{ borderColor: C.border, color: C.text, backgroundColor: C.surface }}
+          className="ml-auto px-3 py-2 text-sm rounded-control border flex items-center gap-2 bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
         >
           <Plus className="w-4 h-4" />
           Add manually
         </button>
       </div>
 
-      <ScrapePanel kind={kind} C={C} onDraft={onDraft} onOpen={openListing} />
+      <ScrapePanel kind={kind} onDraft={onDraft} onOpen={openListing} />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -1006,8 +985,7 @@ const Listings = () => {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder={`Search ${kindLabel.many.toLowerCase()}...`}
-            className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
-            style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            className="w-full pl-10 pr-4 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -1018,11 +996,11 @@ const Listings = () => {
                 setStatus(f.key);
                 setPage(1);
               }}
-              className="px-3 py-1.5 text-sm rounded-lg border transition-colors"
+              className="px-3 py-1.5 text-sm rounded-control border transition-colors"
               style={{
-                backgroundColor: status === f.key ? C.navy : C.surface,
-                color: status === f.key ? "#fff" : C.text,
-                borderColor: status === f.key ? C.navy : C.border,
+                backgroundColor: status === f.key ? C.primary : C.surface,
+                color: status === f.key ? C.onPrimary : C.label,
+                borderColor: status === f.key ? C.primary : C.borderStrong,
               }}
             >
               {f.label}
@@ -1054,7 +1032,7 @@ const Listings = () => {
                     type="button"
                     onClick={reload}
                     className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium"
-                    style={{ color: C.navy }}
+                    style={{ color: C.link }}
                   >
                     <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Try again
                   </button>
@@ -1114,7 +1092,7 @@ const Listings = () => {
                         <span style={{ color: C.text }}>{dl.date}</span>
                         <div
                           className="text-xs"
-                          style={{ color: dl.tone === "closed" ? C.danger : dl.tone === "open" ? C.muted : C.amber }}
+                          style={{ color: dl.tone === "closed" ? C.danger : dl.tone === "open" ? C.muted : C.warning }}
                         >
                           {dl.label}
                         </div>
@@ -1124,7 +1102,7 @@ const Listings = () => {
                     )}
                   </AdminTableCell>
                   <AdminTableCell>
-                    <StatusBadge status={l.status} C={C} />
+                    <StatusBadge status={l.status} />
                   </AdminTableCell>
                   <AdminTableCell>
                     <span className="text-xs whitespace-nowrap" style={{ color: C.muted }}>
@@ -1145,7 +1123,7 @@ const Listings = () => {
           key={editing.session}
           listing={editing.listing}
           kind={editing.kind}
-          C={C}
+         
           submitting={submitting}
           onClose={() => setEditing(null)}
           onSaved={onSaved}

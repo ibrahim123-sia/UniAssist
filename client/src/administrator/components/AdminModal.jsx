@@ -1,11 +1,8 @@
 import React, { useEffect, useId, useRef } from "react";
-import { useSelector } from "react-redux";
 import { X } from "lucide-react";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 
 const AdminModal = ({ open, onClose, title, children, footer, size = "md" }) => {
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const titleId = useId();
   const panelRef = useRef(null);
 
@@ -38,7 +35,7 @@ const AdminModal = ({ open, onClose, title, children, footer, size = "md" }) => 
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(15, 22, 38, 0.6)" }}
+      style={{ backgroundColor: C.overlay }}
       onClick={onClose}
     >
       <div
@@ -46,16 +43,16 @@ const AdminModal = ({ open, onClose, title, children, footer, size = "md" }) => 
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`w-full ${widths[size] || widths.md} rounded-xl border shadow-2xl flex flex-col max-h-[90vh]`}
+        className={`w-full ${widths[size] || widths.md} rounded-panel border shadow-panel flex flex-col max-h-[90vh]`}
         style={{ backgroundColor: C.surface, borderColor: C.border, color: C.text }}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-5 py-4 border-b" style={{ borderColor: C.border }}>
-          <h3 id={titleId} className="text-base font-semibold">{title}</h3>
+          <h3 id={titleId} className="text-lg font-bold" style={{ color: C.heading }}>{title}</h3>
           <button
             onClick={onClose}
-            className="p-1 rounded transition-colors"
-            style={{ color: C.muted }}
+            className="p-1 rounded-lg transition-colors hover:bg-nav-hover focus-ring"
+            style={{ color: C.label }}
             aria-label="Close"
           >
             <X className="w-5 h-5" />

@@ -1,20 +1,16 @@
 import React from "react";
-import { useSelector } from "react-redux";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 
 const AdminTable = ({ columns, children, dense = false }) => {
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
-
   return (
     <div
-      className="rounded-xl border overflow-hidden"
-      style={{ borderColor: C.border, backgroundColor: C.surface }}
+      className="rounded-card border overflow-hidden"
+      style={{ borderColor: C.border, backgroundColor: C.surface, boxShadow: C.shadowSm }}
     >
       <div className="overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr style={{ backgroundColor: C.surfaceAlt }}>
+            <tr style={{ backgroundColor: C.tableHeader }}>
               {columns.map((col) => (
                 <th
                   key={col.key}
@@ -34,8 +30,6 @@ const AdminTable = ({ columns, children, dense = false }) => {
 };
 
 export const AdminTableRow = ({ children, onClick, highlight }) => {
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   // Clickable rows are keyboard operable: focusable, Enter/Space activate.
   const onKeyDown = onClick
     ? (e) => {
@@ -52,11 +46,11 @@ export const AdminTableRow = ({ children, onClick, highlight }) => {
       onKeyDown={onKeyDown}
       tabIndex={onClick ? 0 : undefined}
       role={onClick ? "button" : undefined}
-      className={`border-t transition-colors ${onClick ? "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset" : ""}`}
-      style={{ borderColor: C.border, backgroundColor: highlight ? `${C.red}10` : "transparent" }}
-      onMouseEnter={(e) => onClick && (e.currentTarget.style.backgroundColor = C.surfaceAlt)}
+      className={`border-t transition-colors ${onClick ? "cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary" : ""}`}
+      style={{ borderColor: C.border, backgroundColor: highlight ? C.warningBg : "transparent" }}
+      onMouseEnter={(e) => onClick && (e.currentTarget.style.backgroundColor = C.rowHover)}
       onMouseLeave={(e) =>
-        onClick && (e.currentTarget.style.backgroundColor = highlight ? `${C.red}10` : "transparent")
+        onClick && (e.currentTarget.style.backgroundColor = highlight ? C.warningBg : "transparent")
       }
     >
       {children}

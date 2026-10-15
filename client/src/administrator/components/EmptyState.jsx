@@ -1,15 +1,11 @@
 import React from "react";
-import { useSelector } from "react-redux";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 
 const EmptyState = ({ icon: Icon, title, description, action }) => {
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
-
   return (
     <div className="flex flex-col items-center justify-center py-16 text-center">
-      {Icon && <Icon className="w-12 h-12 mb-4" style={{ color: C.border }} />}
-      <h3 className="text-base font-semibold mb-1" style={{ color: C.text }}>
+      {Icon && <Icon className="w-12 h-12 mb-4" style={{ color: C.placeholder }} />}
+      <h3 className="text-base font-bold mb-1" style={{ color: C.heading }}>
         {title}
       </h3>
       {description && (

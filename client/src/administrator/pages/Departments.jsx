@@ -14,7 +14,7 @@ import AdminTable, { AdminTableRow, AdminTableCell } from "../components/AdminTa
 import AdminModal from "../components/AdminModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import EmptyState from "../components/EmptyState";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 
 const SLA_MIN = 1;
 const SLA_MAX = 720;
@@ -23,8 +23,6 @@ const idOf = (ref) => (ref && typeof ref === "object" ? ref._id : ref) || "";
 
 const Departments = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const { departments, loading, submitting } = useSelector((s) => s.department);
 
   const [createOpen, setCreateOpen] = useState(false);
@@ -156,8 +154,7 @@ const Departments = () => {
       <div className="flex justify-end">
         <button
           onClick={() => setCreateOpen(true)}
-          className="px-4 py-2 text-sm rounded-lg font-medium text-white flex items-center gap-2"
-          style={{ backgroundColor: C.navy }}
+          className="px-4 py-2 text-sm rounded-control font-bold text-on-primary flex items-center gap-2 bg-primary hover:bg-primary-hover transition-colors focus-ring"
         >
           <Plus className="w-4 h-4" />
           New Department
@@ -222,14 +219,14 @@ const Departments = () => {
                   {d.isActive ? (
                     <span
                       className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                      style={{ backgroundColor: `${C.green}1A`, color: C.green }}
+                      style={{ backgroundColor: C.successBg, color: C.success }}
                     >
                       Active
                     </span>
                   ) : (
                     <span
                       className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                      style={{ backgroundColor: `${C.red}1A`, color: C.red }}
+                      style={{ backgroundColor: C.dangerBg, color: C.danger }}
                     >
                       Inactive
                     </span>
@@ -242,7 +239,7 @@ const Departments = () => {
                       aria-label="Edit department"
                       className="p-1.5 rounded transition-colors"
                       style={{ color: C.muted }}
-                      onMouseEnter={(e) => (e.currentTarget.style.color = C.navy)}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = C.link)}
                       onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
                     >
                       <Edit2 className="w-4 h-4" />
@@ -261,7 +258,7 @@ const Departments = () => {
                       <button
                         onClick={() => reactivate(d)}
                         className="p-1.5 rounded text-xs px-2"
-                        style={{ color: C.green }}
+                        style={{ color: C.success }}
                       >
                         Reactivate
                       </button>
@@ -283,8 +280,7 @@ const Departments = () => {
             <button
               type="button"
               onClick={() => setCreateOpen(false)}
-              className="px-3 py-2 text-sm rounded-lg border"
-              style={{ borderColor: C.border, color: C.text }}
+              className="px-3 py-2 text-sm rounded-control border bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
             >
               Cancel
             </button>
@@ -292,8 +288,7 @@ const Departments = () => {
               type="submit"
               form="create-dept-form"
               disabled={submitting}
-              className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-              style={{ backgroundColor: C.navy }}
+              className="px-3 py-2 text-sm rounded-control font-bold text-on-primary disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
             >
               {submitting ? "Creating..." : "Create"}
             </button>
@@ -302,7 +297,7 @@ const Departments = () => {
       >
         <form id="create-dept-form" onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Code (uppercase, unique)
             </label>
             <input
@@ -311,12 +306,11 @@ const Departments = () => {
               onChange={(e) => setForm({ ...form, code: e.target.value.toUpperCase() })}
               placeholder="SFC"
               required
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none font-mono"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring font-mono bg-input-bg border-input-border text-text"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Name
             </label>
             <input
@@ -325,20 +319,18 @@ const Departments = () => {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="Student Facilitation Center"
               required
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Description (optional)
             </label>
             <textarea
               value={form.description}
               onChange={(e) => setForm({ ...form, description: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
           </div>
         </form>
@@ -354,8 +346,7 @@ const Departments = () => {
               type="button"
               onClick={closeEdit}
               disabled={savingEdit}
-              className="px-3 py-2 text-sm rounded-lg border disabled:opacity-50"
-              style={{ borderColor: C.border, color: C.text }}
+              className="px-3 py-2 text-sm rounded-control border disabled:opacity-50 bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
             >
               Cancel
             </button>
@@ -363,8 +354,7 @@ const Departments = () => {
               type="submit"
               form="edit-dept-form"
               disabled={savingEdit}
-              className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-              style={{ backgroundColor: C.navy }}
+              className="px-3 py-2 text-sm rounded-control font-bold text-on-primary disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
             >
               {savingEdit ? "Saving..." : "Save changes"}
             </button>
@@ -373,7 +363,7 @@ const Departments = () => {
       >
         <form id="edit-dept-form" onSubmit={saveEdit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Name
             </label>
             <input
@@ -381,27 +371,25 @@ const Departments = () => {
               value={editForm.name}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
               required
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Description (optional)
             </label>
             <textarea
               value={editForm.description}
               onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
               rows={2}
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
             <p className="text-xs mt-1" style={{ color: C.muted }}>
               Also used to route chatbot complaints to this department.
             </p>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Response time (SLA, hours)
             </label>
             <input
@@ -412,8 +400,7 @@ const Departments = () => {
               value={editForm.slaHours}
               onChange={(e) => setEditForm({ ...editForm, slaHours: e.target.value })}
               placeholder="Default"
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
             <p className="text-xs mt-1" style={{ color: C.muted }}>
               A pending issue with no staff response after this long is escalated to the department head
@@ -429,8 +416,7 @@ const Departments = () => {
               value={editForm.head}
               onChange={(e) => setEditForm({ ...editForm, head: e.target.value })}
               disabled={deptStaff.loading}
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none disabled:opacity-60"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring disabled:opacity-60 bg-input-bg border-input-border text-text"
             >
               <option value="">No head — notify all department staff</option>
               {headOptions.map((u) => (

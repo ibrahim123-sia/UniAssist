@@ -22,7 +22,7 @@ import AdminTable, { AdminTableRow, AdminTableCell } from "../components/AdminTa
 import LoadingSkeleton from "../components/LoadingSkeleton";
 import EmptyState from "../components/EmptyState";
 import Pagination from "../components/Pagination";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 import { useDebouncedSearch } from "../utils/useDebouncedSearch";
 
 const PAGE_SIZE = 25;
@@ -35,8 +35,6 @@ const TABS = [
 
 const Logs = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const { audit, logins, chats, selectedChat, selectedUser, chatLoading } = useSelector(
     (s) => s.adminLog
   );
@@ -116,10 +114,11 @@ const Logs = () => {
               </AdminTableCell>
               <AdminTableCell>
                 <span
-                  className="px-2 py-0.5 text-xs rounded-full font-medium"
+                  className="px-2 py-0.5 text-xs rounded-full border font-semibold"
                   style={{
-                    backgroundColor: a.statusCode < 300 ? `${C.green}1A` : `${C.danger}1A`,
-                    color: a.statusCode < 300 ? C.green : C.danger,
+                    backgroundColor: a.statusCode < 300 ? C.successBg : C.dangerBg,
+                    borderColor: a.statusCode < 300 ? C.successBorder : C.dangerBorder,
+                    color: a.statusCode < 300 ? C.success : C.danger,
                   }}
                 >
                   {a.statusCode}
@@ -165,15 +164,15 @@ const Logs = () => {
               <AdminTableCell>
                 {l.success ? (
                   <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full"
-                    style={{ backgroundColor: `${C.green}1A`, color: C.green }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border font-semibold"
+                    style={{ backgroundColor: C.successBg, borderColor: C.successBorder, color: C.success }}
                   >
                     <CheckCircle2 className="w-3 h-3" /> Success
                   </span>
                 ) : (
                   <span
-                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full"
-                    style={{ backgroundColor: `${C.danger}1A`, color: C.danger }}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border font-semibold"
+                    style={{ backgroundColor: C.dangerBg, borderColor: C.dangerBorder, color: C.danger }}
                   >
                     <XCircle className="w-3 h-3" /> Failed
                   </span>
@@ -263,11 +262,11 @@ const Logs = () => {
                 setPage(1);
                 resetSearch();
               }}
-              className="px-3 py-2 text-sm rounded-lg border flex items-center gap-2 transition-colors"
+              className={`px-3 py-2 text-sm font-semibold rounded-control border flex items-center gap-2 transition-colors focus-ring ${active ? "" : "hover:bg-nav-hover!"}`}
               style={{
-                backgroundColor: active ? C.navy : C.surface,
-                color: active ? "#fff" : C.text,
-                borderColor: active ? C.navy : C.border,
+                backgroundColor: active ? C.primary : C.surface,
+                color: active ? C.onPrimary : C.label,
+                borderColor: active ? C.primary : C.borderStrong,
               }}
             >
               <Icon className="w-4 h-4" />
@@ -279,7 +278,7 @@ const Logs = () => {
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: C.placeholder }} />
           <input
             type="text"
             value={searchInput}
@@ -291,8 +290,7 @@ const Logs = () => {
                 ? "Filter by email..."
                 : "Filter by student name or email..."
             }
-            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
-            style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-control border bg-input-bg border-input-border text-text focus:outline-none focus:border-primary focus-ring"
           />
         </div>
         {tab === "logins" && (
@@ -302,8 +300,7 @@ const Logs = () => {
               setLoginFilter(e.target.value);
               setPage(1);
             }}
-            className="px-3 py-2.5 text-sm rounded-lg border focus:outline-none"
-            style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            className="px-3 py-2.5 text-sm rounded-control border bg-input-bg border-input-border text-text focus:outline-none focus:border-primary focus-ring"
           >
             <option value="">All</option>
             <option value="true">Success only</option>
@@ -314,13 +311,14 @@ const Logs = () => {
           <label className="flex items-center gap-2 text-sm" style={{ color: C.text }}>
             <input
               type="checkbox"
+              className="accent-primary"
               checked={flaggedOnly}
               onChange={(e) => {
                 setFlaggedOnly(e.target.checked);
                 setPage(1);
               }}
             />
-            <Flag className="w-3 h-3" style={{ color: C.red }} />
+            <Flag className="w-3 h-3" style={{ color: C.warning }} />
             Flagged students only
           </label>
         )}
@@ -334,33 +332,33 @@ const Logs = () => {
 
       {chatOpen && (
         <div className="fixed inset-0 z-50 flex" onClick={closeChat}>
-          <div className="flex-1" style={{ backgroundColor: "rgba(15, 22, 38, 0.5)" }} />
+          <div className="flex-1" style={{ backgroundColor: C.overlay }} />
           <aside
             className="w-full sm:w-[560px] h-full overflow-y-auto border-l"
-            style={{ backgroundColor: C.surface, borderColor: C.border }}
+            style={{ backgroundColor: C.surface, borderColor: C.border, boxShadow: C.shadowLg }}
             onClick={(e) => e.stopPropagation()}
           >
             <header
               className="px-5 py-4 border-b flex items-center justify-between sticky top-0 z-10"
               style={{ borderColor: C.border, backgroundColor: C.surface }}
             >
-              <h2 className="text-base font-semibold" style={{ color: C.text }}>
+              <h2 className="text-lg font-bold" style={{ color: C.heading }}>
                 Conversation
               </h2>
-              <button onClick={closeChat} className="p-1 rounded" style={{ color: C.muted }}>
+              <button onClick={closeChat} className="p-1 rounded-lg transition-colors hover:bg-nav-hover focus-ring" style={{ color: C.label }} aria-label="Close">
                 <X className="w-5 h-5" />
               </button>
             </header>
             <div className="p-5 space-y-3">
               {chatLoading && <p className="text-sm" style={{ color: C.muted }}>Loading...</p>}
               {selectedUser && (
-                <div className="p-3 rounded-lg border" style={{ borderColor: C.border, backgroundColor: C.surfaceAlt }}>
+                <div className="p-3 rounded-control border" style={{ borderColor: C.border, backgroundColor: C.surfaceMuted }}>
                   <p className="text-sm font-medium flex items-center gap-2" style={{ color: C.text }}>
                     {selectedUser.name}
                     {selectedUser.flags?.length > 0 && (
                       <span
-                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                        style={{ backgroundColor: `${C.red}1A`, color: C.red }}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border font-semibold"
+                        style={{ backgroundColor: C.warningBg, borderColor: C.warningBorder, color: C.warning }}
                       >
                         <Flag className="w-3 h-3" /> {selectedUser.flags.length} flag(s)
                       </span>
@@ -374,14 +372,11 @@ const Logs = () => {
                 return (
                   <div
                     key={idx}
-                    className="p-3 rounded-lg border text-sm"
-                    style={{
-                      borderColor: C.border,
-                      backgroundColor: isUser ? C.surfaceAlt : `${C.navy}10`,
-                    }}
+                    className={`p-3 rounded-control border text-sm ${isUser ? "bg-surface-muted" : "bg-ai-bubble"}`}
+                    style={{ borderColor: C.border }}
                   >
                     <div className="flex items-center justify-between mb-1 text-xs" style={{ color: C.muted }}>
-                      <span className="font-medium">{isUser ? "Student" : "Bot"}</span>
+                      <span className="font-semibold">{isUser ? "Student" : "Bot"}</span>
                       <span>{m.timestamp ? moment(m.timestamp).format("MMM D HH:mm:ss") : ""}</span>
                     </div>
                     <p style={{ color: C.text }}>{m.content}</p>

@@ -18,7 +18,7 @@ import {
   saveEmailSettings,
   sendTestEmail,
 } from "../../redux/slices/adminSettingsSlice";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 import { ProgressLine } from "../../components/ProgressSteps";
 
 const EMAIL_RE = /^[\w.+-]+@([\w-]+\.)+[\w-]{2,}$/;
@@ -40,7 +40,7 @@ const fromSettings = (s) => ({
 
 const Field = ({ label, hint, children, C }) => (
   <label className="block">
-    <span className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+    <span className="block text-[13px] font-semibold mb-[7px]" style={{ color: C.label }}>
       {label}
     </span>
     {children}
@@ -57,10 +57,8 @@ const Field = ({ label, hint, children, C }) => (
 // EMAIL_PASS in server/.env, which stay as a first-boot fallback.
 const Settings = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
   const user = useSelector((s) => s.auth.user);
   const { email: settings, emailLoading, emailError } = useSelector((s) => s.adminSettings);
-  const C = getPalette(theme === "dark");
 
   const [form, setForm] = useState(() => fromSettings(settings));
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -145,9 +143,9 @@ const Settings = () => {
     dispatch(fetchEmailSettings());
   };
 
-  const inputClass = "w-full px-3 py-2 text-sm rounded-lg border focus:outline-none disabled:opacity-60";
-  const inputStyle = { backgroundColor: C.input, borderColor: C.border, color: C.text };
-  const statusColor = source === "none" ? C.danger : source === "env" ? C.amber : C.green;
+  const inputClass =
+    "w-full px-3 py-2 text-sm rounded-control border bg-input-bg border-input-border text-text focus:outline-none focus:border-primary focus-ring disabled:opacity-60";
+  const statusColor = source === "none" ? C.danger : source === "env" ? C.warning : C.success;
 
   if (!settings && emailLoading) {
     return (
@@ -161,26 +159,26 @@ const Settings = () => {
     <div className="max-w-2xl space-y-4">
       {!settings && emailError && (
         <div
-          className="rounded-xl border p-3 text-sm flex items-center justify-between gap-3"
-          style={{ borderColor: C.border, backgroundColor: C.surface, color: C.danger }}
+          className="rounded-control border p-3 text-sm flex items-center justify-between gap-3"
+          style={{ borderColor: C.dangerBorder, backgroundColor: C.dangerBg, color: C.danger }}
           role="alert"
         >
           <span>Couldn&apos;t load email settings: {emailError}</span>
           <button
             type="button"
             onClick={() => dispatch(fetchEmailSettings())}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-lg border"
-            style={{ borderColor: C.border, color: C.text }}
+            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-control border transition-colors hover:bg-nav-hover! focus-ring"
+            style={{ borderColor: C.borderStrong, color: C.label, backgroundColor: C.surface }}
           >
             <RefreshCw className="w-3.5 h-3.5" /> Try again
           </button>
         </div>
       )}
 
-      <section className="rounded-xl border" style={{ backgroundColor: C.surface, borderColor: C.border }}>
+      <section className="rounded-card border" style={{ backgroundColor: C.surface, borderColor: C.border, boxShadow: C.shadowSm }}>
         <header className="px-4 py-3 border-b" style={{ borderColor: C.border }}>
-          <h2 className="text-sm font-semibold flex items-center gap-2" style={{ color: C.text }}>
-            <Mail className="w-4 h-4" style={{ color: C.navy }} />
+          <h2 className="text-base font-bold flex items-center gap-2" style={{ color: C.heading }}>
+            <Mail className="w-4 h-4" style={{ color: C.primary }} />
             University email
           </h2>
           <p className="text-xs mt-0.5" style={{ color: C.muted }}>
@@ -200,7 +198,7 @@ const Settings = () => {
           {settings?.lastTestAt ? (
             <span
               className="inline-flex items-center gap-1"
-              style={{ color: settings.lastTestOk ? C.green : C.danger }}
+              style={{ color: settings.lastTestOk ? C.success : C.danger }}
               title={moment(settings.lastTestAt).format("LLL")}
             >
               {settings.lastTestOk ? <CheckCircle2 className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
@@ -227,7 +225,6 @@ const Settings = () => {
                 autoComplete="off"
                 placeholder="uniassist@jinnah.edu"
                 className={inputClass}
-                style={inputStyle}
               />
             </Field>
             <Field label="Sender name" C={C}>
@@ -239,7 +236,6 @@ const Settings = () => {
                 maxLength={100}
                 placeholder={DEFAULTS.senderName}
                 className={inputClass}
-                style={inputStyle}
               />
             </Field>
           </div>
@@ -257,7 +253,6 @@ const Settings = () => {
               autoComplete="new-password"
               placeholder={hasPassword ? "•••••••• (saved)" : "16-character app password"}
               className={`${inputClass} font-mono`}
-              style={inputStyle}
             />
           </Field>
 
@@ -265,8 +260,8 @@ const Settings = () => {
             <button
               type="button"
               onClick={() => setShowAdvanced((v) => !v)}
-              className="inline-flex items-center gap-1 text-xs font-medium"
-              style={{ color: C.muted }}
+              className="inline-flex items-center gap-1 text-xs font-semibold rounded focus-ring"
+              style={{ color: C.label }}
               aria-expanded={showAdvanced}
             >
               {showAdvanced ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
@@ -283,7 +278,6 @@ const Settings = () => {
                       disabled={saving}
                       placeholder={DEFAULTS.smtpHost}
                       className={inputClass}
-                      style={inputStyle}
                     />
                   </Field>
                 </div>
@@ -296,7 +290,6 @@ const Settings = () => {
                     onChange={set("smtpPort")}
                     disabled={saving}
                     className={inputClass}
-                    style={inputStyle}
                   />
                 </Field>
               </div>
@@ -313,8 +306,7 @@ const Settings = () => {
             <button
               type="submit"
               disabled={saving}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-60"
-              style={{ backgroundColor: C.navy }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm rounded-control font-bold bg-primary text-on-primary transition-colors hover:bg-primary-hover focus-ring disabled:bg-disabled-bg disabled:text-disabled-text"
             >
               {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               {saving ? "Verifying…" : "Save & verify"}
@@ -324,15 +316,14 @@ const Settings = () => {
               onClick={test}
               disabled={saving || testing || source === "none"}
               title={source === "none" ? "Save the email settings first" : `Send a test email to ${user?.email || "you"}`}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg border disabled:opacity-50"
-              style={{ borderColor: C.border, color: C.text }}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold rounded-control border bg-surface border-border-strong text-label transition-colors hover:bg-nav-hover focus-ring disabled:opacity-50"
             >
               {testing ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
               {testing ? "Sending…" : "Send test email"}
             </button>
             {saving && <ProgressLine label="Signing in to the mail server…" startedAt={savingSince} />}
             {!saving && testResult && (
-              <span className="text-xs wrap-break-word" style={{ color: testResult.success ? C.green : C.danger }}>
+              <span className="text-xs wrap-break-word" style={{ color: testResult.success ? C.success : C.danger }}>
                 {testResult.success
                   ? testResult.message || `Test email sent to ${user?.email || "your address"}`
                   : testResult.message}
@@ -342,7 +333,7 @@ const Settings = () => {
         </form>
 
         <div className="px-4 py-3 border-t text-xs space-y-1" style={{ borderColor: C.border, color: C.muted }}>
-          <p className="flex items-center gap-1.5 font-medium" style={{ color: C.text }}>
+          <p className="flex items-center gap-1.5 font-semibold" style={{ color: C.text }}>
             <KeyRound className="w-3.5 h-3.5" /> Using Gmail / Google Workspace?
           </p>
           <ol className="list-decimal pl-5 space-y-0.5">

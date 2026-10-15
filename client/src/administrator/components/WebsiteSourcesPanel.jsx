@@ -23,7 +23,7 @@ import {
   deleteKbSource,
 } from "../../redux/slices/adminDataSlice";
 import ConfirmDialog from "./ConfirmDialog";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 import { isHttpUrl } from "../../utils/listings";
 import { ProgressLine } from "../../components/ProgressSteps";
 import { formatElapsed } from "../../utils/useElapsed";
@@ -51,19 +51,19 @@ const durationSec = (job) => {
   return Number.isFinite(start) && Number.isFinite(end) ? Math.max(0, Math.round((end - start) / 1000)) : null;
 };
 
-const JobStatus = ({ job, C }) => {
+const JobStatus = ({ job }) => {
   const map = {
-    queued: { label: "Queued", color: C.muted },
-    running: { label: "Importing", color: C.amber },
-    done: { label: "Done", color: C.green },
-    failed: { label: "Failed", color: C.danger },
+    queued: { label: "Queued", color: C.muted, bg: C.surface },
+    running: { label: "Importing", color: C.warning, bg: C.warningBg },
+    done: { label: "Done", color: C.success, bg: C.successBg },
+    failed: { label: "Failed", color: C.danger, bg: C.dangerBg },
   };
   const s = map[job.status] || map.queued;
   const Icon = job.status === "done" ? CheckCircle2 : job.status === "failed" ? XCircle : Loader2;
   return (
     <span
       className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-      style={{ backgroundColor: `${s.color}1A`, color: s.color }}
+      style={{ backgroundColor: s.bg, color: s.color }}
     >
       <Icon className={`w-3 h-3 ${ACTIVE.has(job.status) ? "animate-spin" : ""}`} />
       {s.label}
@@ -75,8 +75,6 @@ const JobStatus = ({ job, C }) => {
 // poll its progress, and list the website sources already in the KB.
 const WebsiteSourcesPanel = ({ onImported }) => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const { kbSources, kbSourcesLoading, kbSourcesError } = useSelector((s) => s.adminData);
 
   const [url, setUrl] = useState("");
@@ -224,20 +222,19 @@ const WebsiteSourcesPanel = ({ onImported }) => {
     }
   };
 
-  const inputStyle = { backgroundColor: C.input, borderColor: C.border, color: C.text };
   const pct =
     job && job.pagesTotal ? Math.min(100, Math.round(((job.pagesDone || 0) / job.pagesTotal) * 100)) : null;
   const errors = job?.errors || [];
 
   return (
     <section
-      className="rounded-xl border grid grid-cols-1 lg:grid-cols-2"
+      className="rounded-card border grid grid-cols-1 lg:grid-cols-2 shadow-card"
       style={{ backgroundColor: C.surface, borderColor: C.border }}
     >
       <div className="p-4 space-y-3 border-b lg:border-b-0 lg:border-r" style={{ borderColor: C.border }}>
         <div>
-          <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: C.text }}>
-            <Globe className="w-4 h-4" style={{ color: C.navy }} />
+          <h3 className="text-sm font-semibold flex items-center gap-2" style={{ color: C.heading }}>
+            <Globe className="w-4 h-4" style={{ color: C.link }} />
             Add from website
           </h3>
           <p className="text-xs mt-0.5" style={{ color: C.muted }}>
@@ -254,16 +251,14 @@ const WebsiteSourcesPanel = ({ onImported }) => {
             onChange={(e) => setUrl(e.target.value)}
             disabled={starting || locked}
             placeholder="https://www.jinnah.edu/admissions"
-            className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none disabled:opacity-60"
-            style={inputStyle}
+            className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring disabled:opacity-60"
           />
           <div className="flex flex-wrap items-center gap-2">
             <select
               value={mode}
               onChange={(e) => setMode(e.target.value)}
               disabled={starting || locked}
-              className="px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={inputStyle}
+              className="px-3 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring"
             >
               <option value="page">Single page</option>
               <option value="site">Whole site</option>
@@ -278,16 +273,14 @@ const WebsiteSourcesPanel = ({ onImported }) => {
                   value={maxPages}
                   onChange={(e) => setMaxPages(e.target.value)}
                   disabled={starting || locked}
-                  className="w-20 px-2 py-2 text-sm rounded-lg border focus:outline-none"
-                  style={inputStyle}
+                  className="w-20 px-2 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring"
                 />
               </label>
             )}
             <button
               type="submit"
               disabled={starting || locked || !url.trim()}
-              className="ml-auto px-4 py-2 text-sm rounded-lg font-medium text-white flex items-center gap-2 disabled:opacity-50"
-              style={{ backgroundColor: C.navy }}
+              className="ml-auto px-4 py-2 text-sm rounded-control font-bold text-on-primary flex items-center gap-2 disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
             >
               {starting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Globe className="w-4 h-4" />}
               {starting ? "Starting..." : "Import"}
@@ -301,9 +294,9 @@ const WebsiteSourcesPanel = ({ onImported }) => {
         </form>
 
         {job && (
-          <div className="rounded-lg border p-3 space-y-2" style={{ borderColor: C.border, backgroundColor: C.surfaceAlt }}>
+          <div className="rounded-control border p-3 space-y-2" style={{ borderColor: C.border, backgroundColor: C.surfaceMuted }}>
             <div className="flex items-center gap-2">
-              <JobStatus job={job} C={C} />
+              <JobStatus job={job} />
               <span className="text-xs" style={{ color: C.muted }}>
                 {job.mode === "site" ? "Whole site" : "Single page"}
               </span>
@@ -333,7 +326,7 @@ const WebsiteSourcesPanel = ({ onImported }) => {
                 className={`h-full rounded-full transition-all ${pct === null && running ? "animate-pulse" : ""}`}
                 style={{
                   width: pct !== null ? `${pct}%` : running ? "100%" : job.status === "done" ? "100%" : "0%",
-                  backgroundColor: job.status === "failed" ? C.danger : job.status === "done" ? C.green : C.navy,
+                  backgroundColor: job.status === "failed" ? C.danger : job.status === "done" ? C.success : C.primary,
                   opacity: pct === null && running ? 0.4 : 1,
                 }}
               />
@@ -364,7 +357,7 @@ const WebsiteSourcesPanel = ({ onImported }) => {
                 <button
                   onClick={() => setPollKey((k) => k + 1)}
                   className="font-medium inline-flex items-center gap-1 shrink-0"
-                  style={{ color: C.navy }}
+                  style={{ color: C.link }}
                 >
                   <RefreshCw className="w-3 h-3" /> Retry
                 </button>
@@ -375,7 +368,7 @@ const WebsiteSourcesPanel = ({ onImported }) => {
                 <button
                   onClick={() => setShowErrors((v) => !v)}
                   className="text-xs flex items-center gap-1 font-medium"
-                  style={{ color: job.status === "failed" ? C.danger : C.amber }}
+                  style={{ color: job.status === "failed" ? C.danger : C.warning }}
                 >
                   {showErrors ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
                   {errors.length} page(s) skipped
@@ -397,7 +390,7 @@ const WebsiteSourcesPanel = ({ onImported }) => {
 
       <div className="p-4 flex flex-col min-h-0">
         <div className="flex items-center justify-between mb-2">
-          <h3 className="text-sm font-semibold" style={{ color: C.text }}>
+          <h3 className="text-sm font-semibold" style={{ color: C.heading }}>
             Website sources{" "}
             <span className="font-normal" style={{ color: C.muted }}>
               ({kbSources.length})

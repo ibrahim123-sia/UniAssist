@@ -1,8 +1,7 @@
 import React from "react";
-import { useSelector } from "react-redux";
 import { AlertTriangle } from "lucide-react";
 import AdminModal from "./AdminModal";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 
 const ConfirmDialog = ({
   open,
@@ -15,9 +14,6 @@ const ConfirmDialog = ({
   destructive = false,
   loading = false,
 }) => {
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
-
   return (
     <AdminModal
       open={open}
@@ -30,8 +26,8 @@ const ConfirmDialog = ({
             type="button"
             onClick={onClose}
             disabled={loading}
-            className="px-3 py-2 text-sm rounded-lg border disabled:opacity-50"
-            style={{ borderColor: C.border, color: C.text, backgroundColor: "transparent" }}
+            className="px-4 py-2 text-sm font-semibold rounded-control border transition-colors hover:bg-nav-hover! focus-ring disabled:opacity-50"
+            style={{ borderColor: C.borderStrong, color: C.label, backgroundColor: C.surface }}
           >
             {cancelLabel}
           </button>
@@ -39,8 +35,8 @@ const ConfirmDialog = ({
             type="button"
             onClick={onConfirm}
             disabled={loading}
-            className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-            style={{ backgroundColor: destructive ? C.danger : C.navy }}
+            className={`px-4 py-2 text-sm rounded-control font-bold transition-colors focus-ring disabled:opacity-50 ${destructive ? "hover:brightness-95" : "hover:bg-primary-hover!"}`}
+            style={{ backgroundColor: destructive ? C.danger : C.primary, color: destructive ? C.surface : C.onPrimary }}
           >
             {loading ? "Please wait..." : confirmLabel}
           </button>
@@ -50,7 +46,7 @@ const ConfirmDialog = ({
       <div className="flex gap-3">
         <div
           className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
-          style={{ backgroundColor: `${destructive ? C.danger : C.amber}1A`, color: destructive ? C.danger : C.amber }}
+          style={{ backgroundColor: destructive ? C.dangerBg : C.warningBg, color: destructive ? C.danger : C.warning }}
         >
           <AlertTriangle className="w-5 h-5" />
         </div>

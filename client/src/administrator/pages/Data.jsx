@@ -28,7 +28,7 @@ import Pagination from "../components/Pagination";
 import AdminModal from "../components/AdminModal";
 import ConfirmDialog from "../components/ConfirmDialog";
 import WebsiteSourcesPanel from "../components/WebsiteSourcesPanel";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 import { useDebouncedSearch } from "../utils/useDebouncedSearch";
 import { ProgressLine, UploadProgress } from "../../components/ProgressSteps";
 
@@ -36,8 +36,6 @@ const PAGE_SIZE = 25;
 
 const Data = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const { chunks, total, loading, selected, detailLoading, submitting, upload } = useSelector(
     (s) => s.adminData
   );
@@ -186,22 +184,19 @@ const Data = () => {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search chunk content..."
-            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
-            style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
           />
         </div>
         <button
           onClick={() => setAddOpen(true)}
-          className="px-4 py-2.5 text-sm rounded-lg font-medium text-white flex items-center gap-2"
-          style={{ backgroundColor: C.navy }}
+          className="px-4 py-2.5 text-sm rounded-control font-bold text-on-primary flex items-center gap-2 bg-primary hover:bg-primary-hover transition-colors focus-ring"
         >
           <Plus className="w-4 h-4" />
           Add Chunk
         </button>
         <button
           onClick={openUpload}
-          className="px-4 py-2.5 text-sm rounded-lg font-medium flex items-center gap-2 border"
-          style={{ borderColor: C.border, color: C.text, backgroundColor: C.surface }}
+          className="px-4 py-2.5 text-sm rounded-control font-medium flex items-center gap-2 border bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
         >
           <Upload className="w-4 h-4" />
           Upload Document
@@ -271,7 +266,7 @@ const Data = () => {
 
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex" onClick={closeDetail}>
-          <div className="flex-1" style={{ backgroundColor: "rgba(15, 22, 38, 0.5)" }} />
+          <div className="flex-1" style={{ backgroundColor: C.overlay }} />
           <aside
             className="w-full sm:w-[560px] h-full overflow-y-auto border-l flex flex-col"
             style={{ backgroundColor: C.surface, borderColor: C.border }}
@@ -281,7 +276,7 @@ const Data = () => {
               className="px-5 py-4 border-b flex items-center justify-between sticky top-0 z-10"
               style={{ borderColor: C.border, backgroundColor: C.surface }}
             >
-              <h2 className="text-base font-semibold" style={{ color: C.text }}>Edit chunk</h2>
+              <h2 className="text-base font-semibold" style={{ color: C.heading }}>Edit chunk</h2>
               <button onClick={closeDetail} className="p-1 rounded" style={{ color: C.muted }}>
                 <X className="w-5 h-5" />
               </button>
@@ -300,8 +295,7 @@ const Data = () => {
                     value={editText}
                     onChange={(e) => setEditText(e.target.value)}
                     rows={18}
-                    className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none font-mono"
-                    style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+                    className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring font-mono bg-input-bg border-input-border text-text"
                   />
                 </>
               )}
@@ -313,16 +307,14 @@ const Data = () => {
               <button
                 onClick={() => setConfirmDelete(selected)}
                 disabled={!selected}
-                className="px-3 py-2 text-sm rounded-lg border flex items-center gap-2 disabled:opacity-50"
-                style={{ borderColor: `${C.danger}55`, color: C.danger }}
+                className="px-3 py-2 text-sm rounded-control border flex items-center gap-2 disabled:opacity-50 bg-surface border-danger-border text-danger hover:bg-danger-bg transition-colors focus-ring"
               >
                 <Trash2 className="w-4 h-4" /> Delete
               </button>
               <button
                 onClick={doSave}
                 disabled={submitting || !selected}
-                className="px-3 py-2 text-sm rounded-lg font-medium text-white flex items-center gap-2 disabled:opacity-50"
-                style={{ backgroundColor: C.navy }}
+                className="px-3 py-2 text-sm rounded-control font-bold text-on-primary flex items-center gap-2 disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
               >
                 <Save className="w-4 h-4" /> {submitting ? "Saving..." : "Save"}
               </button>
@@ -341,8 +333,7 @@ const Data = () => {
             <button
               type="button"
               onClick={() => setAddOpen(false)}
-              className="px-3 py-2 text-sm rounded-lg border"
-              style={{ borderColor: C.border, color: C.text }}
+              className="px-3 py-2 text-sm rounded-control border bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
             >
               Cancel
             </button>
@@ -350,8 +341,7 @@ const Data = () => {
               type="submit"
               form="add-chunk-form"
               disabled={submitting}
-              className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-              style={{ backgroundColor: C.navy }}
+              className="px-3 py-2 text-sm rounded-control font-bold text-on-primary disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
             >
               {submitting ? "Adding..." : "Add chunk"}
             </button>
@@ -360,7 +350,7 @@ const Data = () => {
       >
         <form id="add-chunk-form" onSubmit={doAdd} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Source (optional)
             </label>
             <input
@@ -368,12 +358,11 @@ const Data = () => {
               value={addForm.source}
               onChange={(e) => setAddForm({ ...addForm, source: e.target.value })}
               placeholder="e.g. fee-structure-2026"
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Text
             </label>
             <textarea
@@ -381,8 +370,7 @@ const Data = () => {
               onChange={(e) => setAddForm({ ...addForm, text: e.target.value })}
               rows={12}
               required
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none font-mono"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring font-mono bg-input-bg border-input-border text-text"
             />
           </div>
         </form>
@@ -398,16 +386,14 @@ const Data = () => {
               <button
                 type="button"
                 onClick={() => setUploadResult(null)}
-                className="px-3 py-2 text-sm rounded-lg border"
-                style={{ borderColor: C.border, color: C.text }}
+                className="px-3 py-2 text-sm rounded-control border bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
               >
                 Upload another
               </button>
               <button
                 type="button"
                 onClick={closeUpload}
-                className="px-3 py-2 text-sm rounded-lg font-medium text-white"
-                style={{ backgroundColor: C.navy }}
+                className="px-3 py-2 text-sm rounded-control font-bold text-on-primary bg-primary hover:bg-primary-hover transition-colors focus-ring"
               >
                 Done
               </button>
@@ -418,8 +404,7 @@ const Data = () => {
                 type="button"
                 onClick={closeUpload}
                 disabled={uploading}
-                className="px-3 py-2 text-sm rounded-lg border disabled:opacity-50"
-                style={{ borderColor: C.border, color: C.text }}
+                className="px-3 py-2 text-sm rounded-control border disabled:opacity-50 bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
               >
                 Cancel
               </button>
@@ -427,8 +412,7 @@ const Data = () => {
                 type="submit"
                 form="upload-doc-form"
                 disabled={uploading || !uploadFile}
-                className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-                style={{ backgroundColor: C.navy }}
+                className="px-3 py-2 text-sm rounded-control font-bold text-on-primary disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
               >
                 {upload.phase === "processing" ? "Processing…" : uploading ? "Uploading…" : "Upload"}
               </button>
@@ -438,7 +422,7 @@ const Data = () => {
       >
         {uploadResult ? (
           <div className="flex items-start gap-3" role="status">
-            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" style={{ color: C.green }} />
+            <CheckCircle2 className="w-5 h-5 shrink-0 mt-0.5" style={{ color: C.success }} />
             <div className="text-sm" style={{ color: C.text }}>
               <p className="font-medium">Document added to the knowledge base</p>
               <p style={{ color: C.muted }}>
@@ -453,12 +437,12 @@ const Data = () => {
             Upload a PDF, DOCX, or TXT file. The server will split it into chunks and embed them automatically.
           </p>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               File
             </label>
             <label
-              className="flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed rounded-lg cursor-pointer"
-              style={{ borderColor: C.border, color: C.muted }}
+              className="flex items-center justify-center gap-2 px-4 py-6 border-2 border-dashed rounded-control cursor-pointer"
+              style={{ borderColor: C.borderStrong, color: C.muted }}
             >
               <FileText className="w-5 h-5" />
               <span className="text-sm">{uploadFile ? uploadFile.name : "Choose file..."}</span>
@@ -472,7 +456,7 @@ const Data = () => {
             </label>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Source label (optional)
             </label>
             <input
@@ -481,8 +465,7 @@ const Data = () => {
               onChange={(e) => setUploadSource(e.target.value)}
               placeholder="defaults to filename"
               disabled={uploading}
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none disabled:opacity-60"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring disabled:opacity-60 bg-input-bg border-input-border text-text"
             />
           </div>
           {upload.phase === "uploading" && <UploadProgress percent={upload.percent} label="Uploading file" />}

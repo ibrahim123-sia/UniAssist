@@ -1,11 +1,8 @@
 import React from "react";
-import { useSelector } from "react-redux";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 
 const Pagination = ({ page, pageSize, total, onChange }) => {
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const totalPages = Math.max(1, Math.ceil((total || 0) / pageSize));
   const canPrev = page > 1;
   const canNext = page < totalPages;
@@ -21,8 +18,8 @@ const Pagination = ({ page, pageSize, total, onChange }) => {
         <button
           onClick={() => canPrev && onChange(page - 1)}
           disabled={!canPrev}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-sm disabled:opacity-40"
-          style={{ borderColor: C.border, color: C.text, backgroundColor: C.surface }}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-control border text-sm font-semibold transition-colors hover:bg-nav-hover! focus-ring disabled:opacity-40"
+          style={{ borderColor: C.borderStrong, color: C.label, backgroundColor: C.surface }}
         >
           <ChevronLeft className="w-4 h-4" />
           Prev
@@ -33,8 +30,8 @@ const Pagination = ({ page, pageSize, total, onChange }) => {
         <button
           onClick={() => canNext && onChange(page + 1)}
           disabled={!canNext}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg border text-sm disabled:opacity-40"
-          style={{ borderColor: C.border, color: C.text, backgroundColor: C.surface }}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-control border text-sm font-semibold transition-colors hover:bg-nav-hover! focus-ring disabled:opacity-40"
+          style={{ borderColor: C.borderStrong, color: C.label, backgroundColor: C.surface }}
         >
           Next
           <ChevronRight className="w-4 h-4" />

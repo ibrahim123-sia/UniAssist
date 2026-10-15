@@ -1,7 +1,6 @@
 import React, { Suspense } from "react";
 import { Outlet, useLocation, Link } from "react-router-dom";
-import { useSelector } from "react-redux";
-import { getPalette } from "../utils/palette";
+import { C, alpha } from "../../theme/palette";
 import PageFallback from "../../components/PageFallback";
 
 const TITLES = {
@@ -19,8 +18,6 @@ const TITLES = {
 };
 
 const AdminShell = () => {
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const location = useLocation();
 
   const matchKey = Object.keys(TITLES).find((k) => location.pathname.startsWith(k));
@@ -30,11 +27,11 @@ const AdminShell = () => {
     <div className="h-full overflow-y-auto" style={{ backgroundColor: C.bg }}>
       <header
         className="px-6 py-5 border-b sticky top-0 z-10 backdrop-blur"
-        style={{ borderColor: C.border, backgroundColor: `${C.surface}E6` }}
+        style={{ borderColor: C.border, backgroundColor: alpha(C.surface, 90) }}
       >
         <div className="flex items-baseline justify-between gap-4">
           <div>
-            <h1 className="text-xl font-bold" style={{ color: C.text }}>
+            <h1 className="text-xl font-bold" style={{ color: C.heading }}>
               {meta.title}
             </h1>
             {meta.subtitle && (
@@ -45,8 +42,8 @@ const AdminShell = () => {
           </div>
           <Link
             to="/admin/dashboard"
-            className="text-xs font-medium hidden sm:inline"
-            style={{ color: C.muted }}
+            className="text-xs font-semibold hidden sm:inline hover:underline"
+            style={{ color: C.link }}
           >
             Admin Console
           </Link>

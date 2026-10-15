@@ -30,7 +30,7 @@ import LoadingSkeleton from "../components/LoadingSkeleton";
 import EmptyState from "../components/EmptyState";
 import AdminModal from "../components/AdminModal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 import { useDebouncedSearch } from "../utils/useDebouncedSearch";
 import { formatHours } from "../../utils/issues";
 
@@ -40,7 +40,7 @@ const VIEWS = [
 ];
 
 // Count cell that fades zeros so the busy rows stand out.
-const Num = ({ value, C, color }) => (
+const Num = ({ value, color }) => (
   <span className="tabular-nums" style={{ color: value ? color || C.text : C.muted }}>
     {value ?? 0}
   </span>
@@ -48,8 +48,6 @@ const Num = ({ value, C, color }) => (
 
 const Staff = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const {
     staff,
     total,
@@ -190,7 +188,7 @@ const Staff = () => {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
-        <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: C.border }}>
+        <div className="flex rounded-control border overflow-hidden" style={{ borderColor: C.borderStrong }}>
           {VIEWS.map((v) => {
             const Icon = v.icon;
             const active = view === v.key;
@@ -200,8 +198,8 @@ const Staff = () => {
                 onClick={() => setView(v.key)}
                 className="px-3 py-2 text-sm flex items-center gap-1.5 transition-colors"
                 style={{
-                  backgroundColor: active ? C.navy : C.surface,
-                  color: active ? "#fff" : C.text,
+                  backgroundColor: active ? C.primary : C.surface,
+                  color: active ? C.onPrimary : C.label,
                 }}
               >
                 <Icon className="w-4 h-4" />
@@ -217,15 +215,13 @@ const Staff = () => {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search staff..."
-            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
-            style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
           />
         </div>
         <select
           value={deptFilter}
           onChange={(e) => setDeptFilter(e.target.value)}
-          className="px-3 py-2.5 text-sm rounded-lg border focus:outline-none"
-          style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+          className="px-3 py-2.5 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
         >
           <option value="">All departments</option>
           {departments.map((d) => (
@@ -237,8 +233,7 @@ const Staff = () => {
         {view === "accounts" ? (
           <button
             onClick={() => setCreateOpen(true)}
-            className="px-4 py-2.5 text-sm rounded-lg font-medium text-white flex items-center gap-2"
-            style={{ backgroundColor: C.navy }}
+            className="px-4 py-2.5 text-sm rounded-control font-bold text-on-primary flex items-center gap-2 bg-primary hover:bg-primary-hover transition-colors focus-ring"
           >
             <Plus className="w-4 h-4" />
             Add Staff
@@ -246,8 +241,7 @@ const Staff = () => {
         ) : (
           <button
             onClick={() => dispatch(fetchStaffPerformance())}
-            className="px-3 py-2.5 text-sm rounded-lg border flex items-center gap-2"
-            style={{ borderColor: C.border, color: C.text, backgroundColor: C.surface }}
+            className="px-3 py-2.5 text-sm rounded-control border flex items-center gap-2 bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
           >
             <RefreshCw className={`w-4 h-4 ${performanceLoading ? "animate-spin" : ""}`} />
             Refresh
@@ -307,13 +301,13 @@ const Staff = () => {
                       </span>
                     </AdminTableCell>
                     <AdminTableCell>
-                      <Num value={p.assigned} C={C} />
+                      <Num value={p.assigned} />
                     </AdminTableCell>
                     <AdminTableCell>
-                      <Num value={p.resolved} C={C} color={C.green} />
+                      <Num value={p.resolved} color={C.success} />
                     </AdminTableCell>
                     <AdminTableCell>
-                      <Num value={p.open} C={C} color={C.amber} />
+                      <Num value={p.open} color={C.warning} />
                     </AdminTableCell>
                     <AdminTableCell>
                       <span
@@ -328,7 +322,7 @@ const Staff = () => {
                         <span style={{ color: C.muted }}>—</span>
                       ) : (
                         <span className="inline-flex items-center gap-1 whitespace-nowrap tabular-nums" style={{ color: C.text }}>
-                          <Star className="w-3.5 h-3.5" style={{ color: "#E0A526" }} fill="#E0A526" />
+                          <Star className="w-3.5 h-3.5" style={{ color: "var(--chart-3)" }} fill="currentColor" />
                           {Number(p.avgRating).toFixed(1)}
                           <span className="text-xs" style={{ color: C.muted }}>
                             (n={p.ratingsCount ?? 0})
@@ -380,8 +374,7 @@ const Staff = () => {
                     <AdminTableCell>
                       <div className="flex items-center gap-3">
                         <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
-                          style={{ backgroundColor: C.red }}
+                          className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0 bg-nav-active-bg text-nav-active-text"
                         >
                           {s.name?.charAt(0)?.toUpperCase() || "S"}
                         </div>
@@ -406,14 +399,14 @@ const Staff = () => {
                       {s.isBlocked ? (
                         <span
                           className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                          style={{ backgroundColor: `${C.danger}1A`, color: C.danger }}
+                          style={{ backgroundColor: C.dangerBg, color: C.danger }}
                         >
                           <UserX className="w-3 h-3" /> Deactivated
                         </span>
                       ) : (
                         <span
                           className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                          style={{ backgroundColor: `${C.green}1A`, color: C.green }}
+                          style={{ backgroundColor: C.successBg, color: C.success }}
                         >
                           <ShieldCheck className="w-3 h-3" /> Active
                         </span>
@@ -426,7 +419,7 @@ const Staff = () => {
                           className="p-1.5 rounded transition-colors"
                           style={{ color: C.muted }}
                           aria-label="Edit"
-                          onMouseEnter={(e) => (e.currentTarget.style.color = C.navy)}
+                          onMouseEnter={(e) => (e.currentTarget.style.color = C.link)}
                           onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
                         >
                           <Pencil className="w-4 h-4" />
@@ -467,8 +460,7 @@ const Staff = () => {
             <button
               type="button"
               onClick={() => setCreateOpen(false)}
-              className="px-3 py-2 text-sm rounded-lg border"
-              style={{ borderColor: C.border, color: C.text }}
+              className="px-3 py-2 text-sm rounded-control border bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
             >
               Cancel
             </button>
@@ -476,8 +468,7 @@ const Staff = () => {
               type="submit"
               form="create-staff-form"
               disabled={submitting}
-              className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-              style={{ backgroundColor: C.navy }}
+              className="px-3 py-2 text-sm rounded-control font-bold text-on-primary disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
             >
               {submitting ? "Creating..." : "Create staff"}
             </button>
@@ -486,7 +477,7 @@ const Staff = () => {
       >
         <form id="create-staff-form" onSubmit={handleCreate} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Full name
             </label>
             <input
@@ -495,23 +486,21 @@ const Staff = () => {
               onChange={(e) => setForm({ ...form, name: e.target.value })}
               placeholder="e.g. Ali Asad"
               required
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
             <p className="text-xs mt-1" style={{ color: C.muted }}>
               Email and password will be generated automatically.
             </p>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Department
             </label>
             <select
               value={form.departmentId}
               onChange={(e) => setForm({ ...form, departmentId: e.target.value })}
               required
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             >
               <option value="">Select department...</option>
               {departments.map((d) => (
@@ -522,7 +511,7 @@ const Staff = () => {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Staff title (optional)
             </label>
             <input
@@ -530,8 +519,7 @@ const Staff = () => {
               value={form.staffTitle}
               onChange={(e) => setForm({ ...form, staffTitle: e.target.value })}
               placeholder="e.g. SFO, IT Staff, HOD"
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
           </div>
         </form>
@@ -546,8 +534,7 @@ const Staff = () => {
           <button
             type="button"
             onClick={() => setCredentials(null)}
-            className="px-3 py-2 text-sm rounded-lg font-medium text-white"
-            style={{ backgroundColor: C.navy }}
+            className="px-3 py-2 text-sm rounded-control font-bold text-on-primary bg-primary hover:bg-primary-hover transition-colors focus-ring"
           >
             Done
           </button>
@@ -558,8 +545,8 @@ const Staff = () => {
           change the password after first login.
         </p>
         <div
-          className="rounded-lg border p-4 space-y-3 font-mono text-sm"
-          style={{ borderColor: C.border, backgroundColor: C.surfaceAlt }}
+          className="rounded-control border p-4 space-y-3 font-mono text-sm"
+          style={{ borderColor: C.border, backgroundColor: C.surfaceMuted }}
         >
           <div className="flex items-center justify-between gap-2">
             <span style={{ color: C.muted }}>email</span>
@@ -569,7 +556,7 @@ const Staff = () => {
             <button
               onClick={() => copyToClipboard(credentials?.email)}
               className="p-1 rounded"
-              style={{ color: C.navy }}
+              style={{ color: C.link }}
             >
               <Copy className="w-4 h-4" />
             </button>
@@ -580,7 +567,7 @@ const Staff = () => {
             <button
               onClick={() => copyToClipboard(credentials?.password)}
               className="p-1 rounded"
-              style={{ color: C.navy }}
+              style={{ color: C.link }}
             >
               {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
             </button>
@@ -598,8 +585,7 @@ const Staff = () => {
             <button
               type="button"
               onClick={closeEdit}
-              className="px-3 py-2 text-sm rounded-lg border"
-              style={{ borderColor: C.border, color: C.text }}
+              className="px-3 py-2 text-sm rounded-control border bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
             >
               Cancel
             </button>
@@ -607,8 +593,7 @@ const Staff = () => {
               type="submit"
               form="edit-staff-form"
               disabled={savingEdit}
-              className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-              style={{ backgroundColor: C.navy }}
+              className="px-3 py-2 text-sm rounded-control font-bold text-on-primary disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
             >
               {savingEdit ? "Saving..." : "Save changes"}
             </button>
@@ -617,7 +602,7 @@ const Staff = () => {
       >
         <form id="edit-staff-form" onSubmit={handleEdit} className="space-y-4">
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Full name
             </label>
             <input
@@ -625,12 +610,11 @@ const Staff = () => {
               value={editForm.name}
               onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
               required
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Email
             </label>
             <input
@@ -638,22 +622,20 @@ const Staff = () => {
               value={editForm.email}
               onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
               required
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
             <p className="text-xs mt-1" style={{ color: C.muted }}>
               The staff member will sign in with this email. Tell them after changing it.
             </p>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Department
             </label>
             <select
               value={editForm.departmentId}
               onChange={(e) => setEditForm({ ...editForm, departmentId: e.target.value })}
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             >
               {departments.map((d) => (
                 <option key={d._id} value={d._id}>
@@ -663,7 +645,7 @@ const Staff = () => {
             </select>
           </div>
           <div>
-            <label className="block text-xs font-medium mb-1" style={{ color: C.muted }}>
+            <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
               Staff title
             </label>
             <input
@@ -671,8 +653,7 @@ const Staff = () => {
               value={editForm.staffTitle}
               onChange={(e) => setEditForm({ ...editForm, staffTitle: e.target.value })}
               placeholder="e.g. SFO, IT Staff, HOD"
-              className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+              className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
             />
           </div>
         </form>

@@ -34,7 +34,7 @@ import EmptyState from "../components/EmptyState";
 import Pagination from "../components/Pagination";
 import AdminModal from "../components/AdminModal";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { getPalette } from "../utils/palette";
+import { C, alpha } from "../../theme/palette";
 import { useDebouncedSearch } from "../utils/useDebouncedSearch";
 import { ProgressLine } from "../../components/ProgressSteps";
 
@@ -83,12 +83,12 @@ const askerLabel = (q) => {
 // Only signed-in askers get the "question answered" notification.
 const notifiable = (q) => !q.isGuest && !!(q.askedBy || q.askerEmail);
 
-const BotAnswer = ({ text, C }) => {
+const BotAnswer = ({ text }) => {
   const [expanded, setExpanded] = useState(false);
   if (!text) return null;
   const long = text.length > 220;
   return (
-    <div className="text-xs rounded-lg px-3 py-2" style={{ backgroundColor: C.surfaceAlt, color: C.muted }}>
+    <div className="text-xs rounded-control px-3 py-2" style={{ backgroundColor: C.surfaceMuted, color: C.muted }}>
       <div className="flex items-center gap-1.5 font-medium mb-0.5">
         <Bot className="w-3.5 h-3.5" /> Chatbot replied
       </div>
@@ -97,7 +97,7 @@ const BotAnswer = ({ text, C }) => {
         <button
           onClick={() => setExpanded((v) => !v)}
           className="mt-1 font-medium"
-          style={{ color: C.navy }}
+          style={{ color: C.link }}
         >
           {expanded ? "Show less" : "Show more"}
         </button>
@@ -108,23 +108,23 @@ const BotAnswer = ({ text, C }) => {
 
 // One cluster of similar questions: representative text, how often and by
 // how many people it was asked, and the individual questions on expand.
-const QuestionGroup = ({ group, C, canAct, submitting, onAnswer, onDismiss }) => {
+const QuestionGroup = ({ group, canAct, submitting, onAnswer, onDismiss }) => {
   const [open, setOpen] = useState(false);
   const count = group.count ?? group.ids?.length ?? 1;
   const askers = group.askers ?? 0;
   const sources = group.sources || {};
-  const actionBtn = "px-2.5 py-1 text-xs rounded-lg border flex items-center gap-1 disabled:opacity-50";
+  const actionBtn = "px-2.5 py-1 text-xs rounded-control border flex items-center gap-1 disabled:opacity-50";
   const chips = [
-    { key: "student", label: "Student", n: sources.student, color: C.navy },
-    { key: "auto", label: "Auto", n: sources.auto, color: C.amber },
+    { key: "student", label: "Student", n: sources.student, color: C.info, bg: C.infoBg },
+    { key: "auto", label: "Auto", n: sources.auto, color: C.warning, bg: C.warningBg },
   ].filter((c) => c.n);
 
   return (
-    <li className="rounded-xl border p-4 space-y-2" style={{ backgroundColor: C.surface, borderColor: C.border }}>
+    <li className="rounded-card border p-4 space-y-2 shadow-card" style={{ backgroundColor: C.surface, borderColor: C.border }}>
       <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>
         <span
           className="px-2 py-0.5 rounded-full font-semibold"
-          style={{ backgroundColor: count > 1 ? `${C.red}1A` : C.surfaceAlt, color: count > 1 ? C.red : C.muted }}
+          style={{ backgroundColor: count > 1 ? C.warningBg : C.surfaceMuted, color: count > 1 ? C.warning : C.muted }}
         >
           ×{count}
         </span>
@@ -141,7 +141,7 @@ const QuestionGroup = ({ group, C, canAct, submitting, onAnswer, onDismiss }) =>
           <span
             key={c.key}
             className="px-2 py-0.5 rounded-full font-medium"
-            style={{ backgroundColor: `${c.color}1A`, color: c.color }}
+            style={{ backgroundColor: c.bg, color: c.color }}
           >
             {c.label} {c.n}
           </span>
@@ -151,8 +151,7 @@ const QuestionGroup = ({ group, C, canAct, submitting, onAnswer, onDismiss }) =>
             <button
               onClick={() => onAnswer(group)}
               disabled={submitting}
-              className={`${actionBtn} font-medium text-white`}
-              style={{ backgroundColor: C.navy, borderColor: C.navy }}
+              className={`${actionBtn} font-bold text-on-primary bg-primary border-primary hover:bg-primary-hover`}
             >
               <Reply className="w-3.5 h-3.5" /> {count > 1 ? "Answer all" : "Answer"}
             </button>
@@ -177,7 +176,7 @@ const QuestionGroup = ({ group, C, canAct, submitting, onAnswer, onDismiss }) =>
           <button
             onClick={() => setOpen((v) => !v)}
             className="text-xs font-medium inline-flex items-center gap-1"
-            style={{ color: C.navy }}
+            style={{ color: C.link }}
           >
             {open ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
             {open ? "Hide" : "Show"} {plural(group.questions.length, "question")}
@@ -206,8 +205,6 @@ const QuestionGroup = ({ group, C, canAct, submitting, onAnswer, onDismiss }) =>
 
 const Questions = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const {
     questions,
     total,
@@ -334,7 +331,7 @@ const Questions = () => {
   const toastKbResult = (saved, kbError, triedKB) => {
     if (kbError) {
       toast(`${saved}. ${kbError}`, {
-        icon: <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: C.amber }} />,
+        icon: <AlertTriangle className="w-4 h-4 shrink-0" style={{ color: C.warning }} />,
         duration: 7000,
       });
     } else {
@@ -462,7 +459,7 @@ const Questions = () => {
     }
   };
 
-  const actionBtn = "px-2.5 py-1 text-xs rounded-lg border flex items-center gap-1 disabled:opacity-50";
+  const actionBtn = "px-2.5 py-1 text-xs rounded-control border flex items-center gap-1 disabled:opacity-50";
 
   return (
     <div className="space-y-4">
@@ -477,19 +474,19 @@ const Questions = () => {
                 setView(t.key === "open" ? "grouped" : "list");
                 setPage(1);
               }}
-              className="px-3 py-2 text-sm rounded-lg border flex items-center gap-2 transition-colors"
+              className="px-3 py-2 text-sm rounded-control border flex items-center gap-2 transition-colors"
               style={{
-                backgroundColor: active ? C.navy : C.surface,
-                color: active ? "#fff" : C.text,
-                borderColor: active ? C.navy : C.border,
+                backgroundColor: active ? C.primary : C.surface,
+                color: active ? C.onPrimary : C.label,
+                borderColor: active ? C.primary : C.borderStrong,
               }}
             >
               {t.label}
               <span
                 className="min-w-[20px] px-1.5 rounded-full text-xs font-semibold"
                 style={{
-                  backgroundColor: active ? "rgba(255,255,255,0.2)" : C.surfaceAlt,
-                  color: active ? "#fff" : C.muted,
+                  backgroundColor: active ? alpha(C.onPrimary, 20) : C.surfaceMuted,
+                  color: active ? C.onPrimary : C.muted,
                 }}
               >
                 {counts?.[t.key] ?? 0}
@@ -507,8 +504,7 @@ const Questions = () => {
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search questions..."
-            className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
-            style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            className="w-full pl-10 pr-4 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
           />
         </div>
         <select
@@ -517,8 +513,7 @@ const Questions = () => {
             setSource(e.target.value);
             setPage(1);
           }}
-          className="px-3 py-2 text-sm rounded-lg border focus:outline-none"
-          style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+          className="px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
         >
           {SOURCES.map((s) => (
             <option key={s.key} value={s.key}>
@@ -526,7 +521,7 @@ const Questions = () => {
             </option>
           ))}
         </select>
-        <div className="flex rounded-lg border overflow-hidden" style={{ borderColor: C.border }}>
+        <div className="flex rounded-control border overflow-hidden" style={{ borderColor: C.borderStrong }}>
           {VIEWS.map((v) => {
             const Icon = v.icon;
             const active = view === v.key;
@@ -538,7 +533,7 @@ const Questions = () => {
                   setPage(1);
                 }}
                 className="px-3 py-2 text-sm flex items-center gap-1.5 transition-colors"
-                style={{ backgroundColor: active ? C.navy : C.surface, color: active ? "#fff" : C.text }}
+                style={{ backgroundColor: active ? C.primary : C.surface, color: active ? C.onPrimary : C.label }}
                 title={v.key === "grouped" ? "Group similar questions together" : "Every question on its own"}
               >
                 <Icon className="w-4 h-4" />
@@ -551,8 +546,8 @@ const Questions = () => {
 
       {grouped && grouping === "exact" && groups.length > 0 && (
         <p
-          className="text-xs px-3 py-2 rounded-lg border flex items-start gap-2"
-          style={{ borderColor: C.border, backgroundColor: C.surfaceAlt, color: C.muted }}
+          className="text-xs px-3 py-2 rounded-control border flex items-start gap-2"
+          style={{ borderColor: C.border, backgroundColor: C.surfaceMuted, color: C.muted }}
         >
           <Info className="w-3.5 h-3.5 mt-px shrink-0" />
           The similarity service is unavailable right now, so only questions with the same wording are grouped.
@@ -566,13 +561,12 @@ const Questions = () => {
             {[0, 1, 2].map((i) => (
               <div
                 key={i}
-                className="h-24 rounded-xl border animate-pulse"
-                style={{ backgroundColor: C.surface, borderColor: C.border }}
+                className="h-24 rounded-card border animate-pulse bg-surface border-border shadow-card"
               />
             ))}
           </div>
         ) : visibleGroups.length === 0 ? (
-          <div className="rounded-xl border" style={{ backgroundColor: C.surface, borderColor: C.border }}>
+          <div className="rounded-card border bg-surface border-border shadow-card">
             <EmptyState
               icon={groupsError ? AlertTriangle : MessageCircleQuestion}
               title={groupsError ? "Couldn't load grouped questions" : `No ${status} questions`}
@@ -580,8 +574,7 @@ const Questions = () => {
                 groupsError ? (
                   <button
                     onClick={loadGroups}
-                    className="px-3 py-1.5 text-sm rounded-lg border inline-flex items-center gap-1.5"
-                    style={{ borderColor: C.border, color: C.text }}
+                    className="px-3 py-1.5 text-sm rounded-control border inline-flex items-center gap-1.5 bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
                   >
                     <RefreshCw className="w-3.5 h-3.5" /> Try again
                   </button>
@@ -614,7 +607,7 @@ const Questions = () => {
               <QuestionGroup
                 key={g.representative?._id || g.ids?.[0]}
                 group={g}
-                C={C}
+               
                 canAct={status === "open"}
                 submitting={submitting}
                 onAnswer={openGroupAnswer}
@@ -628,13 +621,12 @@ const Questions = () => {
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="h-24 rounded-xl border animate-pulse"
-              style={{ backgroundColor: C.surface, borderColor: C.border }}
+              className="h-24 rounded-card border animate-pulse bg-surface border-border shadow-card"
             />
           ))}
         </div>
       ) : error && questions.length === 0 ? (
-        <div className="rounded-xl border" style={{ backgroundColor: C.surface, borderColor: C.border }} role="alert">
+        <div className="rounded-card border bg-surface border-border shadow-card" role="alert">
           <EmptyState
             icon={AlertTriangle}
             title="Couldn't load questions"
@@ -643,8 +635,7 @@ const Questions = () => {
               <button
                 onClick={() => dispatch(fetchAdminQuestions(query))}
                 disabled={loading}
-                className="px-3 py-1.5 text-sm rounded-lg border inline-flex items-center gap-1.5 disabled:opacity-50"
-                style={{ borderColor: C.border, color: C.text }}
+                className="px-3 py-1.5 text-sm rounded-control border inline-flex items-center gap-1.5 disabled:opacity-50 bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Try again
               </button>
@@ -652,7 +643,7 @@ const Questions = () => {
           />
         </div>
       ) : questions.length === 0 ? (
-        <div className="rounded-xl border" style={{ backgroundColor: C.surface, borderColor: C.border }}>
+        <div className="rounded-card border bg-surface border-border shadow-card">
           <EmptyState
             icon={MessageCircleQuestion}
             title={`No ${status} questions`}
@@ -674,11 +665,11 @@ const Questions = () => {
           )}
           {questions.map((q) => {
             const fromStudent = q.source === "student";
-            const badgeColor = fromStudent ? C.navy : C.amber;
+            const badgeColor = fromStudent ? C.primary : C.warning;
             return (
               <li
                 key={q._id}
-                className="rounded-xl border p-4 space-y-2"
+                className="rounded-card border p-4 space-y-2 shadow-card"
                 style={{ backgroundColor: C.surface, borderColor: C.border }}
               >
                 <div className="flex flex-wrap items-center gap-2 text-xs" style={{ color: C.muted }}>
@@ -705,8 +696,7 @@ const Questions = () => {
                       <button
                         onClick={() => openAnswer(q)}
                         disabled={submitting}
-                        className={`${actionBtn} font-medium text-white`}
-                        style={{ backgroundColor: C.navy, borderColor: C.navy }}
+                        className={`${actionBtn} font-bold text-on-primary bg-primary border-primary hover:bg-primary-hover`}
                       >
                         <Reply className="w-3.5 h-3.5" /> Answer
                       </button>
@@ -750,15 +740,15 @@ const Questions = () => {
                   {q.question}
                 </p>
 
-                <BotAnswer text={q.botAnswer} C={C} />
+                <BotAnswer text={q.botAnswer} />
 
                 {q.status === "answered" && q.adminAnswer && (
                   <div
-                    className="text-sm rounded-lg px-3 py-2 border-l-4"
-                    style={{ backgroundColor: `${C.green}10`, borderColor: C.green, color: C.text }}
+                    className="text-sm rounded-control px-3 py-2 border-l-4"
+                    style={{ backgroundColor: C.successBg, borderColor: C.success, color: C.text }}
                   >
                     <div className="flex flex-wrap items-center gap-2 text-xs mb-1" style={{ color: C.muted }}>
-                      <span className="inline-flex items-center gap-1 font-medium" style={{ color: C.green }}>
+                      <span className="inline-flex items-center gap-1 font-medium" style={{ color: C.success }}>
                         <CheckCircle2 className="w-3.5 h-3.5" /> Answered
                       </span>
                       {q.answeredBy?.name && <span>by {q.answeredBy.name}</span>}
@@ -766,7 +756,7 @@ const Questions = () => {
                       {q.addedToKB && (
                         <span
                           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: `${C.navy}1A`, color: C.navy }}
+                          style={{ backgroundColor: C.infoBg, color: C.info }}
                         >
                           <Database className="w-3 h-3" /> In knowledge base
                         </span>
@@ -805,8 +795,7 @@ const Questions = () => {
               type="button"
               onClick={closeAnswer}
               disabled={submitting}
-              className="px-3 py-2 text-sm rounded-lg border disabled:opacity-50"
-              style={{ borderColor: C.border, color: C.text }}
+              className="px-3 py-2 text-sm rounded-control border disabled:opacity-50 bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
             >
               Cancel
             </button>
@@ -814,8 +803,7 @@ const Questions = () => {
               type="submit"
               form="answer-question-form"
               disabled={submitting || !answerText.trim()}
-              className="px-3 py-2 text-sm rounded-lg font-medium text-white disabled:opacity-50"
-              style={{ backgroundColor: C.navy }}
+              className="px-3 py-2 text-sm rounded-control font-bold text-on-primary disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
             >
               {answerPhase === "kb"
                 ? "Adding to knowledge base…"
@@ -832,7 +820,7 @@ const Questions = () => {
       >
         {answering && (
           <form id="answer-question-form" onSubmit={doAnswer} className="space-y-3">
-            <div className="rounded-lg px-3 py-2" style={{ backgroundColor: C.surfaceAlt }}>
+            <div className="rounded-control px-3 py-2" style={{ backgroundColor: C.surfaceMuted }}>
               <p className="text-xs mb-0.5" style={{ color: C.muted }}>
                 {answeringGroup
                   ? `Asked ${plural(answeringGroup.count ?? answeringGroup.ids?.length ?? 1, "time")}` +
@@ -856,8 +844,7 @@ const Questions = () => {
                 rows={8}
                 maxLength={MAX_ANSWER}
                 autoFocus
-                className="w-full px-3 py-2 text-sm rounded-lg border focus:outline-none"
-                style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+                className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none focus:border-primary focus-ring bg-input-bg border-input-border text-text"
               />
             </div>
             <label className="flex items-start gap-2 text-sm cursor-pointer" style={{ color: C.text }}>
@@ -866,7 +853,7 @@ const Questions = () => {
                 checked={addToKB}
                 onChange={(e) => setAddToKB(e.target.checked)}
                 className="mt-0.5"
-                style={{ accentColor: C.navy }}
+                style={{ accentColor: C.primary }}
               />
               <span>
                 Also add to chatbot knowledge base

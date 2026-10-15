@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import moment from "moment";
 import { fetchSystemHealth } from "../../redux/slices/adminHealthSlice";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 import { ProgressLine } from "../../components/ProgressSteps";
 
 const PROVIDER_LABELS = { groq: "Groq", gemini: "Gemini", ollama: "Ollama (local)" };
@@ -35,8 +35,8 @@ const formatUptime = (sec) => {
 
 const latency = (ms) => (ms == null ? null : `${Math.round(ms)} ms`);
 
-// ok → green, warn → amber, down → red, off → grey (not configured),
-// unknown → amber, checking → grey while the first check is in flight.
+// ok → success, warn → warning, down → danger, off → muted (not configured),
+// unknown → warning, checking → muted while the first check is in flight.
 const TONE_LABELS = {
   ok: "Healthy",
   warn: "Degraded",
@@ -46,9 +46,20 @@ const TONE_LABELS = {
   checking: "Checking…",
 };
 
-const toneColor = (tone, C) =>
-  ({ ok: C.green, warn: C.amber, down: C.danger, off: C.muted, unknown: C.amber, checking: C.muted })[tone] ||
-  C.muted;
+// { color, bg, border } status tokens for a tone.
+const toneStyle = (tone, C) => {
+  const muted = { color: C.muted, bg: C.surfaceMuted, border: C.border };
+  return (
+    {
+      ok: { color: C.success, bg: C.successBg, border: C.successBorder },
+      warn: { color: C.warning, bg: C.warningBg, border: C.warningBorder },
+      down: { color: C.danger, bg: C.dangerBg, border: C.dangerBorder },
+      unknown: { color: C.warning, bg: C.warningBg, border: C.warningBorder },
+      off: muted,
+      checking: muted,
+    }[tone] || muted
+  );
+};
 
 const EMAIL_SOURCES = { database: "Admin settings", env: ".env fallback", none: "Not configured" };
 
@@ -56,27 +67,27 @@ const toneOf = (ok) => (ok === true ? "ok" : ok === false ? "down" : "unknown");
 
 const HealthCard = ({ icon, title, tone, label, lines = [], error, footer, C }) => {
   const Icon = icon;
-  const color = toneColor(tone, C);
+  const { color, bg, border } = toneStyle(tone, C);
   return (
     <div
-      className="rounded-xl border p-4 flex flex-col gap-2"
-      style={{ backgroundColor: C.surface, borderColor: tone === "down" ? `${color}88` : C.border }}
+      className="rounded-card border p-4 flex flex-col gap-2"
+      style={{ backgroundColor: C.surface, borderColor: tone === "down" ? border : C.border, boxShadow: C.shadowSm }}
     >
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2 min-w-0">
           <div
-            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
-            style={{ backgroundColor: `${color}1A`, color }}
+            className="w-8 h-8 rounded-control flex items-center justify-center shrink-0"
+            style={{ backgroundColor: bg, color }}
           >
             <Icon className="w-4 h-4" />
           </div>
-          <span className="text-sm font-semibold truncate" style={{ color: C.text }}>
+          <span className="text-sm font-bold truncate" style={{ color: C.heading }}>
             {title}
           </span>
         </div>
         <span
-          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
-          style={{ backgroundColor: `${color}1A`, color }}
+          className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full border text-xs font-semibold whitespace-nowrap"
+          style={{ backgroundColor: bg, borderColor: border, color }}
         >
           {tone === "checking" ? (
             <Loader2 className="w-3 h-3 animate-spin" aria-hidden="true" />
@@ -99,7 +110,7 @@ const HealthCard = ({ icon, title, tone, label, lines = [], error, footer, C }) 
         </dl>
       )}
       {error && (
-        <p className="text-xs wrap-break-word" style={{ color: toneColor("down", C) }}>
+        <p className="text-xs wrap-break-word" style={{ color: C.danger }}>
           {error}
         </p>
       )}
@@ -110,8 +121,6 @@ const HealthCard = ({ icon, title, tone, label, lines = [], error, footer, C }) 
 
 const Health = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const { health, loading, error } = useSelector((s) => s.adminHealth);
   // When the current check started — the Refresh button shows elapsed time
   // (provider checks can take up to ~5 s each).
@@ -172,8 +181,8 @@ const Health = () => {
         <button
           onClick={runCheck}
           disabled={loading}
-          className={`${loading ? "" : "ml-auto "}px-3 py-2 text-sm rounded-lg border flex items-center gap-2 disabled:opacity-60`}
-          style={{ borderColor: C.border, color: C.text, backgroundColor: C.surface }}
+          className={`${loading ? "" : "ml-auto "}px-3 py-2 text-sm font-semibold rounded-control border flex items-center gap-2 transition-colors hover:bg-nav-hover! focus-ring disabled:opacity-60`}
+          style={{ borderColor: C.borderStrong, color: C.label, backgroundColor: C.surface }}
         >
           <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
           Refresh
@@ -182,9 +191,9 @@ const Health = () => {
 
       {error && (
         <p
-          className="text-sm px-3 py-2 rounded-lg border flex items-start gap-2"
+          className="text-sm px-3 py-2 rounded-control border flex items-start gap-2"
           role="alert"
-          style={{ borderColor: `${C.danger}55`, backgroundColor: `${C.danger}10`, color: C.text }}
+          style={{ borderColor: C.dangerBorder, backgroundColor: C.dangerBg, color: C.text }}
         >
           <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" style={{ color: C.danger }} />
           {error}
@@ -248,7 +257,7 @@ const Health = () => {
               error={emailSource === "none" ? null : email?.error}
               footer={
                 email && (emailSource === "none" || email.ok === false) ? (
-                  <Link to="/admin/settings" className="text-xs font-medium hover:underline" style={{ color: C.navy }}>
+                  <Link to="/admin/settings" className="text-xs font-semibold hover:underline" style={{ color: C.link }}>
                     {emailSource === "none" ? "Set up the university email →" : "Check email settings →"}
                   </Link>
                 ) : null
@@ -259,7 +268,7 @@ const Health = () => {
 
           <section className="space-y-3">
             <div className="flex flex-wrap items-baseline gap-2">
-              <h3 className="text-sm font-semibold" style={{ color: C.text }}>
+              <h3 className="text-base font-bold" style={{ color: C.heading }}>
                 Language models
               </h3>
               {llm?.mode && (
@@ -271,14 +280,14 @@ const Health = () => {
             </div>
             {checking ? (
               <p
-                className="text-sm px-3 py-2 rounded-lg border"
+                className="text-sm px-3 py-2 rounded-control border"
                 style={{ borderColor: C.border, backgroundColor: C.surface, color: C.muted }}
               >
                 Checking language model providers…
               </p>
             ) : providers.length === 0 ? (
               <p
-                className="text-sm px-3 py-2 rounded-lg border"
+                className="text-sm px-3 py-2 rounded-control border"
                 style={{ borderColor: C.border, backgroundColor: C.surface, color: C.muted }}
               >
                 {python?.ok === false

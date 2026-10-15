@@ -28,16 +28,15 @@ import moment from "moment";
 import { fetchAdminStats } from "../../redux/slices/adminStatsSlice";
 import { fetchEmailSettings } from "../../redux/slices/adminSettingsSlice";
 import StatCard from "../components/StatCard";
-import { getPalette } from "../utils/palette";
+import { C, useChartColors } from "../../theme/palette";
 
 const POLL_MS = 20000;
 
 const Dashboard = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
   const { stats, loading } = useSelector((s) => s.adminStats);
   const emailSource = useSelector((s) => s.adminSettings.email?.source);
-  const C = getPalette(theme === "dark");
+  const cc = useChartColors("border", "text-muted");
 
   useEffect(() => {
     dispatch(fetchEmailSettings());
@@ -66,57 +65,57 @@ const Dashboard = () => {
         <Link
           to="/admin/settings"
           role="alert"
-          className="flex items-center gap-2 rounded-xl border px-4 py-2.5 text-sm"
-          style={{ borderColor: `${C.danger}55`, backgroundColor: `${C.danger}12`, color: C.text }}
+          className="flex items-center gap-2 rounded-control border px-4 py-2.5 text-sm"
+          style={{ borderColor: C.dangerBorder, backgroundColor: C.dangerBg, color: C.text }}
         >
           <MailWarning className="w-4 h-4 shrink-0" style={{ color: C.danger }} />
           <span className="flex-1">
             <strong className="font-semibold">Email is not configured — students can&apos;t register.</strong>{" "}
             <span style={{ color: C.muted }}>OTPs and notification emails can&apos;t be sent.</span>
           </span>
-          <span className="font-medium whitespace-nowrap" style={{ color: C.navy }}>
+          <span className="font-semibold whitespace-nowrap" style={{ color: C.link }}>
             Set it up →
           </span>
         </Link>
       )}
       <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4">
-        <Link to="/admin/questions" className="block rounded-xl" title="Review unanswered questions">
+        <Link to="/admin/questions" className="block rounded-card focus-ring" title="Review unanswered questions">
           <StatCard
             icon={MessageCircleQuestion}
             label="Open Questions"
             value={stats?.openQuestions ?? 0}
             hint="Unanswered by the chatbot"
-            accent={C.amber}
+            accent={C.warning}
             loading={loading && !stats}
           />
         </Link>
-        <StatCard icon={GraduationCap} label="Students" value={u.students ?? 0} accent={C.navy} loading={loading && !stats} />
-        <StatCard icon={Users} label="Staff" value={u.staff ?? 0} accent={C.red} loading={loading && !stats} />
-        <StatCard icon={Shield} label="Admins" value={u.admins ?? 0} accent={C.amber} loading={loading && !stats} />
-        <StatCard icon={Building2} label="Departments" value={`${d.active ?? 0} / ${d.total ?? 0}`} hint="active / total" accent={C.navy} loading={loading && !stats} />
-        <StatCard icon={AlertCircle} label="Open Issues" value={open} accent={C.red} loading={loading && !stats} />
-        <Link to="/admin/query?escalated=true" className="block rounded-xl" title="Review escalated issues">
+        <StatCard icon={GraduationCap} label="Students" value={u.students ?? 0} accent={C.primary} loading={loading && !stats} />
+        <StatCard icon={Users} label="Staff" value={u.staff ?? 0} accent={C.accentStrong} loading={loading && !stats} />
+        <StatCard icon={Shield} label="Admins" value={u.admins ?? 0} accent={C.primary} loading={loading && !stats} />
+        <StatCard icon={Building2} label="Departments" value={`${d.active ?? 0} / ${d.total ?? 0}`} hint="active / total" accent={C.accentStrong} loading={loading && !stats} />
+        <StatCard icon={AlertCircle} label="Open Issues" value={open} accent={C.warning} loading={loading && !stats} />
+        <Link to="/admin/query?escalated=true" className="block rounded-card focus-ring" title="Review escalated issues">
           <StatCard
             icon={AlarmClock}
             label="Escalated"
             value={escalatedOpen}
             hint="Open past their SLA"
-            accent={escalatedOpen > 0 ? C.red : C.green}
+            accent={escalatedOpen > 0 ? C.danger : C.success}
             loading={loading && !stats}
           />
         </Link>
-        <StatCard icon={CheckCircle2} label="Resolved Issues" value={resolved} accent={C.green} loading={loading && !stats} />
-        <StatCard icon={MessageSquare} label="Total Chats" value={ch.total ?? 0} accent={C.navy} loading={loading && !stats} />
-        <StatCard icon={Flag} label="Flagged Students" value={u.flagged ?? 0} hint={u.blocked ? `${u.blocked} blocked` : null} accent={C.red} loading={loading && !stats} />
+        <StatCard icon={CheckCircle2} label="Resolved Issues" value={resolved} accent={C.success} loading={loading && !stats} />
+        <StatCard icon={MessageSquare} label="Total Chats" value={ch.total ?? 0} accent={C.primary} loading={loading && !stats} />
+        <StatCard icon={Flag} label="Flagged Students" value={u.flagged ?? 0} hint={u.blocked ? `${u.blocked} blocked` : null} accent={C.danger} loading={loading && !stats} />
       </section>
 
       <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         <div
-          className="lg:col-span-2 rounded-xl border p-4"
-          style={{ backgroundColor: C.surface, borderColor: C.border }}
+          className="lg:col-span-2 rounded-card border p-4"
+          style={{ backgroundColor: C.surface, borderColor: C.border, boxShadow: C.shadowSm }}
         >
           <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold" style={{ color: C.text }}>
+            <h3 className="text-base font-bold" style={{ color: C.heading }}>
               Issues — last 7 days
             </h3>
             <span className="text-xs" style={{ color: C.muted }}>
@@ -128,41 +127,41 @@ const Dashboard = () => {
               <AreaChart data={i.last7d || []} margin={{ top: 6, right: 12, bottom: 0, left: -10 }}>
                 <defs>
                   <linearGradient id="issueArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor={C.navy} stopOpacity={0.5} />
-                    <stop offset="95%" stopColor={C.navy} stopOpacity={0} />
+                    <stop offset="5%" stopColor={cc.series[0]} stopOpacity={0.35} />
+                    <stop offset="95%" stopColor={cc.series[0]} stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <CartesianGrid strokeDasharray="3 3" stroke={cc.border} />
                 <XAxis
                   dataKey="date"
-                  tick={{ fill: C.muted, fontSize: 11 }}
+                  tick={{ fill: cc["text-muted"], fontSize: 11 }}
                   tickFormatter={(v) => moment(v).format("MMM D")}
-                  stroke={C.border}
+                  stroke={cc.border}
                 />
-                <YAxis tick={{ fill: C.muted, fontSize: 11 }} stroke={C.border} allowDecimals={false} />
+                <YAxis tick={{ fill: cc["text-muted"], fontSize: 11 }} stroke={cc.border} allowDecimals={false} />
                 <Tooltip
-                  contentStyle={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, color: C.text }}
+                  contentStyle={{ backgroundColor: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, color: C.text, boxShadow: C.shadowLg }}
                   labelFormatter={(v) => moment(v).format("ddd, MMM D")}
                 />
-                <Area type="monotone" dataKey="count" stroke={C.navy} fill="url(#issueArea)" strokeWidth={2} />
+                <Area type="monotone" dataKey="count" stroke={cc.series[0]} fill="url(#issueArea)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         <div
-          className="rounded-xl border p-4"
-          style={{ backgroundColor: C.surface, borderColor: C.border }}
+          className="rounded-card border p-4"
+          style={{ backgroundColor: C.surface, borderColor: C.border, boxShadow: C.shadowSm }}
         >
-          <h3 className="text-sm font-semibold mb-3" style={{ color: C.text }}>
+          <h3 className="text-base font-bold mb-3" style={{ color: C.heading }}>
             Recent student signups
           </h3>
           <ul className="space-y-2">
             {(stats?.recentSignups || []).map((s) => (
               <li key={s._id} className="flex items-center gap-3">
                 <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
-                  style={{ backgroundColor: C.navy }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                  style={{ backgroundColor: C.primary, color: C.onPrimary }}
                 >
                   {s.name?.charAt(0)?.toUpperCase() || "U"}
                 </div>
@@ -194,13 +193,13 @@ const Dashboard = () => {
         {["Pending", "In Progress", "Resolved", "Closed"].map((k) => (
           <div
             key={k}
-            className="rounded-lg border px-4 py-3"
-            style={{ backgroundColor: C.surface, borderColor: C.border }}
+            className="rounded-card border px-4 py-3"
+            style={{ backgroundColor: C.surface, borderColor: C.border, boxShadow: C.shadowSm }}
           >
             <p className="text-xs uppercase tracking-wide" style={{ color: C.muted }}>
               {k}
             </p>
-            <p className="text-lg font-bold" style={{ color: C.text }}>
+            <p className="text-lg font-extrabold" style={{ color: C.heading }}>
               {i.byStatus?.[k] ?? 0}
             </p>
           </div>

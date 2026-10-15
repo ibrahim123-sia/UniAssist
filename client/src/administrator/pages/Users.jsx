@@ -14,15 +14,13 @@ import LoadingSkeleton from "../components/LoadingSkeleton";
 import EmptyState from "../components/EmptyState";
 import Pagination from "../components/Pagination";
 import ConfirmDialog from "../components/ConfirmDialog";
-import { getPalette } from "../utils/palette";
+import { C } from "../../theme/palette";
 import { useDebouncedSearch } from "../utils/useDebouncedSearch";
 
 const PAGE_SIZE = 25;
 
 const Users = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
   const { users, total, loading, selectedUser, selectedActivity, detailLoading, submitting } =
     useSelector((s) => s.adminUser);
 
@@ -74,14 +72,13 @@ const Users = () => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: C.placeholder }} />
           <input
             type="text"
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
             placeholder="Search by name or email..."
-            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
-            style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            className="w-full pl-10 pr-4 py-2.5 text-sm rounded-control border bg-input-bg border-input-border text-text focus:outline-none focus:border-primary focus-ring"
           />
         </div>
         <div className="flex items-center gap-2">
@@ -96,11 +93,11 @@ const Users = () => {
                 setFilter(f.key);
                 setPage(1);
               }}
-              className="px-3 py-1.5 text-sm rounded-lg border transition-colors"
+              className={`px-3 py-1.5 text-sm font-semibold rounded-control border transition-colors focus-ring ${filter === f.key ? "" : "hover:bg-nav-hover!"}`}
               style={{
-                backgroundColor: filter === f.key ? C.navy : C.surface,
-                color: filter === f.key ? "#fff" : C.text,
-                borderColor: filter === f.key ? C.navy : C.border,
+                backgroundColor: filter === f.key ? C.primary : C.surface,
+                color: filter === f.key ? C.onPrimary : C.label,
+                borderColor: filter === f.key ? C.primary : C.borderStrong,
               }}
             >
               {f.label}
@@ -139,8 +136,8 @@ const Users = () => {
                 <AdminTableCell>
                   <div className="flex items-center gap-3">
                     <div
-                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
-                      style={{ backgroundColor: C.navy }}
+                      className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0"
+                      style={{ backgroundColor: C.primary, color: C.onPrimary }}
                     >
                       {u.name?.charAt(0)?.toUpperCase() || "U"}
                     </div>
@@ -148,7 +145,7 @@ const Users = () => {
                       <div className="font-medium truncate flex items-center gap-2" style={{ color: C.text }}>
                         {u.name}
                         {u.flags?.length > 0 && (
-                          <Flag className="w-3.5 h-3.5" style={{ color: C.red }} />
+                          <Flag className="w-3.5 h-3.5" style={{ color: C.warning }} />
                         )}
                       </div>
                     </div>
@@ -168,15 +165,15 @@ const Users = () => {
                 <AdminTableCell>
                   {u.isBlocked ? (
                     <span
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                      style={{ backgroundColor: `${C.danger}1A`, color: C.danger }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border font-semibold"
+                      style={{ backgroundColor: C.dangerBg, borderColor: C.dangerBorder, color: C.danger }}
                     >
                       <UserX className="w-3 h-3" /> Blocked
                     </span>
                   ) : (
                     <span
-                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                      style={{ backgroundColor: `${C.green}1A`, color: C.green }}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border font-semibold"
+                      style={{ backgroundColor: C.successBg, borderColor: C.successBorder, color: C.success }}
                     >
                       <ShieldCheck className="w-3 h-3" /> Active
                     </span>
@@ -192,20 +189,20 @@ const Users = () => {
 
       {drawerOpen && (
         <div className="fixed inset-0 z-50 flex" onClick={closeDetail}>
-          <div className="flex-1" style={{ backgroundColor: "rgba(15, 22, 38, 0.5)" }} />
+          <div className="flex-1" style={{ backgroundColor: C.overlay }} />
           <aside
             className="w-full sm:w-[480px] h-full overflow-y-auto border-l"
-            style={{ backgroundColor: C.surface, borderColor: C.border }}
+            style={{ backgroundColor: C.surface, borderColor: C.border, boxShadow: C.shadowLg }}
             onClick={(e) => e.stopPropagation()}
           >
             <header
               className="px-5 py-4 border-b flex items-center justify-between sticky top-0 z-10"
               style={{ borderColor: C.border, backgroundColor: C.surface }}
             >
-              <h2 className="text-base font-semibold" style={{ color: C.text }}>
+              <h2 className="text-lg font-bold" style={{ color: C.heading }}>
                 Student detail
               </h2>
-              <button onClick={closeDetail} className="p-1 rounded" style={{ color: C.muted }}>
+              <button onClick={closeDetail} className="p-1 rounded-lg transition-colors hover:bg-nav-hover focus-ring" style={{ color: C.label }} aria-label="Close">
                 <X className="w-5 h-5" />
               </button>
             </header>
@@ -220,18 +217,18 @@ const Users = () => {
                 <>
                   <section className="flex items-start gap-3">
                     <div
-                      className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-semibold text-white shrink-0"
-                      style={{ backgroundColor: C.navy }}
+                      className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
+                      style={{ backgroundColor: C.primary, color: C.onPrimary }}
                     >
                       {selectedUser.name?.charAt(0)?.toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: C.text }}>
+                      <h3 className="text-lg font-bold flex items-center gap-2" style={{ color: C.heading }}>
                         {selectedUser.name}
                         {selectedUser.flags?.length > 0 && (
                           <span
-                            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-medium"
-                            style={{ backgroundColor: `${C.red}1A`, color: C.red }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full border font-semibold"
+                            style={{ backgroundColor: C.warningBg, borderColor: C.warningBorder, color: C.warning }}
                           >
                             <Flag className="w-3 h-3" /> {selectedUser.flags.length} flag(s)
                           </span>
@@ -252,8 +249,8 @@ const Users = () => {
 
                   <button
                     onClick={() => setConfirmBlock(selectedUser)}
-                    className="w-full px-4 py-2 text-sm font-medium rounded-lg text-white"
-                    style={{ backgroundColor: selectedUser.isBlocked ? C.green : C.danger }}
+                    className="w-full px-4 py-2.5 text-sm font-bold rounded-control transition-[filter] hover:brightness-95 focus-ring"
+                    style={{ backgroundColor: selectedUser.isBlocked ? C.success : C.danger, color: C.surface }}
                   >
                     {selectedUser.isBlocked ? "Unblock student" : "Block student"}
                   </button>
@@ -266,16 +263,16 @@ const Users = () => {
                       {(selectedActivity?.issues || []).map((iss) => (
                         <li
                           key={iss._id}
-                          className="text-sm p-3 rounded-lg border"
-                          style={{ borderColor: C.border, backgroundColor: C.surfaceAlt }}
+                          className="text-sm p-3 rounded-control border"
+                          style={{ borderColor: C.border, backgroundColor: C.surfaceMuted }}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-medium truncate" style={{ color: C.text }}>
                               {iss.title}
                             </span>
                             <span
-                              className="px-2 py-0.5 text-xs rounded-full"
-                              style={{ backgroundColor: `${C.navy}1A`, color: C.navy }}
+                              className="px-2 py-0.5 text-xs rounded-full border font-semibold"
+                              style={{ backgroundColor: C.infoBg, borderColor: C.infoBorder, color: C.info }}
                             >
                               {iss.status}
                             </span>
@@ -301,8 +298,8 @@ const Users = () => {
                       {(selectedActivity?.chats || []).map((c) => (
                         <li
                           key={c._id}
-                          className="text-sm p-3 rounded-lg border"
-                          style={{ borderColor: C.border, backgroundColor: C.surfaceAlt }}
+                          className="text-sm p-3 rounded-control border"
+                          style={{ borderColor: C.border, backgroundColor: C.surfaceMuted }}
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-medium truncate" style={{ color: C.text }}>
@@ -332,15 +329,15 @@ const Users = () => {
 
                   {selectedActivity?.flags?.length > 0 && (
                     <section>
-                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.red }}>
+                      <h4 className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: C.warning }}>
                         Moderation flags ({selectedActivity.flags.length})
                       </h4>
                       <ul className="space-y-2">
                         {selectedActivity.flags.map((f, idx) => (
                           <li
                             key={f._id || idx}
-                            className="text-sm p-3 rounded-lg border"
-                            style={{ borderColor: `${C.red}55`, backgroundColor: `${C.red}10` }}
+                            className="text-sm p-3 rounded-control border"
+                            style={{ borderColor: C.warningBorder, backgroundColor: C.warningBg }}
                           >
                             <p className="font-medium" style={{ color: C.text }}>
                               {f.type}
