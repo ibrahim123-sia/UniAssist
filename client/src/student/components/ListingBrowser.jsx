@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { fetchListings } from "../../redux/slices/listingSlice";
 import AdminModal from "../../administrator/components/AdminModal";
-import { getPalette } from "../../administrator/utils/palette";
 import { useDebouncedSearch } from "../../administrator/utils/useDebouncedSearch";
 import { KIND_LABELS, deadlineInfo, eventInfo, posterSrc, safeHref, sameUrl } from "../../utils/listings";
 
@@ -38,8 +37,14 @@ const COPY = {
   },
 };
 
-const toneColor = (tone, C) =>
-  ({ closed: C.muted, urgent: C.red, soon: C.amber, open: C.green })[tone] || C.muted;
+// Deadline / event-date chip colors by tone (status tokens; closed = neutral).
+const TONE_CLASSES = {
+  closed: "bg-surface-muted text-muted border-border-strong",
+  urgent: "bg-danger-bg text-danger border-danger-border",
+  soon: "bg-warning-bg text-warning border-warning-border",
+  open: "bg-success-bg text-success border-success-border",
+};
+const toneClasses = (tone) => TONE_CLASSES[tone] || TONE_CLASSES.closed;
 
 const tagsFor = (l, kind) =>
   ((l.kind || kind) === "scholarship"
@@ -47,27 +52,23 @@ const tagsFor = (l, kind) =>
     : [l.employmentType, l.salary]
   ).filter(Boolean);
 
-const DeadlineChip = ({ deadline, C }) => {
+const DeadlineChip = ({ deadline }) => {
   const info = deadlineInfo(deadline);
   if (!info) return null;
-  const color = toneColor(info.tone, C);
   return (
     <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
-      style={{ backgroundColor: `${color}1A`, color }}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold whitespace-nowrap ${toneClasses(info.tone)}`}
     >
       {info.label}
     </span>
   );
 };
 
-const EventChip = ({ info, C }) => {
+const EventChip = ({ info }) => {
   if (!info) return null;
-  const color = toneColor(info.tone, C);
   return (
     <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
-      style={{ backgroundColor: `${color}1A`, color }}
+      className={`inline-flex items-center px-2 py-0.5 rounded-full border text-xs font-semibold whitespace-nowrap ${toneClasses(info.tone)}`}
     >
       {info.label}
     </span>
@@ -75,39 +76,37 @@ const EventChip = ({ info, C }) => {
 };
 
 // Calendar-page style badge (month over day) used when there's no poster.
-const DateBadge = ({ info, C, large = false }) => (
+const DateBadge = ({ info, large = false }) => (
   <div
-    className={`${large ? "w-16 h-16" : "w-14 h-14"} rounded-lg border flex flex-col items-center justify-center shrink-0 leading-none`}
-    style={{ borderColor: C.border, backgroundColor: C.surfaceAlt }}
+    className={`${large ? "w-16 h-16" : "w-14 h-14"} rounded-control border border-border bg-surface-muted flex flex-col items-center justify-center shrink-0 leading-none`}
   >
     {info ? (
       <>
-        <span className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.red }}>
+        <span className="text-[10px] font-bold uppercase tracking-wide text-primary dark:text-link">
           {info.start.format("MMM")}
         </span>
-        <span className={`${large ? "text-2xl" : "text-xl"} font-bold mt-1`} style={{ color: C.text }}>
+        <span className={`${large ? "text-2xl" : "text-xl"} font-extrabold mt-1 text-heading`}>
           {info.start.format("D")}
         </span>
       </>
     ) : (
-      <CalendarDays className="w-5 h-5" style={{ color: C.muted }} />
+      <CalendarDays className="w-5 h-5 text-muted" />
     )}
   </div>
 );
 
 // Poster image that quietly falls back to the date badge if it fails to load.
-const Poster = ({ url, info, C, className }) => {
+const Poster = ({ url, info, className }) => {
   const [failed, setFailed] = useState(false);
   const src = posterSrc(url);
-  if (!src || failed) return <DateBadge info={info} C={C} />;
+  if (!src || failed) return <DateBadge info={info} />;
   return (
     <img
       src={src}
       alt=""
       loading="lazy"
       onError={() => setFailed(true)}
-      className={className}
-      style={{ backgroundColor: C.surfaceAlt }}
+      className={`bg-surface-muted ${className}`}
     />
   );
 };
@@ -144,13 +143,13 @@ const EventMeta = ({ l, info, size = "sm" }) => {
   );
 };
 
-const Section = ({ title, text, C }) =>
+const Section = ({ title, text }) =>
   text ? (
     <section>
-      <h4 className="text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: C.muted }}>
+      <h4 className="text-xs font-semibold uppercase tracking-wide mb-1 text-muted">
         {title}
       </h4>
-      <p className="text-sm whitespace-pre-wrap wrap-break-word" style={{ color: C.text }}>
+      <p className="text-sm whitespace-pre-wrap wrap-break-word text-text">
         {text}
       </p>
     </section>
@@ -169,9 +168,6 @@ const feedQuery = (kind, search, showOld, offset) => ({
 // Student-facing list of admin-published jobs, scholarships or events.
 const ListingBrowser = ({ kind }) => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
-  const C = getPalette(theme === "dark");
-  const bg = theme === "dark" ? "#0E1422" : "#F2F3F8";
   const feed = useSelector((s) => s.listing[kind]);
   const { input, setInput, search } = useDebouncedSearch();
   // Jobs/scholarships: "Show closed" deadlines. Events: the Past tab.
@@ -201,35 +197,33 @@ const ListingBrowser = ({ kind }) => {
   const selectedRegistration = isEvent && selected ? deadlineInfo(selected.deadline) : null;
 
   return (
-    <div className="h-full overflow-y-auto" style={{ backgroundColor: bg, color: C.text }}>
+    <div className="h-full overflow-y-auto bg-bg text-text">
       <div className="max-w-5xl mx-auto p-4 md:p-6">
         <div className="mb-4">
-          <h1 className="text-2xl font-bold" style={{ color: C.text }}>
+          <h1 className="text-2xl font-extrabold text-heading">
             {labels.many}
           </h1>
-          <p className="text-sm mt-1" style={{ color: C.muted }}>
+          <p className="text-sm mt-1 text-muted">
             {copy.subtitle}
           </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-3 mb-4">
           <div className="relative flex-1 min-w-[220px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: C.muted }} />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted" />
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={copy.search}
-              className="w-full pl-10 pr-4 py-2 text-sm rounded-lg border focus:outline-none"
-              style={{ backgroundColor: C.surface, borderColor: C.border, color: C.text }}
+              className="w-full pl-10 pr-4 py-2 text-sm rounded-control border bg-input-bg border-input-border text-text placeholder:text-placeholder focus:border-primary focus:outline-none focus:shadow-[var(--focus-ring)]"
             />
           </div>
           {isEvent ? (
             <div
-              className="inline-flex rounded-lg border p-0.5 text-sm"
+              className="inline-flex rounded-control border border-border-strong bg-surface p-0.5 text-sm"
               role="tablist"
               aria-label="Which events"
-              style={{ borderColor: C.border, backgroundColor: C.surface }}
             >
               {[
                 { value: false, label: "Upcoming" },
@@ -243,11 +237,9 @@ const ListingBrowser = ({ kind }) => {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setShowOld(opt.value)}
-                    className="px-3 py-1 rounded-md font-medium transition-colors"
-                    style={{
-                      backgroundColor: active ? C.navy : "transparent",
-                      color: active ? "#FFFFFF" : C.muted,
-                    }}
+                    className={`px-3 py-1 rounded-[9px] font-semibold transition-colors focus-ring ${
+                      active ? "bg-primary text-on-primary" : "text-label hover:bg-nav-hover"
+                    }`}
                   >
                     {opt.label}
                   </button>
@@ -255,20 +247,19 @@ const ListingBrowser = ({ kind }) => {
               })}
             </div>
           ) : (
-            <label className="flex items-center gap-2 text-sm cursor-pointer" style={{ color: C.muted }}>
+            <label className="flex items-center gap-2 text-sm cursor-pointer text-muted">
               <input
                 type="checkbox"
                 checked={showOld}
                 onChange={(e) => setShowOld(e.target.checked)}
-                style={{ accentColor: C.navy }}
+                className="accent-primary"
               />
               Show closed
             </label>
           )}
           <button
             onClick={reload}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border"
-            style={{ borderColor: C.border, color: C.muted }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
           </button>
@@ -276,13 +267,12 @@ const ListingBrowser = ({ kind }) => {
 
         {error && items.length === 0 ? (
           <div
-            className="text-center py-12 rounded-xl border"
-            style={{ borderColor: C.border, backgroundColor: C.surface }}
+            className="text-center py-12 border border-border bg-surface rounded-card shadow-card"
           >
-            <p className="text-sm" style={{ color: C.danger }}>
+            <p className="text-sm text-danger">
               {error}
             </p>
-            <button onClick={reload} className="mt-3 text-sm font-medium" style={{ color: C.navy }}>
+            <button onClick={reload} className="mt-3 text-sm font-semibold text-link hover:text-link-hover focus-ring rounded">
               Try again
             </button>
           </div>
@@ -291,18 +281,16 @@ const ListingBrowser = ({ kind }) => {
             {[0, 1, 2, 3].map((i) => (
               <div
                 key={i}
-                className="h-32 rounded-xl border animate-pulse"
-                style={{ backgroundColor: C.surface, borderColor: C.border }}
+                className="h-32 border animate-pulse bg-surface border-border rounded-card shadow-card"
               />
             ))}
           </div>
         ) : items.length === 0 ? (
           <div
-            className="text-center py-16 rounded-xl border"
-            style={{ borderColor: C.border, backgroundColor: C.surface }}
+            className="text-center py-16 border border-border bg-surface rounded-card shadow-card"
           >
-            <EmptyIcon className="w-12 h-12 mx-auto mb-3" style={{ color: C.muted }} />
-            <p className="text-base font-medium" style={{ color: C.text }}>
+            <EmptyIcon className="w-12 h-12 mx-auto mb-3 text-muted" />
+            <p className="text-base font-bold text-heading">
               {search
                 ? `No ${labels.many.toLowerCase()} match “${search}”.`
                 : isEvent && !showOld
@@ -311,7 +299,7 @@ const ListingBrowser = ({ kind }) => {
                 ? "No past events yet."
                 : `No ${labels.many.toLowerCase()} posted yet.`}
             </p>
-            <p className="text-sm mt-1" style={{ color: C.muted }}>
+            <p className="text-sm mt-1 text-muted">
               {search
                 ? "Try a different search."
                 : "Check back later — new ones appear here as soon as they're published."}
@@ -327,31 +315,27 @@ const ListingBrowser = ({ kind }) => {
                     <button
                       key={l._id}
                       onClick={() => setSelected(l)}
-                      className="text-left p-3 rounded-xl border transition-all hover:shadow-md flex gap-3"
-                      style={{
-                        backgroundColor: C.surface,
-                        borderColor: C.border,
-                        opacity: info?.past ? 0.7 : 1,
-                      }}
+                      className="text-left p-3 rounded-card border border-border bg-surface shadow-card transition-colors hover:border-border-strong hover:bg-row-hover focus-ring flex gap-3"
+                      style={{ opacity: info?.past ? 0.7 : 1 }}
                     >
                       <Poster
                         url={l.posterUrl}
                         info={info}
-                        C={C}
-                        className="w-20 h-24 sm:w-24 sm:h-28 rounded-lg object-cover shrink-0"
+                       
+                        className="w-20 h-24 sm:w-24 sm:h-28 rounded-control object-cover shrink-0"
                       />
                       <div className="min-w-0 flex-1 flex flex-col gap-1.5">
                         <div className="flex items-start justify-between gap-2">
-                          <h3 className="font-semibold line-clamp-2" style={{ color: C.text }}>
+                          <h3 className="font-bold line-clamp-2 text-heading">
                             {l.title}
                           </h3>
-                          <EventChip info={info} C={C} />
+                          <EventChip info={info} />
                         </div>
-                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs" style={{ color: C.muted }}>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
                           <EventMeta l={l} info={info} />
                         </div>
                         {l.description && (
-                          <p className="text-sm line-clamp-2" style={{ color: C.muted }}>
+                          <p className="text-sm line-clamp-2 text-muted">
                             {l.description}
                           </p>
                         )}
@@ -365,20 +349,16 @@ const ListingBrowser = ({ kind }) => {
                   <button
                     key={l._id}
                     onClick={() => setSelected(l)}
-                    className="text-left p-4 rounded-xl border transition-all hover:shadow-md flex flex-col gap-2"
-                    style={{
-                      backgroundColor: C.surface,
-                      borderColor: C.border,
-                      opacity: dl?.tone === "closed" ? 0.7 : 1,
-                    }}
+                    className="text-left p-4 rounded-card border border-border bg-surface shadow-card transition-colors hover:border-border-strong hover:bg-row-hover focus-ring flex flex-col gap-2"
+                    style={{ opacity: dl?.tone === "closed" ? 0.7 : 1 }}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <h3 className="font-semibold line-clamp-2" style={{ color: C.text }}>
+                      <h3 className="font-bold line-clamp-2 text-heading">
                         {l.title}
                       </h3>
-                      <DeadlineChip deadline={l.deadline} C={C} />
+                      <DeadlineChip deadline={l.deadline} />
                     </div>
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: C.muted }}>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted">
                       {l.organization && (
                         <span className="inline-flex items-center gap-1 min-w-0">
                           <Building2 className="w-3.5 h-3.5 shrink-0" />
@@ -399,7 +379,7 @@ const ListingBrowser = ({ kind }) => {
                       )}
                     </div>
                     {l.description && (
-                      <p className="text-sm line-clamp-2" style={{ color: C.muted }}>
+                      <p className="text-sm line-clamp-2 text-muted">
                         {l.description}
                       </p>
                     )}
@@ -408,8 +388,7 @@ const ListingBrowser = ({ kind }) => {
                         {tags.map((t) => (
                           <span
                             key={t}
-                            className="px-2 py-0.5 rounded-md text-xs"
-                            style={{ backgroundColor: C.surfaceAlt, color: C.text }}
+                            className="px-2.5 py-0.5 rounded-full border border-border-strong text-xs bg-surface dark:bg-transparent text-pill"
                           >
                             {t}
                           </span>
@@ -425,8 +404,7 @@ const ListingBrowser = ({ kind }) => {
                 <button
                   onClick={loadMore}
                   disabled={loading}
-                  className="px-4 py-2 text-sm rounded-lg border disabled:opacity-50"
-                  style={{ borderColor: C.border, color: C.text, backgroundColor: C.surface }}
+                  className="px-4 py-2 text-sm font-semibold rounded-control disabled:opacity-50 bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
                 >
                   {loading ? "Loading..." : `Load more (${total - items.length} left)`}
                 </button>
@@ -449,8 +427,7 @@ const ListingBrowser = ({ kind }) => {
                   href={sourceHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-3 py-2 text-sm rounded-lg border inline-flex items-center gap-1.5"
-                  style={{ borderColor: C.border, color: C.text }}
+                  className="px-3 py-2 text-sm font-semibold rounded-control inline-flex items-center gap-1.5 bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
                 >
                   Original post <ExternalLink className="w-3.5 h-3.5" />
                 </a>
@@ -460,8 +437,7 @@ const ListingBrowser = ({ kind }) => {
                   href={applyUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="px-4 py-2 text-sm rounded-lg font-medium text-white inline-flex items-center gap-1.5"
-                  style={{ backgroundColor: C.navy }}
+                  className="px-4 py-2 text-sm inline-flex items-center gap-1.5 rounded-control font-bold bg-primary text-on-primary hover:bg-primary-hover focus-ring transition-colors"
                 >
                   {isEvent ? "Register" : "Apply"} <ExternalLink className="w-3.5 h-3.5" />
                 </a>
@@ -476,29 +452,29 @@ const ListingBrowser = ({ kind }) => {
               <Poster
                 url={selected.posterUrl}
                 info={selectedEvent}
-                C={C}
-                className="w-full max-h-[420px] rounded-lg object-contain"
+               
+                className="w-full max-h-[420px] rounded-control object-contain"
               />
             )}
             <div className="flex items-start gap-3">
-              {!posterSrc(selected.posterUrl) && <DateBadge info={selectedEvent} C={C} large />}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm min-w-0" style={{ color: C.muted }}>
+              {!posterSrc(selected.posterUrl) && <DateBadge info={selectedEvent} large />}
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm min-w-0 text-muted">
                 <EventMeta l={selected} info={selectedEvent} size="md" />
-                <EventChip info={selectedEvent} C={C} />
+                <EventChip info={selectedEvent} />
               </div>
             </div>
             {selectedRegistration && (
-              <p className="text-sm inline-flex flex-wrap items-center gap-1.5" style={{ color: C.muted }}>
-                Registration deadline: <span style={{ color: C.text }}>{selectedRegistration.date}</span>
-                <DeadlineChip deadline={selected.deadline} C={C} />
+              <p className="text-sm inline-flex flex-wrap items-center gap-1.5 text-muted">
+                Registration deadline: <span className="text-text">{selectedRegistration.date}</span>
+                <DeadlineChip deadline={selected.deadline} />
               </p>
             )}
-            <Section title="About this event" text={selected.description} C={C} />
+            <Section title="About this event" text={selected.description} />
           </div>
         )}
         {selected && !isEvent && (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm" style={{ color: C.muted }}>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-muted">
               {selected.organization && (
                 <span className="inline-flex items-center gap-1">
                   <Building2 className="w-4 h-4" /> {selected.organization}
@@ -512,7 +488,7 @@ const ListingBrowser = ({ kind }) => {
               {selected.deadline && (
                 <span className="inline-flex items-center gap-1.5">
                   <Calendar className="w-4 h-4" /> {deadlineInfo(selected.deadline)?.date}
-                  <DeadlineChip deadline={selected.deadline} C={C} />
+                  <DeadlineChip deadline={selected.deadline} />
                 </span>
               )}
             </div>
@@ -521,17 +497,16 @@ const ListingBrowser = ({ kind }) => {
                 {tagsFor(selected, kind).map((t) => (
                   <span
                     key={t}
-                    className="px-2 py-0.5 rounded-md text-xs"
-                    style={{ backgroundColor: C.surfaceAlt, color: C.text }}
+                    className="px-2.5 py-0.5 rounded-full border border-border-strong text-xs bg-surface dark:bg-transparent text-pill"
                   >
                     {t}
                   </span>
                 ))}
               </div>
             )}
-            <Section title="Description" text={selected.description} C={C} />
-            <Section title="Requirements" text={selected.requirements} C={C} />
-            <Section title="Eligibility" text={selected.eligibility} C={C} />
+            <Section title="Description" text={selected.description} />
+            <Section title="Requirements" text={selected.requirements} />
+            <Section title="Eligibility" text={selected.eligibility} />
           </div>
         )}
       </AdminModal>

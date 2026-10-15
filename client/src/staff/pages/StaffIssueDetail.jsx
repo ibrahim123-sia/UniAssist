@@ -25,22 +25,13 @@ import {
 } from "../../redux/slices/issueSlice";
 import OverdueBadge from "../../components/OverdueBadge";
 import StarRating from "../../components/StarRating";
+import { statusStyle } from "../../utils/issues";
+import { C } from "../../theme/palette";
 
 const SERVER_URL = import.meta.env.VITE_SERVER_URL || "http://localhost:3000";
 const STATUSES = ["Pending", "In Progress", "Resolved", "Closed", "Rejected"];
 const POLL_MS = 20000;
 const MAX_REPLY_CHARS = 5000;
-
-const statusStyle = (status, isDark) => {
-  const palette = {
-    Pending: { bg: isDark ? "#3a2f15" : "#FFF4E0", text: isDark ? "#FFC774" : "#9A6B00" },
-    "In Progress": { bg: isDark ? "#13314f" : "#E0F0FF", text: isDark ? "#7BB6F5" : "#1463B0" },
-    Resolved: { bg: isDark ? "#163320" : "#E0F8E5", text: isDark ? "#7BD594" : "#1B7A33" },
-    Closed: { bg: isDark ? "#2a2a2a" : "#EDEDED", text: isDark ? "#B5B5B5" : "#666666" },
-    Rejected: { bg: isDark ? "#3a1818" : "#FCE6E6", text: isDark ? "#F08D7B" : "#A8261B" },
-  };
-  return palette[status] || palette.Closed;
-};
 
 const isImage = (mt) => (mt || "").startsWith("image/");
 const isPdf = (mt) => mt === "application/pdf";
@@ -49,24 +40,22 @@ const isPdf = (mt) => mt === "application/pdf";
 // Attachment preview modal — image lightbox + PDF iframe
 // ---------------------------------------------------------------------------
 
-const AttachmentModal = ({ attachment, onClose, C }) => {
+const AttachmentModal = ({ attachment, onClose }) => {
   if (!attachment) return null;
   const url = `${SERVER_URL}${attachment.url}`;
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4"
-      style={{ backgroundColor: "rgba(0,0,0,0.7)" }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-overlay"
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-5xl max-h-[90vh] rounded-xl overflow-hidden flex flex-col"
-        style={{ backgroundColor: C.surface, border: `1px solid ${C.border}` }}
+        className="relative w-full max-w-5xl max-h-[90vh] rounded-panel overflow-hidden flex flex-col bg-surface border border-border shadow-panel"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-4 py-3 border-b" style={{ borderColor: C.border }}>
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold truncate" style={{ color: C.text }}>{attachment.originalName}</p>
-            <p className="text-xs" style={{ color: C.muted }}>
+            <p className="text-sm font-bold truncate text-heading">{attachment.originalName}</p>
+            <p className="text-xs text-muted">
               {attachment.mimeType} · {(attachment.size / 1024).toFixed(0)} KB
             </p>
           </div>
@@ -74,28 +63,26 @@ const AttachmentModal = ({ attachment, onClose, C }) => {
             <a
               href={url}
               download={attachment.originalName}
-              className="p-2 rounded-lg border text-sm inline-flex items-center gap-1"
-              style={{ borderColor: C.border, color: C.text }}
+              className="p-2 rounded-control text-sm font-semibold inline-flex items-center gap-1 bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
             >
               <Download className="w-4 h-4" /> Download
             </a>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg border"
-              style={{ borderColor: C.border, color: C.text }}
+              className="p-2 rounded-control bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
               aria-label="Close preview"
             >
               <X className="w-4 h-4" />
             </button>
           </div>
         </div>
-        <div className="flex-1 overflow-auto flex items-center justify-center" style={{ backgroundColor: C.surfaceAlt }}>
+        <div className="flex-1 overflow-auto flex items-center justify-center bg-surface-muted">
           {isImage(attachment.mimeType) ? (
             <img src={url} alt={attachment.originalName} className="max-w-full max-h-[80vh] object-contain" />
           ) : isPdf(attachment.mimeType) ? (
-            <iframe src={url} title={attachment.originalName} className="w-full h-[80vh] bg-white" />
+            <iframe src={url} title={attachment.originalName} className="w-full h-[80vh] bg-surface" />
           ) : (
-            <div className="p-8 text-center text-sm" style={{ color: C.muted }}>
+            <div className="p-8 text-center text-sm text-muted">
               Preview not available for this file type.<br />Use the Download button above.
             </div>
           )}
@@ -109,33 +96,32 @@ const AttachmentModal = ({ attachment, onClose, C }) => {
 // Assignee strip — shows who owns the issue + Assign-to-me / Reassign
 // ---------------------------------------------------------------------------
 
-const AssigneeStrip = ({ issue, currentUser, deptStaff, onAssign, busy, C }) => {
+const AssigneeStrip = ({ issue, currentUser, deptStaff, onAssign, busy }) => {
   const [picking, setPicking] = useState(false);
   const assignee = issue.assignedTo;
   const mine = assignee && assignee._id === currentUser?._id;
 
   return (
     <div
-      className="flex items-center gap-3 flex-wrap p-3 rounded-lg border"
-      style={{ backgroundColor: C.surfaceAlt, borderColor: C.border }}
+      className="flex items-center gap-3 flex-wrap p-3 rounded-card border bg-surface border-border shadow-card"
     >
       <div className="flex items-center gap-2 min-w-0">
-        <UserPlus className="w-4 h-4" style={{ color: C.muted }} />
-        <span className="text-xs uppercase font-semibold" style={{ color: C.muted }}>Assignee:</span>
+        <UserPlus className="w-4 h-4 text-muted" />
+        <span className="text-xs uppercase font-semibold text-muted">Assignee:</span>
         {assignee ? (
-          <span className="text-sm font-medium truncate" style={{ color: C.text }}>
+          <span className="text-sm font-semibold truncate text-heading">
             {assignee.name}
             {assignee.staffTitle && (
-              <span className="text-xs ml-1" style={{ color: C.muted }}>· {assignee.staffTitle}</span>
+              <span className="text-xs ml-1 text-muted">· {assignee.staffTitle}</span>
             )}
             {mine && (
-              <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-semibold" style={{ backgroundColor: C.navy, color: "#fff" }}>
+              <span className="ml-2 px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary text-on-primary">
                 YOU
               </span>
             )}
           </span>
         ) : (
-          <span className="text-sm" style={{ color: C.muted }}>Unassigned</span>
+          <span className="text-sm text-muted">Unassigned</span>
         )}
       </div>
 
@@ -145,8 +131,7 @@ const AssigneeStrip = ({ issue, currentUser, deptStaff, onAssign, busy, C }) => 
             type="button"
             disabled={busy}
             onClick={() => onAssign(currentUser._id)}
-            className="px-2.5 py-1 rounded-lg border text-xs font-medium disabled:opacity-50"
-            style={{ borderColor: C.border, color: C.text }}
+            className="px-2.5 py-1 rounded-control text-xs font-semibold disabled:opacity-50 bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
           >
             Assign to me
           </button>
@@ -155,20 +140,18 @@ const AssigneeStrip = ({ issue, currentUser, deptStaff, onAssign, busy, C }) => 
           type="button"
           disabled={busy}
           onClick={() => setPicking((p) => !p)}
-          className="px-2.5 py-1 rounded-lg border text-xs font-medium disabled:opacity-50"
-          style={{ borderColor: C.border, color: C.text }}
+          className="px-2.5 py-1 rounded-control text-xs font-semibold disabled:opacity-50 bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
         >
           {picking ? "Cancel" : "Reassign…"}
         </button>
       </div>
 
       {picking && (
-        <div className="basis-full pt-2 mt-1 border-t flex flex-wrap gap-2" style={{ borderColor: C.border }}>
+        <div className="basis-full pt-2 mt-1 border-t flex flex-wrap gap-2 border-border">
           <button
             type="button"
             onClick={() => { onAssign(null); setPicking(false); }}
-            className="px-2.5 py-1 rounded-lg border text-xs"
-            style={{ borderColor: C.border, color: C.muted }}
+            className="px-2.5 py-1 rounded-control text-xs font-medium bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
           >
             Unassign
           </button>
@@ -179,14 +162,13 @@ const AssigneeStrip = ({ issue, currentUser, deptStaff, onAssign, busy, C }) => 
                 key={s._id}
                 type="button"
                 onClick={() => { onAssign(s._id); setPicking(false); }}
-                className="px-2.5 py-1 rounded-lg border text-xs"
-                style={{ borderColor: C.border, color: C.text }}
+                className="px-2.5 py-1 rounded-control text-xs font-medium bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
               >
                 {s.name}{s.staffTitle ? ` · ${s.staffTitle}` : ""}
               </button>
             ))}
           {deptStaff.length === 0 && (
-            <span className="text-xs" style={{ color: C.muted }}>No other staff in this department.</span>
+            <span className="text-xs text-muted">No other staff in this department.</span>
           )}
         </div>
       )}
@@ -210,9 +192,7 @@ const StaffIssueDetail = () => {
     s.issue.issueError?.id === id ? s.issue.issueError : null
   );
   const deptStaff = useSelector((s) => s.issue.deptStaff);
-  const theme = useSelector((s) => s.theme.theme);
   const user = useSelector((s) => s.auth.user);
-  const isDark = theme === "dark";
 
   // Composer state
   const [reply, setReply] = useState("");
@@ -229,19 +209,6 @@ const StaffIssueDetail = () => {
   // Track the version we last interacted with so we can warn on poll-detected
   // changes made by someone else.
   const seenVersionRef = useRef(null);
-
-  const C = {
-    bg: isDark ? "#0E1422" : "#F2F3F8",
-    surface: isDark ? "#16203A" : "#FFFFFF",
-    surfaceAlt: isDark ? "#1E2A47" : "#F2F3F8",
-    input: isDark ? "#0B1120" : "#FFFFFF",
-    border: isDark ? "#2A3656" : "#D8DAE6",
-    text: isDark ? "#ECEEF5" : "#1F2330",
-    muted: isDark ? "#9AA5BD" : "#5A6372",
-    navy: isDark ? "#E63027" : "#1E2A66",
-    red: isDark ? "#C48A4A" : "#E63027",
-    amber: isDark ? "#E0B467" : "#B8860B",
-  };
 
   // Initial fetch + 20s polling + staff list for reassign dropdown
   useEffect(() => {
@@ -379,54 +346,53 @@ const StaffIssueDetail = () => {
       const notFound = issueError.status === 404;
       const forbidden = issueError.status === 403;
       return (
-        <div className="h-full flex flex-col items-center justify-center gap-3 p-6 text-center" style={{ backgroundColor: C.bg, color: C.text }}>
-          <p className="text-base font-semibold">
+        <div className="h-full flex flex-col items-center justify-center gap-3 p-6 text-center bg-bg text-text">
+          <p className="text-base font-bold text-heading">
             {notFound ? "Issue not found" : forbidden ? "You don't have access to this issue" : "Couldn't load this issue"}
           </p>
-          <p className="text-sm" style={{ color: C.muted }}>
+          <p className="text-sm text-muted">
             {notFound || forbidden ? issueError.message : `${issueError.message}. It will retry automatically.`}
           </p>
-          <Link to="/staff/issues" className="inline-flex items-center gap-1.5 text-sm" style={{ color: C.navy }}>
+          <Link to="/staff/issues" className="inline-flex items-center gap-1.5 text-sm font-semibold text-link hover:text-link-hover focus-ring rounded">
             <ArrowLeft className="w-4 h-4" /> Back to inbox
           </Link>
         </div>
       );
     }
     return (
-      <div className="h-full flex items-center justify-center" style={{ backgroundColor: C.bg, color: C.muted }}>
+      <div className="h-full flex items-center justify-center bg-bg text-muted">
         Loading…
       </div>
     );
   }
 
-  const sStyle = statusStyle(issue.status, isDark);
+  const sStyle = statusStyle(issue.status);
 
   return (
-    <div className="h-full overflow-y-auto" style={{ backgroundColor: C.bg, color: C.text }}>
+    <div className="h-full overflow-y-auto bg-bg text-text">
       <div className="max-w-3xl mx-auto p-6 md:p-8">
-        <Link to="/staff/issues" className="inline-flex items-center gap-1.5 text-sm mb-5" style={{ color: C.muted }}>
+        <Link to="/staff/issues" className="inline-flex items-center gap-1.5 text-sm mb-5 text-muted hover:text-text focus-ring rounded">
           <ArrowLeft className="w-4 h-4" /> Back to inbox
         </Link>
 
         {conflictBanner && (
           <div
-            className="mb-4 p-3 rounded-xl border flex items-start gap-2 text-sm"
-            style={{ backgroundColor: isDark ? "#3a2f15" : "#FFF7E0", borderColor: C.amber, color: C.text }}
+            className="mb-4 p-3 rounded-control border flex items-start gap-2 text-sm bg-warning-bg border-warning-border text-text"
           >
-            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" style={{ color: C.amber }} />
+            <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-warning" />
             <span><strong>Heads-up:</strong> {conflictBanner}. You're now looking at the latest version.</span>
           </div>
         )}
 
         {/* Issue header card */}
-        <div className="p-6 rounded-xl border mb-5" style={{ backgroundColor: C.surface, borderColor: C.border }}>
+        <div className="p-6 border mb-5 bg-surface border-border rounded-card shadow-card">
           <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
-            <h1 className="text-2xl font-bold">{issue.title}</h1>
+            <h1 className="text-2xl font-extrabold text-heading">{issue.title}</h1>
             <div className="flex items-center gap-2 flex-wrap">
-              <OverdueBadge issue={issue} isDark={isDark} />
+              <OverdueBadge issue={issue} />
               <span
-                className="text-xs px-2.5 py-1 rounded-full uppercase font-semibold"
-                style={{ backgroundColor: sStyle.bg, color: sStyle.text }}
+                className="text-xs px-2.5 py-1 rounded-full uppercase font-bold border"
+                style={{ backgroundColor: sStyle.bg, color: sStyle.text, borderColor: sStyle.border }}
               >
                 {issue.status}
               </span>
@@ -434,20 +400,18 @@ const StaffIssueDetail = () => {
           </div>
 
           <div
-            className="flex items-center gap-3 p-3 rounded-lg mb-4 text-sm"
-            style={{ backgroundColor: C.surfaceAlt, color: C.text }}
+            className="flex items-center gap-3 p-3 rounded-control mb-4 text-sm bg-surface-muted text-text"
           >
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-              style={{ backgroundColor: C.navy }}
+              className="w-9 h-9 rounded-full flex items-center justify-center shrink-0 bg-primary"
             >
-              <User className="w-4 h-4 text-white" />
+              <User className="w-4 h-4 text-on-primary" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium truncate">{issue.studentName}</div>
-              <div className="text-xs truncate" style={{ color: C.muted }}>{issue.studentEmail}</div>
+              <div className="font-semibold truncate text-heading">{issue.studentName}</div>
+              <div className="text-xs truncate text-muted">{issue.studentEmail}</div>
             </div>
-            <div className="text-xs text-right" style={{ color: C.muted }}>
+            <div className="text-xs text-right text-muted">
               <div>
                 {issue.department?.code} · {issue.category}
                 {issue.source === "chatbot" && " · from chat"}
@@ -463,16 +427,15 @@ const StaffIssueDetail = () => {
 
           {issue.status === "Rejected" && issue.rejectionReason && (
             <div
-              className="mt-3 p-3 rounded-lg border text-sm"
-              style={{ borderColor: C.red, backgroundColor: isDark ? "#2c1414" : "#FDECEC", color: C.text }}
+              className="mt-3 p-3 rounded-control border text-sm bg-danger-bg border-danger-border text-text"
             >
               <strong>Rejection reason:</strong> {issue.rejectionReason}
             </div>
           )}
 
           {issue.attachments?.length > 0 && (
-            <div className="mt-4 pt-4 border-t" style={{ borderColor: C.border }}>
-              <div className="text-xs font-semibold uppercase mb-2" style={{ color: C.muted }}>
+            <div className="mt-4 pt-4 border-t border-border">
+              <div className="text-xs font-semibold uppercase mb-2 text-muted">
                 Attachments
               </div>
               <div className="flex flex-wrap gap-2">
@@ -481,15 +444,14 @@ const StaffIssueDetail = () => {
                     key={i}
                     type="button"
                     onClick={() => setPreviewAtt(a)}
-                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm hover:shadow-sm transition"
-                    style={{ borderColor: C.border, color: C.text, backgroundColor: C.surfaceAlt }}
+                    className="inline-flex items-center gap-2 px-3 py-1.5 rounded-control border text-sm transition-colors border-border-strong text-label bg-surface-muted hover:bg-nav-hover focus-ring"
                   >
                     {isPdf(a.mimeType) ? <FileText className="w-4 h-4" /> : <ImageIcon className="w-4 h-4" />}
                     {a.originalName}
                   </button>
                 ))}
               </div>
-              <p className="text-xs mt-2" style={{ color: C.muted }}>
+              <p className="text-xs mt-2 text-muted">
                 Click to preview · PDFs and images open inline.
               </p>
             </div>
@@ -497,13 +459,13 @@ const StaffIssueDetail = () => {
         </div>
 
         {issue.feedback?.rating && (
-          <div className="p-4 rounded-xl border mb-5" style={{ backgroundColor: C.surface, borderColor: C.border }}>
+          <div className="p-4 border mb-5 bg-surface border-border rounded-card shadow-card">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.muted }}>
+              <span className="text-xs font-semibold uppercase tracking-wide text-muted">
                 Student feedback
               </span>
               {issue.feedback.submittedAt && (
-                <span className="text-xs" style={{ color: C.muted }}>
+                <span className="text-xs text-muted">
                   {moment(issue.feedback.submittedAt).fromNow()}
                 </span>
               )}
@@ -526,17 +488,16 @@ const StaffIssueDetail = () => {
             deptStaff={deptStaff}
             onAssign={handleAssign}
             busy={assignBusy}
-            C={C}
           />
         </div>
 
         {/* Conversation */}
-        <div className="mb-3 text-sm font-semibold uppercase tracking-wide" style={{ color: C.muted }}>
+        <div className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted">
           Conversation
         </div>
         <div className="space-y-3 mb-5">
           {issue.replies?.length === 0 && (
-            <div className="text-sm text-center py-6" style={{ color: C.muted }}>
+            <div className="text-sm text-center py-6 text-muted">
               No replies yet.
             </div>
           )}
@@ -545,20 +506,18 @@ const StaffIssueDetail = () => {
             return (
               <div
                 key={i}
-                className="p-4 rounded-xl border"
-                style={{
-                  backgroundColor: isStaff ? C.surfaceAlt : C.surface,
-                  borderColor: isStaff ? C.navy : C.border,
-                  borderLeft: `4px solid ${isStaff ? C.navy : C.red}`,
-                }}
+                className={`p-4 rounded-card border border-l-4 ${
+                  isStaff
+                    ? "bg-nav-active-bg border-info-border border-l-primary"
+                    : "bg-surface border-border border-l-border-strong"
+                }`}
               >
-                <div className="flex items-center justify-between mb-1.5 text-xs" style={{ color: C.muted }}>
-                  <span className="font-semibold" style={{ color: isStaff ? C.navy : C.text }}>
+                <div className="flex items-center justify-between mb-1.5 text-xs text-muted">
+                  <span className={`font-semibold ${isStaff ? "text-nav-active-text" : "text-text"}`}>
                     {r.authorName}
                     {isStaff && (
                       <span
-                        className="ml-1 px-1.5 py-0.5 rounded text-[10px]"
-                        style={{ backgroundColor: C.navy, color: "#fff" }}
+                        className="ml-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-primary text-on-primary"
                       >
                         STAFF
                       </span>
@@ -575,8 +534,7 @@ const StaffIssueDetail = () => {
         {/* Combined composer: reply + optional status change */}
         <form
           onSubmit={handleSubmit}
-          className="p-4 rounded-xl border space-y-3"
-          style={{ backgroundColor: C.surface, borderColor: C.border }}
+          className="p-4 border space-y-3 bg-surface border-border rounded-card shadow-card"
         >
           <textarea
             value={reply}
@@ -584,41 +542,37 @@ const StaffIssueDetail = () => {
             maxLength={MAX_REPLY_CHARS}
             rows={3}
             placeholder="Reply to the student…"
-            className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none resize-y"
-            style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+            className="w-full px-3 py-2 border text-sm resize-y bg-input-bg rounded-control border-input-border text-text placeholder:text-placeholder focus:border-primary focus:outline-none focus:shadow-[var(--focus-ring)]"
           />
 
           <div>
-            <div className="text-xs font-semibold uppercase mb-2" style={{ color: C.muted }}>
+            <div className="text-xs font-semibold uppercase mb-2 text-muted">
               Set status (optional)
             </div>
             <div className="flex gap-2 flex-wrap">
               <button
                 type="button"
                 onClick={() => { setPendingStatus(null); setRejectReason(""); }}
-                className="px-3 py-1.5 rounded-full text-sm border font-medium"
-                style={{
-                  borderColor: pendingStatus === null ? C.navy : C.border,
-                  backgroundColor: pendingStatus === null ? C.navy : "transparent",
-                  color: pendingStatus === null ? "#fff" : C.text,
-                }}
+                className={`px-3 py-1.5 rounded-full text-sm border font-medium transition-colors focus-ring ${
+                  pendingStatus === null
+                    ? "bg-primary border-primary text-on-primary"
+                    : "bg-surface dark:bg-transparent border-border-strong text-pill hover:bg-nav-hover"
+                }`}
               >
                 Keep ({issue.status})
               </button>
               {STATUSES.filter((s) => s !== issue.status).map((s) => {
-                const sty = statusStyle(s, isDark);
+                const sty = statusStyle(s);
                 const active = pendingStatus === s;
                 return (
                   <button
                     key={s}
                     type="button"
                     onClick={() => setPendingStatus(s)}
-                    className="px-3 py-1.5 rounded-full text-sm border font-medium"
-                    style={{
-                      borderColor: active ? sty.text : C.border,
-                      backgroundColor: active ? sty.bg : "transparent",
-                      color: active ? sty.text : C.text,
-                    }}
+                    className={`px-3 py-1.5 rounded-full text-sm border font-medium transition-colors focus-ring ${
+                      active ? "" : "bg-surface dark:bg-transparent border-border-strong text-pill hover:bg-nav-hover"
+                    }`}
+                    style={active ? { borderColor: sty.text, backgroundColor: sty.bg, color: sty.text } : undefined}
                   >
                     {s}
                   </button>
@@ -629,25 +583,24 @@ const StaffIssueDetail = () => {
 
           {pendingStatus === "Rejected" && (
             <div>
-              <label className="text-xs font-semibold uppercase block mb-1.5" style={{ color: C.muted }}>
-                Reason for rejection <span style={{ color: C.red }}>*</span>
+              <label className="text-xs font-semibold uppercase block mb-1.5 text-label">
+                Reason for rejection <span className="text-danger">*</span>
               </label>
               <input
                 type="text"
                 value={rejectReason}
                 onChange={(e) => setRejectReason(e.target.value)}
                 placeholder="e.g. duplicate of issue #123, outside our department's scope, etc."
-                className="w-full px-3 py-2 rounded-lg border text-sm focus:outline-none"
-                style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+                className="w-full px-3 py-2 border text-sm bg-input-bg rounded-control border-input-border text-text placeholder:text-placeholder focus:border-primary focus:outline-none focus:shadow-[var(--focus-ring)]"
               />
-              <p className="text-xs mt-1" style={{ color: C.muted }}>
+              <p className="text-xs mt-1 text-muted">
                 Shown to the student so they understand why.
               </p>
             </div>
           )}
 
           <div className="flex justify-between items-center pt-1 flex-wrap gap-2">
-            <span className="text-xs" style={{ color: C.muted }}>
+            <span className="text-xs text-muted">
               Student is notified by email and in-app{pendingStatus ? ` · status will change to ${pendingStatus}` : ""}.
             </span>
             <button
@@ -657,8 +610,7 @@ const StaffIssueDetail = () => {
                 (!reply.trim() && (!pendingStatus || pendingStatus === issue.status)) ||
                 (pendingStatus === "Rejected" && !rejectReason.trim())
               }
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-60"
-              style={{ backgroundColor: C.navy }}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm rounded-control font-bold bg-primary text-on-primary hover:bg-primary-hover focus-ring disabled:bg-disabled-bg disabled:text-disabled-text transition-colors"
             >
               <Send className="w-4 h-4" />
               {submitting
@@ -673,7 +625,7 @@ const StaffIssueDetail = () => {
         </form>
       </div>
 
-      <AttachmentModal attachment={previewAtt} onClose={() => setPreviewAtt(null)} C={C} />
+      <AttachmentModal attachment={previewAtt} onClose={() => setPreviewAtt(null)} />
     </div>
   );
 };

@@ -11,25 +11,23 @@ const deptLabel = (d) => (d ? d.code || d.name || 'the department' : 'the depart
 
 // Outcome of a filed complaint, shown in place of the form:
 // { issue, department, duplicate?, message? }.
-export const ComplaintResult = ({ result, isDark }) => {
+export const ComplaintResult = ({ result }) => {
   const issueId = result.issue?._id;
   const ok = !result.duplicate;
   return (
     <div
-      className="flex items-start gap-1.5 text-xs mt-2 px-2 py-1.5 rounded-lg"
-      style={{
-        backgroundColor: ok
-          ? isDark ? 'rgba(111,181,138,0.12)' : '#E0F8E5'
-          : isDark ? 'rgba(196,138,74,0.12)' : '#FFF4E0',
-        color: ok ? (isDark ? '#9FD3B1' : '#1B7A33') : isDark ? '#E0B887' : '#7A5300',
-      }}
+      className={`flex items-start gap-1.5 text-xs mt-2 px-2.5 py-1.5 rounded-control border ${
+        ok
+          ? 'bg-success-bg text-success border-success-border'
+          : 'bg-warning-bg text-warning border-warning-border'
+      }`}
     >
       {ok ? <CheckCircle2 className="w-3.5 h-3.5 mt-px shrink-0" /> : <Info className="w-3.5 h-3.5 mt-px shrink-0" />}
       <span>
         {ok ? `Complaint registered with ${deptLabel(result.department || result.issue?.department)} — track it in ` : `${result.message} — `}
         <Link
           to={issueId ? `/issues/${issueId}` : '/issues'}
-          className="font-medium underline"
+          className="font-semibold underline focus-ring rounded"
         >
           {ok ? 'My Issues' : 'view the existing complaint'}
         </Link>
@@ -42,7 +40,7 @@ export const ComplaintResult = ({ result, isDark }) => {
 // Inline "Register a complaint" form under an assistant message. The
 // department is pre-selected from the question that led to the reply; the
 // server attaches the chat transcript itself.
-const ComplaintForm = ({ chatId, question, isDark, onCancel, onFiled }) => {
+const ComplaintForm = ({ chatId, question, onCancel, onFiled }) => {
   const dispatch = useDispatch();
   const allDepartments = useSelector((s) => s.department.departments);
   const departmentsLoading = useSelector((s) => s.department.loading);
@@ -121,14 +119,6 @@ const ComplaintForm = ({ chatId, question, isDark, onCancel, onFiled }) => {
     }
   };
 
-  const muted = isDark ? '#9AA5BD' : '#5A6372';
-  const inputStyle = {
-    backgroundColor: isDark ? '#0B1120' : '#F2F3F8',
-    borderColor: isDark ? '#2A3656' : '#D8DAE6',
-    color: isDark ? '#ECEEF5' : '#1F2330',
-    colorScheme: isDark ? 'dark' : 'light',
-  };
-  const primary = isDark ? '#E63027' : '#1E2A66';
   const suggestedDept = suggested && departments.find((d) => String(d._id) === String(suggested.departmentId));
   // Nothing to file against: say so instead of showing an empty picker.
   const noDepartments = checked && !departmentsLoading && departments.length === 0;
@@ -136,8 +126,7 @@ const ComplaintForm = ({ chatId, question, isDark, onCancel, onFiled }) => {
   if (noDepartments) {
     return (
       <div
-        className="mt-2 pt-2 border-t text-xs space-y-2"
-        style={{ borderColor: isDark ? '#2A3656' : '#D8DAE6', color: muted }}
+        className="mt-2 pt-2 border-t border-border text-xs space-y-2 text-muted"
       >
         <p className="flex items-start gap-1.5">
           <Info className="w-3.5 h-3.5 mt-px shrink-0" />
@@ -147,8 +136,7 @@ const ComplaintForm = ({ chatId, question, isDark, onCancel, onFiled }) => {
           <button
             type="button"
             onClick={onCancel}
-            className="px-3 py-1.5 text-xs rounded-lg border"
-            style={{ borderColor: isDark ? '#2A3656' : '#D8DAE6', color: muted }}
+            className="px-3 py-1.5 text-xs font-semibold rounded-control bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
           >
             Close
           </button>
@@ -160,14 +148,13 @@ const ComplaintForm = ({ chatId, question, isDark, onCancel, onFiled }) => {
   return (
     <form
       onSubmit={submit}
-      className="mt-2 pt-2 border-t space-y-2 text-sm"
-      style={{ borderColor: isDark ? '#2A3656' : '#D8DAE6' }}
+      className="mt-2 pt-2 border-t border-border space-y-2 text-sm"
     >
-      <div className="text-xs font-semibold" style={{ color: isDark ? '#ECEEF5' : '#1F2330' }}>
+      <div className="text-xs font-bold text-heading">
         Register a complaint
       </div>
       <div>
-        <label className="flex items-center justify-between text-xs mb-1" style={{ color: muted }}>
+        <label className="flex items-center justify-between text-xs font-semibold mb-1 text-label">
           <span>Department</span>
           {suggesting ? (
             <span className="inline-flex items-center gap-1">
@@ -183,8 +170,7 @@ const ComplaintForm = ({ chatId, question, isDark, onCancel, onFiled }) => {
           value={departmentId}
           onChange={(e) => setDepartmentId(e.target.value)}
           disabled={submitting}
-          className="w-full px-2.5 py-1.5 text-sm rounded-lg border focus:outline-none"
-          style={inputStyle}
+          className="w-full px-2.5 py-1.5 text-sm rounded-control border bg-input-bg border-input-border text-text placeholder:text-placeholder focus:border-primary focus:outline-none focus:shadow-[var(--focus-ring)] disabled:opacity-60"
         >
           <option value="">Select department…</option>
           {departments.map((d) => (
@@ -195,7 +181,7 @@ const ComplaintForm = ({ chatId, question, isDark, onCancel, onFiled }) => {
         </select>
       </div>
       <div>
-        <label className="block text-xs mb-1" style={{ color: muted }}>
+        <label className="block text-xs font-semibold mb-1 text-label">
           Details (optional)
         </label>
         <textarea
@@ -205,15 +191,14 @@ const ComplaintForm = ({ chatId, question, isDark, onCancel, onFiled }) => {
           rows={3}
           disabled={submitting}
           placeholder="Anything the department should know — dates, amounts, roll number…"
-          className="w-full px-2.5 py-1.5 text-sm rounded-lg border focus:outline-none resize-y"
-          style={inputStyle}
+          className="w-full px-2.5 py-1.5 text-sm rounded-control border resize-y bg-input-bg border-input-border text-text placeholder:text-placeholder focus:border-primary focus:outline-none focus:shadow-[var(--focus-ring)] disabled:opacity-60"
         />
-        <p className="text-xs mt-0.5" style={{ color: muted }}>
+        <p className="text-xs mt-0.5 text-muted">
           The chat transcript is attached automatically.
         </p>
       </div>
       {error && (
-        <p className="text-xs" style={{ color: isDark ? '#F08D7B' : '#A8261B' }}>
+        <p className="text-xs text-danger">
           {error}
         </p>
       )}
@@ -222,16 +207,14 @@ const ComplaintForm = ({ chatId, question, isDark, onCancel, onFiled }) => {
           type="button"
           onClick={onCancel}
           disabled={submitting}
-          className="px-3 py-1.5 text-xs rounded-lg border disabled:opacity-50"
-          style={{ borderColor: isDark ? '#2A3656' : '#D8DAE6', color: muted }}
+          className="px-3 py-1.5 text-xs font-semibold rounded-control bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors disabled:opacity-50"
         >
           Cancel
         </button>
         <button
           type="submit"
           disabled={submitting || !departmentId}
-          className="px-3 py-1.5 text-xs rounded-lg font-medium text-white inline-flex items-center gap-1.5 disabled:opacity-50"
-          style={{ backgroundColor: primary }}
+          className="px-3 py-1.5 text-xs rounded-control font-bold inline-flex items-center gap-1.5 bg-primary text-on-primary hover:bg-primary-hover focus-ring disabled:bg-disabled-bg disabled:text-disabled-text transition-colors"
         >
           {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
           {submitting ? 'Registering…' : 'Submit complaint'}

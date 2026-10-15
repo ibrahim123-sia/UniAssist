@@ -5,39 +5,16 @@ import { FileText, Clock, RefreshCw, Building2 } from "lucide-react";
 import moment from "moment";
 import { fetchDeptIssues } from "../../redux/slices/issueSlice";
 import OverdueBadge from "../../components/OverdueBadge";
-import { isOverdue } from "../../utils/issues";
+import { isOverdue, statusStyle } from "../../utils/issues";
 
 const STATUSES = ["All", "Pending", "In Progress", "Resolved", "Closed", "Rejected"];
-
-const statusStyle = (status, isDark) => {
-  const palette = {
-    Pending: { bg: isDark ? "#3a2f15" : "#FFF4E0", text: isDark ? "#FFC774" : "#9A6B00" },
-    "In Progress": { bg: isDark ? "#13314f" : "#E0F0FF", text: isDark ? "#7BB6F5" : "#1463B0" },
-    Resolved: { bg: isDark ? "#163320" : "#E0F8E5", text: isDark ? "#7BD594" : "#1B7A33" },
-    Closed: { bg: isDark ? "#2a2a2a" : "#EDEDED", text: isDark ? "#B5B5B5" : "#666666" },
-    Rejected: { bg: isDark ? "#3a1818" : "#FCE6E6", text: isDark ? "#F08D7B" : "#A8261B" },
-  };
-  return palette[status] || palette.Closed;
-};
 
 const StaffIssues = () => {
   const dispatch = useDispatch();
   const issues = useSelector((s) => s.issue.deptIssues);
   const loading = useSelector((s) => s.issue.loading);
   const user = useSelector((s) => s.auth.user);
-  const theme = useSelector((s) => s.theme.theme);
   const [filter, setFilter] = useState("All");
-  const isDark = theme === "dark";
-
-  const C = {
-    bg: isDark ? "#0E1422" : "#F2F3F8",
-    surface: isDark ? "#16203A" : "#FFFFFF",
-    border: isDark ? "#2A3656" : "#D8DAE6",
-    text: isDark ? "#ECEEF5" : "#1F2330",
-    muted: isDark ? "#9AA5BD" : "#5A6372",
-    navy: isDark ? "#E63027" : "#1E2A66",
-  };
-
   useEffect(() => {
     dispatch(fetchDeptIssues(filter === "All" ? undefined : filter));
     const id = setInterval(() => {
@@ -54,20 +31,19 @@ const StaffIssues = () => {
   }, {});
 
   return (
-    <div className="h-full overflow-y-auto" style={{ backgroundColor: C.bg, color: C.text }}>
+    <div className="h-full overflow-y-auto bg-bg text-text">
       <div className="max-w-6xl mx-auto p-6 md:p-8">
         <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
           <div>
-            <h1 className="text-2xl font-bold">Department Inbox</h1>
-            <p className="text-sm mt-1 inline-flex items-center gap-1.5" style={{ color: C.muted }}>
+            <h1 className="text-2xl font-extrabold text-heading">Department Inbox</h1>
+            <p className="text-sm mt-1 inline-flex items-center gap-1.5 text-muted">
               <Building2 className="w-4 h-4" />
               {user?.staffTitle || "Staff"} · viewing only your department's issues
             </p>
           </div>
           <button
             onClick={() => dispatch(fetchDeptIssues(filter === "All" ? undefined : filter))}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm border"
-            style={{ borderColor: C.border, color: C.muted }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium bg-surface border border-border-strong text-label hover:bg-nav-hover focus-ring transition-colors"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} /> Refresh
           </button>
@@ -78,12 +54,11 @@ const StaffIssues = () => {
             <button
               key={s}
               onClick={() => setFilter(s)}
-              className="px-3 py-1.5 rounded-full text-sm border transition-all"
-              style={{
-                borderColor: filter === s ? C.navy : C.border,
-                backgroundColor: filter === s ? C.navy : "transparent",
-                color: filter === s ? "#fff" : C.text,
-              }}
+              className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors focus-ring ${
+                filter === s
+                  ? "bg-primary border-primary text-on-primary"
+                  : "bg-surface dark:bg-transparent border-border-strong text-pill hover:bg-nav-hover"
+              }`}
             >
               {s} {counts[s] !== undefined && <span className="opacity-75">({counts[s]})</span>}
             </button>
@@ -91,48 +66,45 @@ const StaffIssues = () => {
         </div>
 
         {loading && issues.length === 0 ? (
-          <div className="text-center py-12" style={{ color: C.muted }}>Loading…</div>
+          <div className="text-center py-12 text-muted">Loading…</div>
         ) : issues.length === 0 ? (
           <div
-            className="text-center py-16 rounded-xl border"
-            style={{ borderColor: C.border, backgroundColor: C.surface }}
+            className="text-center py-16 border border-border bg-surface rounded-card shadow-card"
           >
-            <FileText className="w-12 h-12 mx-auto mb-3" style={{ color: C.muted }} />
-            <p className="text-base font-medium">No issues</p>
-            <p className="text-sm mt-1" style={{ color: C.muted }}>
+            <FileText className="w-12 h-12 mx-auto mb-3 text-muted" />
+            <p className="text-base font-bold text-heading">No issues</p>
+            <p className="text-sm mt-1 text-muted">
               No {filter === "All" ? "" : filter.toLowerCase()} issues for your department right now.
             </p>
           </div>
         ) : (
           <div className="space-y-3">
             {issues.map((issue) => {
-              const sStyle = statusStyle(issue.status, isDark);
+              const sStyle = statusStyle(issue.status);
               return (
                 <Link
                   key={issue._id}
                   to={`/staff/issues/${issue._id}`}
-                  className="block p-4 rounded-xl border transition-all hover:shadow-md"
-                  style={{
-                    backgroundColor: C.surface,
-                    borderColor: isOverdue(issue) ? (isDark ? "#7A2A22" : "#F1B5B0") : C.border,
-                  }}
+                  className={`block p-4 rounded-card border bg-surface shadow-card transition-colors hover:bg-row-hover focus-ring ${
+                    isOverdue(issue) ? "border-danger-border" : "border-border hover:border-border-strong"
+                  }`}
                 >
                   <div className="flex items-start justify-between gap-3 flex-wrap">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
-                        <h3 className="font-semibold truncate">{issue.title}</h3>
+                        <h3 className="font-bold truncate text-heading">{issue.title}</h3>
                         <span
-                          className="text-xs px-2 py-0.5 rounded-full uppercase font-semibold"
-                          style={{ backgroundColor: sStyle.bg, color: sStyle.text }}
+                          className="text-xs px-2 py-0.5 rounded-full uppercase font-bold border"
+                          style={{ backgroundColor: sStyle.bg, color: sStyle.text, borderColor: sStyle.border }}
                         >
                           {issue.status}
                         </span>
-                        <OverdueBadge issue={issue} isDark={isDark} />
+                        <OverdueBadge issue={issue} />
                       </div>
-                      <p className="text-sm line-clamp-2" style={{ color: C.muted }}>
+                      <p className="text-sm line-clamp-2 text-muted">
                         {issue.description}
                       </p>
-                      <div className="flex items-center gap-4 mt-3 text-xs flex-wrap" style={{ color: C.muted }}>
+                      <div className="flex items-center gap-4 mt-3 text-xs flex-wrap text-muted">
                         <span>From: {issue.studentName}</span>
                         <span>{issue.studentEmail}</span>
                         <span>Category: {issue.category}</span>
@@ -144,20 +116,13 @@ const StaffIssues = () => {
                           <span>{issue.replies.length} repl{issue.replies.length === 1 ? "y" : "ies"}</span>
                         )}
                         <span
-                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full"
-                          style={{
-                            backgroundColor: issue.assignedTo
-                              ? (issue.assignedTo._id === user?._id
-                                  ? (isDark ? "#13314f" : "#E0F0FF")
-                                  : (isDark ? "#1E2A47" : "#EEF1F6"))
-                              : "transparent",
-                            color: issue.assignedTo
-                              ? (issue.assignedTo._id === user?._id
-                                  ? (isDark ? "#7BB6F5" : "#1463B0")
-                                  : C.muted)
-                              : C.muted,
-                            border: issue.assignedTo ? "none" : `1px dashed ${C.border}`,
-                          }}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border ${
+                            issue.assignedTo
+                              ? issue.assignedTo._id === user?._id
+                                ? "bg-info-bg text-info border-info-border font-semibold"
+                                : "bg-surface-muted text-muted border-transparent"
+                              : "bg-transparent text-muted border-dashed border-border-strong"
+                          }`}
                         >
                           {issue.assignedTo
                             ? (issue.assignedTo._id === user?._id

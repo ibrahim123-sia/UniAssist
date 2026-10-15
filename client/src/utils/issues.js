@@ -12,3 +12,20 @@ export const formatHours = (hours) => {
   if (h >= 48) return `${(h / 24).toFixed(1)} d`;
   return `${h.toFixed(1)} h`;
 };
+
+// Badge colors per issue status, as theme-token var() strings for inline
+// styles. Resolved/Closed = success, Pending = warning, In Progress = info,
+// Rejected = danger; anything unknown gets a neutral pill.
+const STATUS_TOKENS = {
+  Pending: "warning",
+  "In Progress": "info",
+  Resolved: "success",
+  Closed: "success",
+  Rejected: "danger",
+};
+
+export const statusStyle = (status) => {
+  const t = STATUS_TOKENS[status];
+  if (!t) return { bg: "var(--surface-muted)", text: "var(--text-muted)", border: "var(--border-strong)" };
+  return { bg: `var(--${t}-bg)`, text: `var(--${t})`, border: `var(--${t}-border)` };
+};
