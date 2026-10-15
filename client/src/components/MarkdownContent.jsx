@@ -9,12 +9,7 @@ const domProps = (props) => {
   return rest;
 };
 
-const CODE_COLORS = {
-  light: { backgroundColor: '#F2F3F8', color: '#1F2330' },
-  dark: { backgroundColor: '#0B1120', color: '#ECEEF5' },
-};
-
-// Theme-independent overrides. Tailwind's preflight strips list markers and
+// Tailwind's preflight strips list markers and
 // spacing; restore them so fee breakdowns / requirement lists read as lists.
 const baseComponents = {
   ul: (props) => <ul className="list-disc pl-5 my-1 space-y-0.5" {...domProps(props)} />,
@@ -28,7 +23,7 @@ const baseComponents = {
         href={href}
         target="_blank"
         rel="noopener noreferrer"
-        className="underline underline-offset-2 wrap-break-word"
+        className="text-ai-bubble-link underline underline-offset-2 wrap-break-word"
         {...domProps(props)}
       >
         {children}
@@ -38,36 +33,36 @@ const baseComponents = {
     ),
 };
 
-const makeComponents = (colors) => ({
+// Built once at module load: passing a fresh `components` object (with new
+// function identities) on every render made React unmount and remount every
+// paragraph/list of every message on each parent render. Code colors come
+// from theme tokens, so one set serves both modes.
+const COMPONENTS = {
   ...baseComponents,
   code: ({ className, children, ...props }) => (
     <code
-      className={[className, 'px-1 py-0.5 rounded text-sm'].filter(Boolean).join(' ')}
-      style={colors}
+      className={[className, 'px-1 py-0.5 rounded bg-surface-muted text-text text-sm'].filter(Boolean).join(' ')}
       {...domProps(props)}
     >
       {children}
     </code>
   ),
   pre: ({ children, ...props }) => (
-    <pre className="p-3 rounded-lg overflow-x-auto my-2 text-sm" style={colors} {...domProps(props)}>
+    <pre
+      className="p-3 rounded-control overflow-x-auto my-2 text-sm bg-surface-muted text-text border border-border"
+      {...domProps(props)}
+    >
       {children}
     </pre>
   ),
-});
-
-// Built once at module load: passing a fresh `components` object (with new
-// function identities) on every render made React unmount and remount every
-// paragraph/list of every message on each parent render.
-const LIGHT_COMPONENTS = makeComponents(CODE_COLORS.light);
-const DARK_COMPONENTS = makeComponents(CODE_COLORS.dark);
+};
 
 // Shared by the student chat and the guest chat. react-markdown escapes raw
 // HTML by default (no rehype-raw), so model output can't inject markup.
 // Memoised: re-parsing markdown is the expensive part of rendering a message,
-// so it only happens when the text or theme actually changes.
-const MarkdownContent = ({ content, isDark }) => (
-  <Markdown components={isDark ? DARK_COMPONENTS : LIGHT_COMPONENTS}>{content}</Markdown>
+// so it only happens when the text actually changes.
+const MarkdownContent = ({ content }) => (
+  <Markdown components={COMPONENTS}>{content}</Markdown>
 );
 
 export default memo(MarkdownContent);

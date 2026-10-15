@@ -1,8 +1,7 @@
 import React, { memo, useCallback } from 'react';
-import { useSelector } from 'react-redux';
 import {
   User,
-  Bot,
+  Sparkles,
   Mail,
   Calendar,
   Image as ImageIcon,
@@ -41,10 +40,7 @@ const Message = ({
   onComplaintCancel,
   onComplaintFiled,
 }) => {
-  const theme = useSelector((s) => s.theme.theme);
   const isUser = message.role === 'user';
-  const isDark = theme === 'dark';
-  const muted = isDark ? '#9AA5BD' : '#5A6372';
   // The server already forwarded this one to the admins (auto-captured). A
   // stored message may only carry the questionId, so that counts too.
   const escalated =
@@ -65,12 +61,11 @@ const Message = ({
   const filedComplaint = useCallback((result) => onComplaintFiled?.(index, result), [onComplaintFiled, index]);
 
   const complaintPanel = complaint?.result ? (
-    <ComplaintResult result={complaint.result} isDark={isDark} />
+    <ComplaintResult result={complaint.result} />
   ) : complaint?.open ? (
     <ComplaintForm
       chatId={chatId}
       question={question}
-      isDark={isDark}
       onCancel={cancelComplaint}
       onFiled={filedComplaint}
     />
@@ -80,32 +75,18 @@ const Message = ({
     <div className={`flex items-start gap-3 my-3 sm:my-4 ${isUser ? 'justify-end' : 'justify-start'}`}>
       {/* Assistant Avatar */}
       {!isUser && (
-        <div
-          className="w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0"
-          style={{
-            backgroundColor: isDark ? '#2A1F1A' : '#FCE6E4',
-            color: isDark ? '#C48A4A' : '#E63027',
-          }}
-        >
-          <Bot className="w-4 h-4 sm:w-5 sm:h-5" />
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-accent-soft text-accent-strong">
+          <Sparkles className="w-4 h-4" strokeWidth={2} />
         </div>
       )}
 
       {/* Message Content */}
       <div
-        className="max-w-[85%] sm:max-w-[80%] rounded-2xl px-3 py-2"
-        style={{
-          backgroundColor: isUser
-            ? isDark ? '#1E2A47' : '#1E2A66'
-            : isDark ? '#16203A' : '#FFFFFF',
-          color: isUser
-            ? '#FFFFFF'
-            : isDark ? '#ECEEF5' : '#1F2330',
-          border: isUser
-            ? 'none'
-            : isDark ? '1px solid #2A3656' : '1px solid #D8DAE6',
-          boxShadow: !isUser && !isDark ? '0 1px 2px rgba(30, 46, 110, 0.04)' : 'none',
-        }}
+        className={`max-w-[85%] sm:max-w-[80%] rounded-2xl px-3 py-2 ${
+          isUser
+            ? 'bg-primary text-on-primary rounded-br-[4px] [&_a]:text-on-primary'
+            : 'bg-ai-bubble text-ai-bubble-text rounded-tl-[4px]'
+        }`}
       >
         {/* Message Header */}
         <div className="flex items-center gap-2 mb-2">
@@ -129,8 +110,7 @@ const Message = ({
           {/* Voice message processing indicator */}
           {message.type === 'voice' && message.isProcessing && (
             <div
-              className="flex items-center gap-2 text-sm"
-              style={{ color: isDark ? '#C48A4A' : '#E63027' }}
+              className={`flex items-center gap-2 text-sm ${isUser ? 'text-on-primary/80' : 'text-ai-bubble-link'}`}
             >
               <Mic className="w-4 h-4 animate-pulse" />
               <span>Processing voice message...</span>
@@ -139,10 +119,7 @@ const Message = ({
 
           {/* Voice response indicator (assistant) */}
           {message.isVoiceResponse && (
-            <div
-              className="flex items-center gap-2 text-xs mb-2"
-              style={{ color: isDark ? '#C48A4A' : '#E63027' }}
-            >
+            <div className="flex items-center gap-2 text-xs mb-2 text-ai-bubble-link">
               <Volume2 className="w-3 h-3" />
               <span>Response to your voice message</span>
             </div>
@@ -158,16 +135,13 @@ const Message = ({
             />
           ) : (
             <div className="wrap-break-word">
-              <MarkdownContent content={message.content} isDark={isDark} />
+              <MarkdownContent content={message.content} />
             </div>
           )}
 
           {/* Voice message metadata */}
           {message.type === 'voice' && message.voiceMeta && (
-            <div
-              className="text-xs mt-2"
-              style={{ color: isUser ? 'rgba(255,255,255,0.7)' : isDark ? '#9AA5BD' : '#5A6372' }}
-            >
+            <div className={`text-xs mt-2 ${isUser ? 'text-on-primary/70' : 'text-muted'}`}>
               Duration: {message.voiceMeta.duration}s
               {message.voiceMeta.transcriptionService && (
                 <span className="ml-2">
@@ -179,13 +153,7 @@ const Message = ({
         </div>
 
         {escalated && (
-          <div
-            className="flex items-start gap-1.5 text-xs mt-2 px-2 py-1.5 rounded-lg"
-            style={{
-              backgroundColor: isDark ? 'rgba(196,138,74,0.12)' : '#FFF4E0',
-              color: isDark ? '#E0B887' : '#7A5300',
-            }}
-          >
+          <div className="flex items-start gap-1.5 text-xs mt-2 px-2 py-1.5 rounded-lg bg-warning-bg text-warning border border-warning-border">
             <Info className="w-3.5 h-3.5 mt-px shrink-0" />
             <span>
               I couldn&apos;t answer this — it has been sent to the university admin. You&apos;ll be
@@ -195,20 +163,13 @@ const Message = ({
         )}
 
         {promptComplaint && (
-          <div
-            className="flex flex-wrap items-center gap-2 text-xs mt-2 px-2 py-1.5 rounded-lg"
-            style={{
-              backgroundColor: isDark ? 'rgba(230,48,39,0.10)' : '#FCE6E4',
-              color: isDark ? '#ECEEF5' : '#1F2330',
-            }}
-          >
-            <FileWarning className="w-3.5 h-3.5 shrink-0" style={{ color: isDark ? '#C48A4A' : '#E63027' }} />
+          <div className="flex flex-wrap items-center gap-2 text-xs mt-2 px-2 py-1.5 rounded-lg bg-surface text-text border border-border-strong">
+            <FileWarning className="w-3.5 h-3.5 shrink-0 text-primary" />
             <span className="flex-1 min-w-[160px]">Is this a complaint? Register it with the department.</span>
             <button
               type="button"
               onClick={openComplaint}
-              className="px-2 py-1 rounded-md font-medium text-white"
-              style={{ backgroundColor: isDark ? '#E63027' : '#1E2A66' }}
+              className="px-2 py-1 rounded-md font-bold bg-primary hover:bg-primary-hover text-on-primary transition-colors focus-ring"
             >
               Register a complaint
             </button>
@@ -218,10 +179,7 @@ const Message = ({
         {complaintPanel}
 
         {/* Timestamp + actions */}
-        <div
-          className="flex items-center gap-3 text-xs mt-2"
-          style={{ color: isUser ? 'rgba(255,255,255,0.7)' : muted }}
-        >
+        <div className={`flex items-center gap-3 text-xs mt-2 ${isUser ? 'text-on-primary/70' : 'text-muted'}`}>
           <span>{moment(message.timestamp).format('h:mm A')}</span>
           <div className="ml-auto flex flex-wrap items-center justify-end gap-x-3 gap-y-1">
             {showComplaint && !promptComplaint && (
@@ -229,8 +187,9 @@ const Message = ({
                 type="button"
                 onClick={openComplaint}
                 disabled={!!complaintState}
-                className="inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors disabled:cursor-default enabled:hover:underline"
-                style={{ color: complaintState === 'filed' ? (isDark ? '#6FB58A' : '#2F8A56') : muted }}
+                className={`inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors disabled:cursor-default enabled:hover:underline focus-ring ${
+                  complaintState === 'filed' ? 'text-success' : 'text-muted'
+                }`}
                 title={
                   complaintState === 'filed'
                     ? 'A complaint was registered from this chat'
@@ -250,8 +209,9 @@ const Message = ({
                 type="button"
                 onClick={ask}
                 disabled={!!askStatus}
-                className="inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors disabled:cursor-default enabled:hover:underline"
-                style={{ color: askStatus === 'sent' ? (isDark ? '#6FB58A' : '#2F8A56') : muted }}
+                className={`inline-flex items-center gap-1 rounded px-1 -mx-1 transition-colors disabled:cursor-default enabled:hover:underline focus-ring ${
+                  askStatus === 'sent' ? 'text-success' : 'text-muted'
+                }`}
                 title={
                   askStatus === 'sent'
                     ? 'The university admin has this question'
@@ -274,14 +234,8 @@ const Message = ({
 
       {/* User Avatar */}
       {isUser && (
-        <div
-          className="w-7 h-7 sm:w-9 sm:h-9 rounded-full flex items-center justify-center shrink-0"
-          style={{
-            backgroundColor: isDark ? '#1E2A47' : '#E7E8F0',
-            color: isDark ? '#ECEEF5' : '#1E2A66',
-          }}
-        >
-          <User className="w-4 h-4 sm:w-5 sm:h-5" />
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-nav-active-bg text-nav-active-text">
+          <User className="w-4 h-4" strokeWidth={2} />
         </div>
       )}
     </div>

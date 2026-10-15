@@ -14,33 +14,26 @@ const chatWaitStage = (seconds) => {
 // Typing indicator shown while waiting for the assistant's reply (student
 // and guest chat). Owns its own 1 s clock so only this small component
 // re-renders while waiting, never the message list.
-const ChatWaitIndicator = ({ startedAt, isDark }) => {
+const ChatWaitIndicator = ({ startedAt }) => {
   const seconds = useElapsed(startedAt);
   const stage = chatWaitStage(seconds);
-  const dot = isDark ? "#C48A4A" : "#E63027";
 
   return (
     <div className="flex justify-start my-3" role="status" aria-live="polite">
-      <div
-        className="max-w-[85%] rounded-2xl px-3 py-2 border"
-        style={{
-          backgroundColor: isDark ? "#16203A" : "#FFFFFF",
-          borderColor: isDark ? "#2A3656" : "#D8DAE6",
-        }}
-      >
+      <div className="max-w-[85%] rounded-2xl rounded-tl-[4px] px-3 py-2 bg-ai-bubble text-ai-bubble-text">
         <div className="flex items-center gap-2">
           <span className="flex items-center gap-1" aria-hidden="true">
             {[0, 0.15, 0.3].map((delay) => (
               <span
                 key={delay}
-                className="w-2 h-2 rounded-full animate-bounce"
-                style={{ backgroundColor: dot, animationDelay: `${delay}s` }}
+                className="w-2 h-2 rounded-full animate-bounce bg-accent-strong"
+                style={{ animationDelay: `${delay}s` }}
               />
             ))}
           </span>
           <span className="sr-only">UniAssist is replying.</span>
           {stage && (
-            <span className="text-xs" style={{ color: isDark ? "#9AA5BD" : "#5A6372" }}>
+            <span className="text-xs text-muted">
               {stage}
               {seconds >= 6 && <span className="tabular-nums"> · {seconds} s</span>}
             </span>

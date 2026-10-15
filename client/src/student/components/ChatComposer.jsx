@@ -51,9 +51,7 @@ const isTimeout = (error) =>
  * `busy`: this chat is waiting for a reply (Send disabled, reason shown).
  */
 const ChatComposer = ({ chatId, busy, showTopics, onSend }) => {
-  const theme = useSelector((s) => s.theme.theme);
   const token = useSelector((s) => s.auth.token);
-  const isDark = theme === "dark";
 
   const [prompt, setPrompt] = useState("");
   const [mode, setMode] = useState("text");
@@ -353,7 +351,7 @@ const ChatComposer = ({ chatId, busy, showTopics, onSend }) => {
       {/* Suggested Topics */}
       {showTopics && !isRecording && (
         <div className="w-full max-w-4xl mx-auto px-4 md:px-6 mb-3">
-          <p className={`text-xs mb-2 ${isDark ? "text-[#9AA5BD]" : "text-[#5A6372]"}`}>Quick Start Topics:</p>
+          <p className="text-xs font-semibold mb-2 text-label">Quick Start Topics:</p>
           <div className="flex flex-wrap gap-1.5">
             {SUGGESTED_TOPICS.map((topic) => {
               const TopicIcon = topic.Icon;
@@ -366,13 +364,9 @@ const ChatComposer = ({ chatId, busy, showTopics, onSend }) => {
                   setPrompt(text);
                   if (text.includes("email")) setMode("email");
                 }}
-                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs transition-all flex-1 min-w-[45%] md:flex-initial md:min-w-0 ${
-                  isDark
-                    ? "bg-[#16203A] hover:bg-[#1E2A47] text-[#ECEEF5] border border-[#2A3656]"
-                    : "bg-white hover:bg-[#F2F3F8] text-[#1F2330] border border-[#D8DAE6] shadow-sm"
-                }`}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-colors flex-1 min-w-[45%] md:flex-initial md:min-w-0 bg-surface dark:bg-transparent hover:bg-nav-hover text-pill border border-border-strong focus-ring"
               >
-                <TopicIcon className="w-4 h-4" />
+                <TopicIcon className="w-4 h-4 text-label" strokeWidth={2} />
                 <span className="truncate text-xs">{text}</span>
               </button>
             );
@@ -383,33 +377,29 @@ const ChatComposer = ({ chatId, busy, showTopics, onSend }) => {
 
       <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
         {isRecording ? (
-          <div
-            className={`p-4 rounded-xl border ${
-              isDark ? "bg-[#16203A] border-[#2A3656]" : "bg-[#FCE6E4] border-[#D8DAE6]"
-            } shadow-sm`}
-          >
+          <div className="p-4 rounded-card border bg-surface border-border shadow-card">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-[#E63027] flex items-center justify-center animate-pulse">
-                  <Mic className="w-5 h-5 text-white" />
+                <div className="w-10 h-10 rounded-full bg-danger-bg border border-danger-border flex items-center justify-center animate-pulse">
+                  <Mic className="w-5 h-5 text-danger" strokeWidth={2} />
                 </div>
                 <div>
-                  <div className="text-xl font-bold text-[#E63027] tabular-nums">{formatTime(recordingTime)}</div>
-                  <div className="text-xs text-[#5A6372] dark:text-[#9AA5BD]">Recording voice message...</div>
+                  <div className="text-xl font-bold text-heading tabular-nums">{formatTime(recordingTime)}</div>
+                  <div className="text-xs text-muted">Recording voice message...</div>
                 </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
                   onClick={cancelRecording}
-                  className="px-4 py-2 text-sm text-[#5A6372] dark:text-[#9AA5BD] hover:text-[#E63027] rounded-lg hover:bg-white/60 dark:hover:bg-[#1E2A47] transition-all"
+                  className="px-4 py-2 text-sm font-semibold bg-surface border border-border-strong text-label rounded-control hover:bg-nav-hover transition-colors focus-ring"
                 >
                   Cancel
                 </button>
                 <button
                   type="button"
                   onClick={stopRecording}
-                  className="px-5 py-2 bg-[#E63027] hover:bg-[#C81E15] text-white rounded-lg text-sm font-medium transition-colors"
+                  className="px-5 py-2 bg-primary hover:bg-primary-hover text-on-primary rounded-control text-sm font-bold transition-colors focus-ring"
                 >
                   Stop &amp; Transcribe
                 </button>
@@ -419,9 +409,7 @@ const ChatComposer = ({ chatId, busy, showTopics, onSend }) => {
         ) : (
           <form
             onSubmit={handleSubmit}
-            className={`p-1 rounded-xl border ${
-              isDark ? "bg-[#16203A] border-[#2A3656]" : "bg-white border-[#D8DAE6] shadow-sm"
-            }`}
+            className="p-1.5 rounded-card border bg-surface border-border shadow-card"
           >
             <div className="flex gap-1.5">
               <div className="flex-1 relative">
@@ -432,7 +420,7 @@ const ChatComposer = ({ chatId, busy, showTopics, onSend }) => {
                   type="text"
                   aria-label="Message"
                   placeholder={mode === "email" ? "Write email content..." : "Type your query or record voice..."}
-                  className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-[#1F2330] dark:text-[#ECEEF5] placeholder-[#5A6372] dark:placeholder-[#9AA5BD] text-sm rounded-lg border border-[#D8DAE6] dark:border-[#2A3656] focus:border-[#1E2A66] dark:focus:border-[#E63027] focus:ring-1 focus:ring-[#1E2A66]/20 dark:focus:ring-[#E63027]/20"
+                  className="w-full pl-3 pr-10 py-2 bg-input-bg outline-none text-text placeholder:text-placeholder text-[15px] rounded-control border border-input-border focus:border-primary focus:shadow-[var(--focus-ring)]"
                   disabled={isProcessingVoice}
                 />
                 {!isProcessingVoice && (
@@ -440,11 +428,11 @@ const ChatComposer = ({ chatId, busy, showTopics, onSend }) => {
                     type="button"
                     onClick={startRecording}
                     disabled={!chatId}
-                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md text-[#1E2A66] dark:text-[#E63027] hover:text-[#E63027] dark:hover:text-[#C48A4A] hover:bg-[#E7E8F0] dark:hover:bg-[#1E2A47] transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="absolute right-1.5 top-1/2 transform -translate-y-1/2 p-1.5 rounded-md text-label hover:text-primary hover:bg-nav-hover transition-colors disabled:text-disabled-text disabled:cursor-not-allowed focus-ring"
                     title="Record voice message"
                     aria-label="Record voice message"
                   >
-                    <Mic className="w-4 h-4" />
+                    <Mic className="w-4 h-4" strokeWidth={2} />
                   </button>
                 )}
               </div>
@@ -454,16 +442,16 @@ const ChatComposer = ({ chatId, busy, showTopics, onSend }) => {
                 disabled={sendBlocked}
                 aria-label={sendTitle}
                 title={sendTitle}
-                className={`px-3 py-1.5 rounded-lg transition-all shrink-0 flex items-center justify-center ${
+                className={`px-3.5 py-2 rounded-control transition-colors shrink-0 flex items-center justify-center focus-ring ${
                   sendBlocked
-                    ? "bg-[#D8DAE6] dark:bg-[#2A3656] cursor-not-allowed"
-                    : "bg-[#1E2A66] hover:bg-[#16204D]"
+                    ? "bg-disabled-bg text-disabled-text cursor-not-allowed"
+                    : "bg-primary hover:bg-primary-hover text-on-primary"
                 }`}
               >
                 {busy ? (
-                  <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <div className="w-3.5 h-3.5 border-2 border-current border-t-transparent rounded-full animate-spin"></div>
                 ) : (
-                  <Send className="w-3.5 h-3.5 text-white" />
+                  <Send className="w-3.5 h-3.5" strokeWidth={2} />
                 )}
               </button>
             </div>
@@ -473,8 +461,8 @@ const ChatComposer = ({ chatId, busy, showTopics, onSend }) => {
                 <ProgressLine label="Transcribing your voice…" startedAt={transcribingSince} className="text-[11px]" />
               ) : (
                 <>
-                  <div className={`w-1.5 h-1.5 rounded-full ${mode === "email" ? "bg-[#1E2A66]" : "bg-[#3BAA75]"}`}></div>
-                  <span className={`text-[10px] ${isDark ? "text-[#9AA5BD]" : "text-[#5A6372]"}`}>
+                  <div className={`w-1.5 h-1.5 rounded-full ${mode === "email" ? "bg-primary" : "bg-accent"}`}></div>
+                  <span className="text-[10px] text-muted">
                     {mode === "email" ? "Email Mode" : "Chat Mode"}
                     {busy && " · UniAssist is replying — you can send your next message when it's done"}
                   </span>

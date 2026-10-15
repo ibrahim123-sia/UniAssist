@@ -32,10 +32,8 @@ const ChatPage = () => {
   const dispatch = useDispatch();
   const containRef = useRef(null);
   const selectedChat = useSelector((s) => s.chat.selectedChat);
-  const theme = useSelector((s) => s.theme.theme);
   const user = useSelector((s) => s.auth.user);
   const token = useSelector((s) => s.auth.token);
-  const isDark = theme === "dark";
   const chatId = selectedChat?._id;
 
   // Chats waiting for a reply: { [chatId]: { userMsg, startedAt } }. Several
@@ -188,30 +186,19 @@ const ChatPage = () => {
   const canComplain = user?.role !== "admin" && user?.role !== "staff";
 
   return (
-    <div
-      className={`flex-1 flex flex-col h-full overflow-hidden ${
-        isDark ? "bg-[#0E1422]" : "bg-linear-to-b from-[#E7E8F0] via-white to-[#F2F3F8]"
-      }`}
-    >
+    <div className="flex-1 flex flex-col h-full overflow-hidden bg-bg">
       <div className="flex-1 flex flex-col py-4 md:py-6 overflow-hidden">
         {/* Welcome Message when no chats */}
         {messages.length === 0 && !selectedChat && (
           <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
-            <div
-              className={`mb-4 p-4 md:p-6 rounded-xl border ${
-                isDark
-                  ? "bg-linear-to-r from-[#16203A] to-[#1E2A47] border-[#2A3656]"
-                  : "bg-linear-to-r from-[#E7E8F0] to-[#F2F3F8] border-[#D8DAE6]"
-              }`}
-            >
+            <div className="mb-4 p-4 md:p-6 rounded-card border bg-surface border-border shadow-card">
               <div className="flex flex-col md:flex-row items-center gap-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center relative bg-[#1E2A66] shrink-0">
-                  <Sparkles className="w-6 h-6 text-white" />
-                  <span className="absolute bottom-1 left-2 right-2 h-0.5 rounded-full bg-[#E63027]" />
+                <div className="w-12 h-12 rounded-control flex items-center justify-center bg-primary shrink-0">
+                  <Sparkles className="w-6 h-6 text-on-primary" strokeWidth={2} />
                 </div>
                 <div className="flex-1 text-center md:text-left">
-                  <h2 className="text-lg font-bold text-[#1F2330] dark:text-[#ECEEF5] mb-2">Welcome to UniAssist!</h2>
-                  <p className={`text-sm ${isDark ? "text-[#9AA5BD]" : "text-[#5A6372]"}`}>
+                  <h2 className="text-lg font-bold text-heading mb-2">Welcome to UniAssist!</h2>
+                  <p className="text-sm text-muted">
                     Your intelligent assistant for MAJU. Ask questions, draft emails, and get personalized help.
                   </p>
                 </div>
@@ -226,13 +213,13 @@ const ChatPage = () => {
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center min-h-[60vh]">
                 <div className="text-center max-w-md">
-                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-[#E7E8F0] dark:bg-[#1E2A47] flex items-center justify-center">
-                    <MessageSquare className="w-8 h-8 text-[#1E2A66] dark:text-[#E63027]" />
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-nav-active-bg flex items-center justify-center">
+                    <MessageSquare className="w-8 h-8 text-nav-active-text" />
                   </div>
-                  <p className="text-xl md:text-3xl text-center text-[#5A6372] dark:text-[#9AA5BD] mb-2">
+                  <p className="text-xl md:text-3xl font-bold text-center text-heading mb-2">
                     Ask me Anything
                   </p>
-                  <p className="text-sm text-[#5A6372] dark:text-[#9AA5BD]">
+                  <p className="text-sm text-muted">
                     Start a conversation or choose a topic below
                   </p>
                 </div>
@@ -259,7 +246,7 @@ const ChatPage = () => {
               })
             )}
 
-            {pendingHere && <ChatWaitIndicator startedAt={pendingHere.startedAt} isDark={isDark} />}
+            {pendingHere && <ChatWaitIndicator startedAt={pendingHere.startedAt} />}
           </div>
         </div>
 

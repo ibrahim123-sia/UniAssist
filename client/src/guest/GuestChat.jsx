@@ -9,9 +9,9 @@ import {
 import MarkdownContent from "../components/MarkdownContent";
 import ChatWaitIndicator from "../components/ChatWaitIndicator";
 import { toggleTheme as toggleThemeAction } from "../redux/slices/themeSlice";
+import BrandMark from "../components/BrandMark";
 import {
   Send,
-  Brain,
   Sun,
   Moon,
   Mail,
@@ -34,46 +34,40 @@ const formatClock = (timestamp) =>
 
 // One guest chat bubble. Memoised on the stored message object, so typing in
 // the composer never re-renders (or re-parses the markdown of) old messages.
-const GuestMessage = memo(({ message, isDark, onRegister }) => {
+const GuestMessage = memo(({ message, onRegister }) => {
   const isUser = message.role === "user";
   return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-3`}>
+    <div className={`flex items-start gap-2 ${isUser ? "justify-end" : "justify-start"} mb-3`}>
+      {!isUser && (
+        <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-accent-soft text-accent-strong">
+          <Sparkles className="w-4 h-4" strokeWidth={2} />
+        </div>
+      )}
       <div
         className={`max-w-[85%] md:max-w-[80%] rounded-2xl px-3 py-2 ${
           isUser
-            ? "bg-[#1E2A66] text-white rounded-br-none"
-            : isDark
-            ? "bg-[#16203A] text-[#ECEEF5] rounded-bl-none border border-[#2A3656]"
-            : "bg-white text-[#1F2330] rounded-bl-none border border-[#D8DAE6] shadow-sm"
+            ? "bg-primary text-on-primary rounded-br-[4px]"
+            : "bg-ai-bubble text-ai-bubble-text rounded-tl-[4px]"
         }`}
       >
         <div className="flex items-start gap-2">
-          {!isUser && <Brain className="w-4 h-4 text-[#1E2A66] dark:text-[#E63027] mt-0.5 shrink-0" />}
           {!isUser ? (
             <div className="text-sm md:text-base wrap-break-word min-w-0">
-              <MarkdownContent content={message.content} isDark={isDark} />
+              <MarkdownContent content={message.content} />
             </div>
           ) : (
             <p className="text-sm md:text-base wrap-break-word whitespace-pre-wrap">{message.content}</p>
           )}
         </div>
         {!isUser && message.answered === false && (
-          <p
-            className={`text-xs mt-2 px-2 py-1.5 rounded-lg ${
-              isDark ? "bg-[#C48A4A]/10 text-[#E0B887]" : "bg-[#FFF4E0] text-[#7A5300]"
-            }`}
-          >
+          <p className="text-xs mt-2 px-2 py-1.5 rounded-lg bg-warning-bg text-warning border border-warning-border">
             <button type="button" onClick={onRegister} className="font-semibold underline underline-offset-2">
               Register
             </button>{" "}
             to ask the university admin directly.
           </p>
         )}
-        <p
-          className={`text-xs mt-2 ${
-            isUser ? "text-white/70" : isDark ? "text-[#9AA5BD]" : "text-[#5A6372]"
-          }`}
-        >
+        <p className={`text-xs mt-2 ${isUser ? "text-on-primary/70" : "text-muted"}`}>
           {formatClock(message.timestamp)}
         </p>
       </div>
@@ -102,7 +96,7 @@ const GuestComposer = memo(({ busy, onSend, onRegister }) => {
   return (
     <form
       onSubmit={submit}
-      className="p-1 rounded-xl border bg-white dark:bg-[#16203A] border-[#D8DAE6] dark:border-[#2A3656] shadow-sm"
+      className="p-1.5 rounded-card border bg-surface border-border shadow-card"
     >
       <div className="flex gap-1.5">
         <div className="flex-1 relative">
@@ -113,7 +107,7 @@ const GuestComposer = memo(({ busy, onSend, onRegister }) => {
             maxLength={MAX_GUEST_MESSAGE_CHARS}
             aria-label="Message"
             placeholder="Ask about MAJU…"
-            className="w-full pl-3 pr-10 py-1.5 bg-transparent outline-none text-[#1F2330] dark:text-[#ECEEF5] placeholder-[#5A6372] dark:placeholder-[#9AA5BD] text-sm rounded-lg border border-[#D8DAE6] dark:border-[#2A3656] focus:border-[#1E2A66] dark:focus:border-[#E63027] focus:ring-1 focus:ring-[#1E2A66]/20 dark:focus:ring-[#E63027]/20"
+            className="w-full px-3 py-2 bg-input-bg outline-none text-text placeholder:text-placeholder text-[15px] rounded-control border border-input-border focus:border-primary focus:shadow-[var(--focus-ring)]"
           />
         </div>
         <button
@@ -121,23 +115,23 @@ const GuestComposer = memo(({ busy, onSend, onRegister }) => {
           disabled={blocked}
           aria-label={sendLabel}
           title={sendLabel}
-          className={`px-3 py-1.5 rounded-lg transition-all shrink-0 flex items-center justify-center ${
-            blocked ? "bg-[#D8DAE6] dark:bg-[#2A3656] cursor-not-allowed" : "bg-[#1E2A66] hover:bg-[#16204D]"
+          className={`px-3.5 py-2 rounded-control transition-colors shrink-0 flex items-center justify-center focus-ring ${
+            blocked ? "bg-disabled-bg text-disabled-text cursor-not-allowed" : "bg-primary hover:bg-primary-hover text-on-primary"
           }`}
         >
-          <Send className={`w-3.5 h-3.5 ${blocked ? "text-[#9AA5BD]" : "text-white"}`} />
+          <Send className="w-3.5 h-3.5" strokeWidth={2} />
         </button>
       </div>
 
       <div className="flex items-center justify-between mt-1.5 px-1">
         <div className="flex items-center gap-1">
-          <div className="w-1.5 h-1.5 rounded-full bg-yellow-500"></div>
-          <span className="text-[10px] text-[#5A6372] dark:text-[#9AA5BD]">
+          <div className="w-1.5 h-1.5 rounded-full bg-warning"></div>
+          <span className="text-[10px] text-muted">
             Guest Mode • Unlimited Messages
           </span>
         </div>
-        <div className="text-[10px] text-[#5A6372] dark:text-[#9AA5BD]">
-          <button type="button" onClick={onRegister} className="text-[#E63027] dark:text-[#C48A4A] hover:underline">
+        <div className="text-[10px] text-muted">
+          <button type="button" onClick={onRegister} className="font-semibold text-link hover:text-link-hover hover:underline focus-ring rounded">
             Register for voice & email →
           </button>
         </div>
@@ -234,50 +228,38 @@ const GuestChat = () => {
   ];
 
   return (
-    <div
-      className={`flex h-screen ${
-        theme === "dark"
-          ? "bg-[#0E1422]"
-          : "bg-linear-to-b from-[#E7E8F0] via-white to-[#F2F3F8]"
-      }`}
-    >
+    <div className="flex h-screen bg-bg">
       {/* Mobile Overlay */}
       {isMenuOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 z-30 md:hidden"
+          className="fixed inset-0 bg-overlay z-30 md:hidden"
           onClick={() => setIsMenuOpen(false)}
         ></div>
       )}
 
       {/* Sidebar for Guests */}
       <div
-        className={`flex flex-col h-screen w-64 ${
-          theme === "dark"
-            ? "bg-[#16203A]/95 border-[#2A3656] backdrop-blur-lg"
-            : "bg-white/95 border-[#D8DAE6] backdrop-blur-lg"
-        } border-r transition-transform duration-300 fixed md:relative z-40
+        className={`flex flex-col h-screen w-64 bg-sidebar-bg border-sidebar-border border-r transition-transform duration-300 fixed md:relative z-40
       ${isMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
         {/* Close button for mobile */}
         <button
           onClick={() => setIsMenuOpen(false)}
-          className="md:hidden absolute top-4 right-4 p-2 rounded-lg hover:bg-[#F2F3F8] dark:hover:bg-[#1E2A47]"
+          className="md:hidden absolute top-4 right-4 p-2 rounded-lg hover:bg-nav-hover focus-ring"
+          aria-label="Close menu"
         >
-          <X className="w-5 h-5 text-[#5A6372] dark:text-[#9AA5BD]" />
+          <X className="w-5 h-5 text-label" />
         </button>
 
         {/* Logo Section */}
-        <div className="p-6 border-b border-[#D8DAE6] dark:border-[#2A3656]">
+        <div className="p-6 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-lg flex items-center justify-center relative bg-[#1E2A66]">
-              <span className="text-white font-bold text-lg leading-none">M</span>
-              <span className="absolute bottom-1 left-2 right-2 h-0.5 rounded-full bg-[#E63027]" />
-            </div>
+            <BrandMark size={34} />
             <div>
-              <h1 className="text-lg font-bold text-[#1F2330] dark:text-[#ECEEF5] leading-tight">
+              <h1 className="text-[19px] font-extrabold text-heading leading-tight">
                 UniAssist
               </h1>
-              <p className="text-[11px] text-[#5A6372] dark:text-[#9AA5BD]">
+              <p className="text-[11px] text-muted">
                 MAJU Student Assistant
               </p>
             </div>
@@ -285,26 +267,27 @@ const GuestChat = () => {
         </div>
 
         {/* Guest Info */}
-        <div className="p-4 border-b border-[#D8DAE6] dark:border-[#2A3656]">
+        <div className="p-4 border-b border-sidebar-border">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-linear-to-r from-[#1E2A66] to-[#E63027] flex items-center justify-center">
-              <Users className="w-5 h-5 text-white" />
+            <div className="w-9 h-9 rounded-full bg-nav-active-bg flex items-center justify-center">
+              <Users className="w-5 h-5 text-nav-active-text" />
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-[#1F2330] dark:text-[#ECEEF5]">
+              <p className="text-sm font-semibold text-heading">
                 Guest User
               </p>
-              <p className="text-xs text-[#5A6372] dark:text-[#9AA5BD]">
+              <p className="text-xs text-muted">
                 Text Chat Only
               </p>
             </div>
             {guestSessionId && (
               <button
                 onClick={handleClearChat}
-                className="p-1.5 rounded-md hover:bg-[#F2F3F8] dark:hover:bg-[#1E2A47]"
+                className="p-1.5 rounded-md hover:bg-nav-hover focus-ring"
                 title="Clear chat"
+                aria-label="Clear chat"
               >
-                <Trash2 className="w-4 h-4 text-[#5A6372] dark:text-[#9AA5BD]" />
+                <Trash2 className="w-4 h-4 text-label" />
               </button>
             )}
           </div>
@@ -314,8 +297,7 @@ const GuestChat = () => {
         <div className="p-4">
           <button
             onClick={() => navigate("/register")}
-            className="w-full bg-linear-to-r from-[#1E2A66] to-[#1E2A66] hover:from-[#16204D] hover:to-[#16204D] 
-            text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm"
+            className="w-full bg-primary hover:bg-primary-hover text-on-primary font-bold py-2.5 rounded-control flex items-center justify-center gap-2 transition-colors text-sm focus-ring"
           >
             <Sparkles className="w-4 h-4" />
             Register for Full Access
@@ -324,7 +306,7 @@ const GuestChat = () => {
 
         {/* Suggested Topics */}
         <div className="flex-1 overflow-y-auto px-4 pb-4">
-          <h3 className="text-sm font-medium text-[#1F2330] dark:text-[#ECEEF5] mb-3">
+          <h3 className="text-[13px] font-semibold text-label mb-3">
             Quick Start Topics
           </h3>
 
@@ -333,19 +315,11 @@ const GuestChat = () => {
               <button
                 key={index}
                 onClick={() => handleSuggestedTopic(topic.text)}
-                className={`w-full text-left p-3 rounded-lg transition-all ${
-                  theme === "dark"
-                    ? "hover:bg-[#1E2A47]"
-                    : "hover:bg-[#F2F3F8]"
-                }`}
+                className="w-full text-left p-3 rounded-control transition-colors hover:bg-nav-hover focus-ring"
               >
                 <div className="flex items-center gap-2 mb-1">
-                  {topic.icon}
-                  <p
-                    className={`text-sm font-medium ${
-                      theme === "dark" ? "text-[#ECEEF5]" : "text-[#1F2330]"
-                    }`}
-                  >
+                  <span className="text-label shrink-0">{topic.icon}</span>
+                  <p className="text-sm font-medium text-text">
                     {topic.text}
                   </p>
                 </div>
@@ -355,15 +329,15 @@ const GuestChat = () => {
         </div>
 
         {/* Theme & Auth */}
-        <div className="p-4 border-t border-[#D8DAE6] dark:border-[#2A3656] space-y-2">
-          <div className="flex items-center justify-between p-2.5 rounded-lg bg-[#F2F3F8] dark:bg-[#1E2A47]">
+        <div className="p-4 border-t border-sidebar-border space-y-2">
+          <div className="flex items-center justify-between p-2.5 rounded-control bg-nav-hover">
             <div className="flex items-center gap-3">
               {theme === "dark" ? (
-                <Moon className="w-4 h-4 text-[#E63027]" />
+                <Moon className="w-4 h-4 text-label" />
               ) : (
-                <Sun className="w-4 h-4 text-[#E63027]" />
+                <Sun className="w-4 h-4 text-label" />
               )}
-              <span className="text-sm font-medium text-[#1F2330] dark:text-[#ECEEF5]">
+              <span className="text-sm font-medium text-text">
                 Theme
               </span>
             </div>
@@ -372,15 +346,16 @@ const GuestChat = () => {
                 type="checkbox"
                 checked={theme === "dark"}
                 onChange={toggleTheme}
+                aria-label="Theme"
                 className="sr-only peer"
               />
               <div
-                className={`w-10 h-5 rounded-full peer ${
-                  theme === "dark" ? "bg-[#E63027]" : "bg-[#D8DAE6]"
+                className={`w-10 h-5 rounded-full peer peer-focus-visible:shadow-[var(--focus-ring)] transition-colors ${
+                  theme === "dark" ? "bg-primary" : "bg-border-strong"
                 }`}
               ></div>
               <div
-                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform ${
+                className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-on-primary transition-transform ${
                   theme === "dark" ? "translate-x-5" : ""
                 }`}
               ></div>
@@ -390,13 +365,13 @@ const GuestChat = () => {
           <div className="flex gap-2">
             <button
               onClick={() => navigate("/login")}
-              className="flex-1 px-3 py-2 text-sm bg-[#F2F3F8] dark:bg-[#1E2A47] text-[#1F2330] dark:text-[#ECEEF5] rounded-lg hover:bg-[#E7E8F0] dark:hover:bg-[#16203A]"
+              className="flex-1 px-3 py-2 text-sm font-semibold bg-surface border border-border-strong text-label rounded-control hover:bg-nav-hover transition-colors focus-ring"
             >
               Login
             </button>
             <button
               onClick={() => navigate("/register")}
-              className="flex-1 px-3 py-2 text-sm bg-linear-to-r from-[#1E2A66] to-[#1E2A66] text-white rounded-lg hover:from-[#16204D] hover:to-[#16204D]"
+              className="flex-1 px-3 py-2 text-sm font-bold bg-primary hover:bg-primary-hover text-on-primary rounded-control transition-colors focus-ring"
             >
               Register
             </button>
@@ -408,20 +383,17 @@ const GuestChat = () => {
       <div className="flex-1 flex flex-col h-full overflow-hidden md:ml-0">
         {/* Mobile Header */}
         <header
-          className={`md:hidden sticky top-0 z-10 border-b ${
-            theme === "dark"
-              ? "bg-[#16203A]/95 border-[#2A3656] backdrop-blur-lg"
-              : "bg-white/95 border-[#D8DAE6] backdrop-blur-lg"
-          }`}
+          className="md:hidden sticky top-0 z-10 border-b bg-surface border-border"
         >
           <div className="p-4">
             <div className="flex items-center justify-between">
               <button
                 onClick={() => setIsMenuOpen(true)}
-                className="p-2 hover:bg-[#F2F3F8] dark:hover:bg-[#1E2A47] rounded-lg"
+                className="p-2 hover:bg-nav-hover rounded-lg focus-ring"
+                aria-label="Open menu"
               >
                 <svg
-                  className="w-6 h-6 text-[#1F2330] dark:text-[#ECEEF5]"
+                  className="w-6 h-6 text-label"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -436,10 +408,10 @@ const GuestChat = () => {
               </button>
 
               <div className="flex flex-col items-center">
-                <h1 className="text-lg font-bold text-[#1F2330] dark:text-[#ECEEF5]">
+                <h1 className="text-lg font-extrabold text-heading">
                   UniAssist
                 </h1>
-                <p className="text-xs text-[#5A6372] dark:text-[#9AA5BD]">
+                <p className="text-xs text-muted">
                   Guest Mode
                 </p>
               </div>
@@ -447,10 +419,11 @@ const GuestChat = () => {
               {guestSessionId && (
                 <button
                   onClick={handleClearChat}
-                  className="p-2 hover:bg-[#F2F3F8] dark:hover:bg-[#1E2A47] rounded-lg"
+                  className="p-2 hover:bg-nav-hover rounded-lg focus-ring"
                   title="Clear chat"
+                  aria-label="Clear chat"
                 >
-                  <Trash2 className="w-5 h-5 text-[#5A6372] dark:text-[#9AA5BD]" />
+                  <Trash2 className="w-5 h-5 text-label" />
                 </button>
               )}
             </div>
@@ -458,32 +431,18 @@ const GuestChat = () => {
         </header>
 
         {/* Guest Limitations Banner */}
-        <div
-          className={`px-4 py-2 border-b ${
-            theme === "dark"
-              ? "bg-yellow-900/20 border-yellow-800/30"
-              : "bg-yellow-50 border-yellow-200"
-          }`}
-        >
-          <div className="flex items-center justify-between">
+        <div className="px-4 py-2 border-b bg-warning-bg border-warning-border">
+          <div className="flex items-center justify-between gap-3">
             <div className="flex items-center gap-2">
-              <Info
-                className={`w-4 h-4 ${
-                  theme === "dark" ? "text-yellow-400" : "text-yellow-600"
-                }`}
-              />
-              <p
-                className={`text-xs ${
-                  theme === "dark" ? "text-yellow-300" : "text-yellow-700"
-                }`}
-              >
+              <Info className="w-4 h-4 shrink-0 text-warning" />
+              <p className="text-xs font-medium text-warning">
                 Guest Mode: Unlimited text chat • No voice/job/event features • Chat
                 not saved
               </p>
             </div>
             <button
               onClick={() => navigate("/register")}
-              className="cursor-pointer text-xs text-[#E63027] dark:text-[#C48A4A] hover:underline font-medium"
+              className="cursor-pointer shrink-0 text-xs text-link hover:text-link-hover hover:underline font-bold focus-ring rounded"
             >
               Upgrade →
             </button>
@@ -495,27 +454,16 @@ const GuestChat = () => {
           {/* Welcome Message when no chats */}
           {guestMessages.length === 0 && (
             <div className="w-full max-w-4xl mx-auto px-4 md:px-6">
-            <div
-              className={`mb-4 p-4 md:p-6 rounded-xl border ${
-                theme === "dark"
-                  ? "bg-linear-to-r from-[#16203A] to-[#1E2A47] border-[#2A3656]"
-                  : "bg-linear-to-r from-[#E7E8F0] to-[#F2F3F8] border-[#D8DAE6]"
-              }`}
-            >
+            <div className="mb-4 p-4 md:p-6 rounded-card border bg-surface border-border shadow-card">
               <div className="flex flex-col md:flex-row items-center gap-4">
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center relative bg-[#1E2A66] shrink-0">
-                  <Sparkles className="w-6 h-6 text-white" />
-                  <span className="absolute bottom-1 left-2 right-2 h-0.5 rounded-full bg-[#E63027]" />
+                <div className="w-12 h-12 rounded-control flex items-center justify-center bg-primary shrink-0">
+                  <Sparkles className="w-6 h-6 text-on-primary" strokeWidth={2} />
                 </div>
                 <div className="flex-1 text-center md:text-left">
-                  <h2 className="text-lg font-bold text-[#1F2330] dark:text-[#ECEEF5] mb-2">
+                  <h2 className="text-lg font-bold text-heading mb-2">
                     Welcome to UniAssist!
                   </h2>
-                  <p
-                    className={`text-sm ${
-                      theme === "dark" ? "text-[#9AA5BD]" : "text-[#5A6372]"
-                    }`}
-                  >
+                  <p className="text-sm text-muted">
                     I'm your MAJU assistant. Ask me anything about
                     admissions, programs, fees, deadlines, and campus
                     information.
@@ -544,12 +492,11 @@ const GuestChat = () => {
               <GuestMessage
                 key={`${index}:${message.role}`}
                 message={message}
-                isDark={theme === "dark"}
                 onRegister={goRegister}
               />
             ))}
 
-            {isLoading && <ChatWaitIndicator startedAt={pendingSince} isDark={theme === "dark"} />}
+            {isLoading && <ChatWaitIndicator startedAt={pendingSince} />}
 
             {/* Invisible element at the end for scrolling reference */}
             <div ref={messagesEndRef} />
