@@ -1,6 +1,7 @@
 import React, { useEffect } from "react";
 import { ActivityIndicator, Alert, Text, View } from "react-native";
 import { StatusBar } from "expo-status-bar";
+import { useFonts } from "expo-font";
 import { Provider, useDispatch } from "react-redux";
 import { PersistGate } from "redux-persist/integration/react";
 import { SafeAreaProvider } from "react-native-safe-area-context";
@@ -14,6 +15,10 @@ import { useConnectivity } from "./src/hooks/useConnectivity";
 import { useNotificationPolling } from "./src/hooks/useNotificationPolling";
 import { useTheme } from "./src/hooks/useTheme";
 import { palette } from "./src/theme/palette";
+import { applyGlobalFont, fontAssets } from "./src/theme/typography";
+
+// Every Text / TextInput renders in Manrope (see src/theme/typography.tsx).
+applyGlobalFont();
 
 const Bootstrap: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -58,6 +63,11 @@ const NotConfigured = () => (
 );
 
 export default function App() {
+  // A failed font load falls back to the system font rather than blocking.
+  const [fontsLoaded, fontError] = useFonts(fontAssets);
+  if (!fontsLoaded && !fontError) {
+    return <View style={{ flex: 1, backgroundColor: palette.light.bg }} />;
+  }
   if (!SERVER_URL) return <NotConfigured />;
   return (
     <Provider store={store}>
