@@ -1,0 +1,273 @@
+/* =====================================================================
+   UniAssist design tokens — "Day Desk" (light, default) / "Night Desk" (dark)
+
+   Every color in the app comes from here. Components use the Tailwind
+   names mapped in the @theme block below (bg-surface, text-muted,
+   border-border, bg-primary, text-success ...) or, for inline styles,
+   the var() strings in src/theme/palette.js.
+
+   Adding a token:
+     1. Add it to :root (light) AND [data-theme="dark"] below.
+     2. If components need it as a Tailwind class, map it in @theme inline
+        as --color-<name>: var(--<name>);
+     3. If inline styles need it, add it to C in src/theme/palette.js.
+   Don't invent a new hue — mix the closest token toward --bg (lighter)
+   or --text (darker).
+   ===================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* Core */
+  --bg: #F7F8FC;
+  --surface: #FFFFFF;
+  --surface-2: #FFFFFF;
+  --border: #E3E7F2;
+  --border-strong: #D9DEEC;
+  --input-bg: #F5F7FC;
+  --input-border: #DCE2EF;
+  --text: #0B1230;
+  --text-heading: #0B1230;
+  --text-muted: #5B6584;
+  --text-label: #3A4466;
+  --text-pill: #3A4466;
+  --placeholder: #8A93AD;
+  --primary: #3B63E8;
+  --primary-hover: #2A4BC4;
+  --on-primary: #FFFFFF;
+  --link: #3B63E8;
+  --link-hover: #2A4BC4;
+  --ai-bubble: #EEF2FF;
+  --ai-bubble-text: #0B1230;
+  --accent: #10B3A3;
+  --accent-strong: #0F8F84;
+  --accent-soft: #E7F7F5;
+
+  /* Added: subtle filled block inside a card (code blocks, quoted text,
+     skeletons). Light = --input-bg, dark = --nav-hover. */
+  --surface-muted: #F5F7FC;
+  /* Added: links inside the AI bubble. --link on --ai-bubble is under
+     4.5:1 in light, so it is mixed toward --text (= --primary-700). */
+  --ai-bubble-link: #223C9E;
+  /* Added: feature-list icon box on Register/Login. */
+  --icon-box: #EEF2FF;
+
+  /* Primary scale (same in both modes) */
+  --primary-50: #EEF2FF;
+  --primary-100: #DCE5FF;
+  --primary-200: #BCCBFD;
+  --primary-300: #93AAFA;
+  --primary-400: #6886F2;
+  --primary-500: #3B63E8;
+  --primary-600: #2A4BC4;
+  --primary-700: #223C9E;
+  --primary-800: #1D3380;
+  --primary-900: #1A2C66;
+
+  /* Layout surfaces */
+  --sidebar-bg: #FFFFFF;
+  --sidebar-border: #E3E7F2;
+  --nav-hover: #F2F4FA;
+  --nav-active-bg: #EEF2FF;
+  --nav-active-text: #3B63E8;
+  --table-header-bg: #F5F7FC;
+  --row-hover: #F8F9FD;
+  --overlay: rgba(11, 18, 48, 0.45);
+
+  /* Status: text / bg / border */
+  --success: #0F7A43;
+  --success-bg: #E6F6EC;
+  --success-border: #BDE5CB;
+  --warning: #9A5B00;
+  --warning-bg: #FFF4DE;
+  --warning-border: #F5D9A3;
+  --danger: #C2293A;
+  --danger-bg: #FDECEE;
+  --danger-border: #F5C2C9;
+  --info: #3B63E8;
+  --info-bg: #EEF2FF;
+  --info-border: #BCCBFD;
+
+  /* States */
+  --focus-ring: 0 0 0 3px rgba(59, 99, 232, 0.25);
+  --disabled-bg: #E9ECF4;
+  --disabled-text: #A3ABC2;
+
+  /* Charts, in order */
+  --chart-1: #3B63E8;
+  --chart-2: #10B3A3;
+  --chart-3: #F59E0B;
+  --chart-4: #E5487D;
+  --chart-5: #8B5CF6;
+  --chart-6: #64748B;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(11, 18, 48, 0.04), 0 10px 28px rgba(11, 18, 48, 0.06);
+  --shadow-lg: 0 1px 2px rgba(11, 18, 48, 0.04), 0 16px 40px rgba(11, 18, 48, 0.08);
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --bg: #0A0F1E;
+  --surface: #10172C;
+  --surface-2: #111833;
+  --border: #1E2747;
+  --border-strong: #26304F;
+  --input-bg: #0B1124;
+  --input-border: #253055;
+  --text: #E6EAF5;
+  --text-heading: #FFFFFF;
+  --text-muted: #9AA4BF;
+  --text-label: #B8C1DA;
+  --text-pill: #C9D1E8;
+  --placeholder: #6B7699;
+  --primary: #3B63E8;
+  --primary-hover: #2A4BC4;
+  --on-primary: #FFFFFF;
+  --link: #9DB4FF;
+  --link-hover: #C3D1FF;
+  --ai-bubble: #182246;
+  --ai-bubble-text: #E6EAF5;
+  --accent: #5EEAD4;
+  --accent-strong: #5EEAD4;
+  --accent-soft: #1B254A;
+
+  --surface-muted: #131B33;
+  --ai-bubble-link: #9DB4FF;
+  --icon-box: #16204A;
+
+  --sidebar-bg: #0D1326;
+  --sidebar-border: #1E2747;
+  --nav-hover: #131B33;
+  --nav-active-bg: #16204A;
+  --nav-active-text: #9DB4FF;
+  --table-header-bg: #0E1529;
+  --row-hover: #121A31;
+  --overlay: rgba(0, 0, 0, 0.6);
+
+  --success: #4ADE95;
+  --success-bg: #0F2A22;
+  --success-border: #1D4D3B;
+  --warning: #FBBF4C;
+  --warning-bg: #2B2210;
+  --warning-border: #4D3B17;
+  --danger: #F87185;
+  --danger-bg: #2E1520;
+  --danger-border: #552333;
+  --info: #9DB4FF;
+  --info-bg: #16204A;
+  --info-border: #26304F;
+
+  --focus-ring: 0 0 0 3px rgba(59, 99, 232, 0.45);
+  --disabled-bg: #161D33;
+  --disabled-text: #4F5A78;
+
+  --chart-1: #6886F2;
+  --chart-2: #5EEAD4;
+  --chart-3: #FBBF4C;
+  --chart-4: #F472A6;
+  --chart-5: #A78BFA;
+  --chart-6: #94A3B8;
+
+  /* Dark mode separates with borders, not shadows */
+  --shadow-sm: none;
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.35);
+}
+
+/* Tailwind names for the tokens above. `inline` makes utilities read the
+   variable at runtime, so they follow data-theme. */
+@theme inline {
+  --font-sans: "Manrope", system-ui, sans-serif;
+
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-muted: var(--surface-muted);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input-bg: var(--input-bg);
+  --color-input-border: var(--input-border);
+  --color-text: var(--text);
+  --color-heading: var(--text-heading);
+  --color-muted: var(--text-muted);
+  --color-label: var(--text-label);
+  --color-pill: var(--text-pill);
+  --color-placeholder: var(--placeholder);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-link: var(--link);
+  --color-link-hover: var(--link-hover);
+  --color-ai-bubble: var(--ai-bubble);
+  --color-ai-bubble-text: var(--ai-bubble-text);
+  --color-ai-bubble-link: var(--ai-bubble-link);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-soft: var(--accent-soft);
+  --color-icon-box: var(--icon-box);
+
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-primary-200: var(--primary-200);
+  --color-primary-300: var(--primary-300);
+  --color-primary-400: var(--primary-400);
+  --color-primary-500: var(--primary-500);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+  --color-primary-800: var(--primary-800);
+  --color-primary-900: var(--primary-900);
+
+  --color-sidebar-bg: var(--sidebar-bg);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-nav-hover: var(--nav-hover);
+  --color-nav-active-bg: var(--nav-active-bg);
+  --color-nav-active-text: var(--nav-active-text);
+  --color-table-header: var(--table-header-bg);
+  --color-row-hover: var(--row-hover);
+  --color-overlay: var(--overlay);
+
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-border: var(--success-border);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-border: var(--warning-border);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-border: var(--danger-border);
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-info-border: var(--info-border);
+
+  --color-disabled-bg: var(--disabled-bg);
+  --color-disabled-text: var(--disabled-text);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-chart-6: var(--chart-6);
+
+  /* Shape */
+  --radius-control: 12px; /* inputs, buttons, icon boxes */
+  --radius-logo: 10px;
+  --radius-card: 18px; /* content cards, chat preview */
+  --radius-panel: 22px; /* form card, modals */
+}
+
+/* shadow-card / shadow-panel follow the theme (none in dark for cards) */
+@utility shadow-card {
+  box-shadow: var(--shadow-sm);
+}
+@utility shadow-panel {
+  box-shadow: var(--shadow-lg);
+}
+/* Keyboard focus ring: add `focus-ring` to anything focusable */
+@utility focus-ring {
+  &:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+  }
+}

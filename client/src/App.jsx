@@ -42,16 +42,11 @@ const AdminSettings = lazy(() => import("./administrator/pages/Settings"));
 
 const App = () => {
   const dispatch = useDispatch();
-  const theme = useSelector((s) => s.theme.theme);
   const token = useSelector((s) => s.auth.token);
   const user = useSelector((s) => s.auth.user);
   const userId = user?._id;
   const userRole = user?.role;
   const guestSessionId = useSelector((s) => s.guest.guestSessionId);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-  }, [theme]);
 
   useEffect(() => {
     if (token) {
@@ -85,25 +80,30 @@ const App = () => {
         toastOptions={{
           duration: 3000,
           style: {
-            background: "#1E2A47",
-            color: "#ECEEF5",
-            border: "1px solid #2A3656",
+            background: "var(--surface)",
+            color: "var(--text)",
+            border: "1px solid var(--border)",
+            boxShadow: "var(--shadow-lg)",
+            borderRadius: "12px",
+            fontSize: "14px",
           },
           success: {
             duration: 3000,
             style: {
-              background: "#1E2A66",
-              color: "#fff",
+              background: "var(--success-bg)",
+              color: "var(--success)",
+              border: "1px solid var(--success-border)",
             },
-            iconTheme: { primary: "#6FB58A", secondary: "#fff" },
+            iconTheme: { primary: "var(--success)", secondary: "var(--success-bg)" },
           },
           error: {
             duration: 4000,
             style: {
-              background: "#E63027",
-              color: "#fff",
+              background: "var(--danger-bg)",
+              color: "var(--danger)",
+              border: "1px solid var(--danger-border)",
             },
-            iconTheme: { primary: "#fff", secondary: "#E63027" },
+            iconTheme: { primary: "var(--danger)", secondary: "var(--danger-bg)" },
           },
         }}
       />

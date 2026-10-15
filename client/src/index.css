@@ -1,59 +1,20 @@
-
-@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
 @import "tailwindcss";
-@custom-variant dark (&:where(.dark,.dark *));
-
-*{
-    font-family: "Poppins", sans-serif;
-}
-
-@theme{
-    /* ===== MAJU brand — light theme =====
-       Values sampled directly from jinnah.edu hero, navbar, and section
-       blocks. Royal navy for primary identity, vivid red for accents and
-       CTAs, lavender-tinted off-white for section surfaces. */
-    --color-maju-navy: #1E2A66;
-    --color-maju-navy-700: #16204D;
-    --color-maju-navy-50: #E7E8F0;
-    --color-maju-red: #E63027;
-    --color-maju-red-700: #C81E15;
-    --color-maju-red-50: #FCE6E4;
-
-    /* Light surfaces */
-    --color-maju-bg: #FFFFFF;
-    --color-maju-surface: #F2F3F8;
-    --color-maju-text: #1F2330;
-    --color-maju-muted: #5A6372;
-    --color-maju-border: #D8DAE6;
-
-    /* ===== MAJU Campus After Dark — dark theme =====
-       Deep institutional navy backgrounds keep the brand legible in dark
-       mode. MAJU red stays as the action color for continuity with light.
-       The brushed-copper accent (#C48A4A) is the distinguishing element —
-       it evokes brass nameplates and academic regalia rather than the
-       generic blue/teal/purple of typical dark UIs. */
-    --color-night-bg: #0E1422;
-    --color-night-surface: #16203A;
-    --color-night-elevated: #1E2A47;
-    --color-night-input: #0B1120;
-    --color-night-border: #2A3656;
-    --color-night-text: #ECEEF5;
-    --color-night-muted: #9AA5BD;
-    --color-night-accent: #E63027;
-    --color-night-highlight: #C48A4A;
-    --color-night-bubble-user: #1E2A47;
-
-    /* Back-compat alias */
-    --color-primary: #1E2A66;
-}
+@import "./theme/tokens.css";
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 
 html, body{
-    background-color: var(--color-maju-bg);
-    color: var(--color-maju-text);
+    background-color: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
 }
-html.dark, html.dark body{
-    background-color: var(--color-night-bg);
-    color: var(--color-night-text);
+
+/* Smooth Day Desk / Night Desk switch on the main surfaces */
+body, aside, header, main, nav, section, dialog, input, textarea, select{
+    transition: background-color .2s, color .2s, border-color .2s;
+}
+
+input::placeholder, textarea::placeholder{
+    color: var(--placeholder);
 }
 
 ::-webkit-scrollbar{
@@ -64,11 +25,8 @@ html.dark, html.dark body{
     background: transparent;
 }
 ::-webkit-scrollbar-thumb{
-    background: var(--color-maju-border);
+    background: var(--border-strong);
     border-radius: 3px;
-}
-html.dark ::-webkit-scrollbar-thumb{
-    background: var(--color-night-border);
 }
 
 .reset-tw:not(pre):not(code){
