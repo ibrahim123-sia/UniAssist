@@ -19,6 +19,7 @@ import { errorMessage } from "../../api/client";
 import { apiAskAdmin, MAX_QUESTION_CHARS } from "../../api/question";
 import { FilterChip } from "../../components/FilterChip";
 import { TypingIndicator } from "../../components/TypingIndicator";
+import { AiAvatar } from "../../components/AiAvatar";
 import { ComplaintSheet, type ComplaintResult } from "../../components/ComplaintSheet";
 import { fetchMyIssues } from "../../redux/slices/issueSlice";
 import type { AppDispatch, RootState } from "../../redux/store";
@@ -240,10 +241,10 @@ export default function ChatScreen({ route, navigation }: any) {
         {loadError ? (
           <>
             <Text style={{ color: C.text, marginBottom: 12, textAlign: "center" }}>{loadError}</Text>
-            <Pressable onPress={reload}><Text style={{ color: C.navy, fontWeight: "600" }}>Retry</Text></Pressable>
+            <Pressable onPress={reload}><Text style={{ color: C.link, fontWeight: "600" }}>Retry</Text></Pressable>
           </>
         ) : (
-          <ActivityIndicator color={C.navy} />
+          <ActivityIndicator color={C.primary} />
         )}
       </View>
     );
@@ -273,38 +274,44 @@ export default function ChatScreen({ route, navigation }: any) {
           const complaint = complaints[key];
           return (
             <View>
+              <View style={{
+                flexDirection: "row", alignItems: "flex-start", gap: 8,
+                justifyContent: mine ? "flex-end" : "flex-start", marginVertical: 4, marginHorizontal: 12,
+              }}>
+              {mine ? null : <AiAvatar />}
               <View
                 style={{
-                  alignSelf: mine ? "flex-end" : "flex-start",
-                  backgroundColor: mine ? C.bubbleUser : C.surface,
-                  borderColor: C.border, borderWidth: mine ? 0 : 1,
-                  padding: 10, borderRadius: 12, marginVertical: 4, marginHorizontal: 12, maxWidth: "85%",
+                  backgroundColor: mine ? C.primary : C.aiBubble,
+                  paddingHorizontal: 13, paddingVertical: 10, borderRadius: 16,
+                  ...(mine ? { borderBottomRightRadius: 4 } : { borderTopLeftRadius: 4 }),
+                  maxWidth: "85%", flexShrink: 1,
                   opacity: item.sending ? 0.7 : 1,
                 }}
               >
                 {item.type === "voice" || item.type === "email" ? (
-                  <Text style={{ color: mine ? C.onBubbleUser : C.muted, fontSize: 10, marginBottom: 2 }}>
+                  <Text style={{ color: mine ? C.onPrimary : C.muted, fontSize: 10, marginBottom: 2 }}>
                     {item.type === "voice" ? "Voice" : "Email draft"}
                   </Text>
                 ) : null}
-                <Text selectable style={{ color: mine ? C.onBubbleUser : C.text }}>{item.content}</Text>
+                <Text selectable style={{ color: mine ? C.onPrimary : C.aiBubbleText, fontSize: 15, lineHeight: 22 }}>{item.content}</Text>
                 {escalated ? (
                   <Text style={{
                     color: C.muted, fontSize: 12, fontStyle: "italic", marginTop: 8, paddingTop: 8,
-                    borderTopWidth: 1, borderTopColor: C.border,
+                    borderTopWidth: 1, borderTopColor: C.borderStrong,
                   }}>
                     {ESCALATED_NOTE}
                   </Text>
                 ) : null}
               </View>
+              </View>
               {question ? (
                 <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginHorizontal: 16, marginBottom: 4 }}>
                   {ask?.status === "sent" ? (
                     <>
-                      <Check color={C.green} size={12} />
-                      <Text style={{ color: C.green, fontSize: 11, fontWeight: "600" }}>Sent to admin</Text>
+                      <Check color={C.success} size={12} />
+                      <Text style={{ color: C.success, fontSize: 11, fontWeight: "600" }}>Sent to admin</Text>
                       <Pressable onPress={() => navigation.navigate("MyQuestions")} hitSlop={6}>
-                        <Text style={{ color: C.navy, fontSize: 11 }}>· My questions</Text>
+                        <Text style={{ color: C.link, fontSize: 11 }}>· My questions</Text>
                       </Pressable>
                     </>
                   ) : (
@@ -320,7 +327,7 @@ export default function ChatScreen({ route, navigation }: any) {
                         </Text>
                       </Pressable>
                       {ask?.status === "error" ? (
-                        <Text style={{ color: C.red, fontSize: 11, flexShrink: 1 }}>{ask.message}</Text>
+                        <Text style={{ color: C.danger, fontSize: 11, flexShrink: 1 }}>{ask.message}</Text>
                       ) : null}
                     </>
                   )}
@@ -341,22 +348,22 @@ export default function ChatScreen({ route, navigation }: any) {
                 <View style={{ flexDirection: "row", alignItems: "center", flexWrap: "wrap", gap: 6, marginHorizontal: 16, marginBottom: 4 }}>
                   {complaint.status === "filed" ? (
                     <>
-                      <Check color={C.green} size={12} />
-                      <Text style={{ color: C.green, fontSize: 11, fontWeight: "600", flexShrink: 1 }}>
+                      <Check color={C.success} size={12} />
+                      <Text style={{ color: C.success, fontSize: 11, fontWeight: "600", flexShrink: 1 }}>
                         Complaint registered with {complaint.dept}
                       </Text>
                       <Pressable onPress={openMyIssues} hitSlop={6}>
-                        <Text style={{ color: C.navy, fontSize: 11 }}>· Track it in My Issues</Text>
+                        <Text style={{ color: C.link, fontSize: 11 }}>· Track it in My Issues</Text>
                       </Pressable>
                     </>
                   ) : (
                     <>
-                      <Text style={{ color: C.amber, fontSize: 11, flexShrink: 1 }}>{complaint.message}</Text>
+                      <Text style={{ color: C.warning, fontSize: 11, flexShrink: 1 }}>{complaint.message}</Text>
                       <Pressable hitSlop={6}
                         onPress={() => complaint.issueId
                           ? navigation.navigate("IssueDetail", { id: complaint.issueId })
                           : openMyIssues()}>
-                        <Text style={{ color: C.navy, fontSize: 11 }}>· View issue</Text>
+                        <Text style={{ color: C.link, fontSize: 11 }}>· View issue</Text>
                       </Pressable>
                     </>
                   )}
@@ -368,12 +375,12 @@ export default function ChatScreen({ route, navigation }: any) {
                   style={({ pressed }) => ({
                     flexDirection: "row", alignItems: "center", gap: 8, alignSelf: "flex-start",
                     marginHorizontal: 12, marginBottom: 6, paddingHorizontal: 10, paddingVertical: 7,
-                    borderRadius: 10, borderWidth: 1, borderColor: C.amber, backgroundColor: `${C.amber}1A`,
+                    borderRadius: 12, borderWidth: 1, borderColor: C.borderStrong, backgroundColor: C.surface,
                     opacity: pressed ? 0.8 : 1, maxWidth: "85%",
                   })}>
-                  <Flag color={C.amber} size={14} />
+                  <Flag color={C.link} size={14} />
                   <Text style={{ color: C.text, fontSize: 12, flexShrink: 1 }}>
-                    Is this a complaint? <Text style={{ color: C.navy, fontWeight: "700" }}>Register it with the department</Text>
+                    Is this a complaint? <Text style={{ color: C.link, fontWeight: "700" }}>Register it with the department</Text>
                   </Text>
                 </Pressable>
               ) : null}
@@ -388,7 +395,7 @@ export default function ChatScreen({ route, navigation }: any) {
             {SUGGESTIONS.map((s) => (
               <Pressable key={s} onPress={() => onSend(s)} disabled={pending}
                 style={{
-                  borderColor: C.border, borderWidth: 1, borderRadius: 10, paddingVertical: 8,
+                  borderColor: C.border, borderWidth: 1, borderRadius: 12, paddingVertical: 8,
                   paddingHorizontal: 12, marginBottom: 8, backgroundColor: C.surface,
                 }}>
                 <Text style={{ color: C.text, fontSize: 13 }}>{s}</Text>
@@ -411,15 +418,15 @@ export default function ChatScreen({ route, navigation }: any) {
         {recState === "recording" ? (
           <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
             <Pressable onPress={() => stopRec(false)} accessibilityLabel="Cancel recording"
-              style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.surfaceAlt }}>
+              style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.surfaceMuted }}>
               <X color={C.text} size={18} />
             </Pressable>
-            <Text style={{ flex: 1, color: C.red, fontWeight: "600" }}>
+            <Text style={{ flex: 1, color: C.danger, fontWeight: "600" }}>
               Recording… {seconds}s / {MAX_RECORDING_SECONDS}s
             </Text>
             <Pressable onPress={() => stopRec(true)} accessibilityLabel="Stop and transcribe"
-              style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.red }}>
-              <Square color="#fff" size={16} />
+              style={{ width: 44, height: 44, borderRadius: 22, alignItems: "center", justifyContent: "center", backgroundColor: C.primary }}>
+              <Square color={C.onPrimary} size={16} />
             </Pressable>
           </View>
         ) : (
@@ -436,7 +443,7 @@ export default function ChatScreen({ route, navigation }: any) {
             <View style={{ flexDirection: "row", gap: 8, alignItems: "flex-end" }}>
               <Pressable onPress={startRec} disabled={busy || pending} accessibilityLabel="Record voice message"
                 style={{
-                  width: 44, height: 44, borderRadius: 22, backgroundColor: C.surfaceAlt,
+                  width: 44, height: 44, borderRadius: 22, backgroundColor: C.surfaceMuted,
                   alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: C.border,
                   opacity: busy || pending ? 0.5 : 1,
                 }}>
@@ -449,20 +456,20 @@ export default function ChatScreen({ route, navigation }: any) {
                   recState === "transcribing" ? "Transcribing…"
                     : mode === "email" ? "Describe the email you need…" : "Type a message…"
                 }
-                placeholderTextColor={C.muted}
+                placeholderTextColor={C.placeholder}
                 style={{
-                  flex: 1, backgroundColor: C.input, color: C.text, maxHeight: 120,
-                  borderColor: C.border, borderWidth: 1, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 10,
+                  flex: 1, backgroundColor: C.inputBg, color: C.text, maxHeight: 120,
+                  borderColor: C.inputBorder, borderWidth: 1, borderRadius: 22, paddingHorizontal: 14, paddingVertical: 10,
                 }}
               />
               <Pressable onPress={() => onSend()} disabled={!canSend}
                 accessibilityRole="button" accessibilityLabel="Send message"
                 accessibilityState={{ disabled: !canSend }}
                 style={{
-                  width: 44, height: 44, borderRadius: 22, backgroundColor: C.navy,
+                  width: 44, height: 44, borderRadius: 22, backgroundColor: C.primary,
                   alignItems: "center", justifyContent: "center", opacity: canSend ? 1 : 0.5,
                 }}>
-                <Send color={C.onNavy} size={18} />
+                <Send color={C.onPrimary} size={18} />
               </Pressable>
             </View>
           </>

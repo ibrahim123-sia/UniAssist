@@ -146,23 +146,23 @@ export default function ProfileScreen({ navigation }: any) {
               {saving && avatar ? (
                 <View style={{
                   position: "absolute", left: 0, top: 0, width: 72, height: 72, borderRadius: 36,
-                  backgroundColor: "rgba(0,0,0,0.45)", alignItems: "center", justifyContent: "center",
+                  backgroundColor: C.overlay, alignItems: "center", justifyContent: "center",
                 }}>
-                  <ActivityIndicator color="#fff" />
+                  <ActivityIndicator color={C.onPrimary} />
                 </View>
               ) : null}
               <View style={{
                 position: "absolute", right: -2, bottom: -2,
                 width: 26, height: 26, borderRadius: 13,
-                backgroundColor: C.navy, borderWidth: 2, borderColor: C.surface,
+                backgroundColor: C.primary, borderWidth: 2, borderColor: C.surface,
                 alignItems: "center", justifyContent: "center",
               }}>
-                <Camera color={C.onNavy} size={13} />
+                <Camera color={C.onPrimary} size={13} />
               </View>
             </View>
           </Pressable>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: C.text, fontWeight: "800", fontSize: 18 }}>{user.name}</Text>
+            <Text style={{ color: C.heading, fontWeight: "800", fontSize: 18 }}>{user.name}</Text>
             <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>{user.email}</Text>
             <Text style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>Student</Text>
           </View>
@@ -178,9 +178,9 @@ export default function ProfileScreen({ navigation }: any) {
       <Pressable onPress={() => navigation.navigate("MyQuestions")} accessibilityRole="button"
         style={{ marginTop: 12 }}>
         <Card style={{ flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 14 }}>
-          <HelpCircle color={C.navy} size={20} />
+          <HelpCircle color={C.primary} size={20} />
           <View style={{ flex: 1 }}>
-            <Text style={{ color: C.text, fontWeight: "700", fontSize: 14 }}>My questions</Text>
+            <Text style={{ color: C.heading, fontWeight: "700", fontSize: 14 }}>My questions</Text>
             <Text style={{ color: C.muted, fontSize: 12, marginTop: 2 }}>
               Questions you sent to the university admin and their answers
             </Text>
@@ -190,7 +190,7 @@ export default function ProfileScreen({ navigation }: any) {
       </Pressable>
 
       <Card style={{ marginTop: 12 }}>
-        <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, marginBottom: 12 }}>Profile</Text>
+        <Text style={{ color: C.heading, fontWeight: "700", fontSize: 14, marginBottom: 12 }}>Profile</Text>
         <Input label="Display name" value={name} onChangeText={setName} maxLength={80} />
         <Text style={{ color: C.muted, fontSize: 11, marginBottom: 12 }}>
           {avatar ? "New picture selected. Save to upload it." : "Tap your picture to change it (JPG, PNG, GIF or WebP, max 2MB)."}
@@ -199,7 +199,7 @@ export default function ProfileScreen({ navigation }: any) {
       </Card>
 
       <Card style={{ marginTop: 12 }}>
-        <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, marginBottom: 12 }}>Change password</Text>
+        <Text style={{ color: C.heading, fontWeight: "700", fontSize: 14, marginBottom: 12 }}>Change password</Text>
         <Input label="Current password" value={currentPassword} onChangeText={setCurrentPassword} secureTextEntry />
         <Input label="New password (min 6)" value={newPassword} onChangeText={setNewPassword} secureTextEntry />
         <Input label="Confirm new password" value={confirmPassword} onChangeText={setConfirmPassword} secureTextEntry />
@@ -210,10 +210,10 @@ export default function ProfileScreen({ navigation }: any) {
         title={`Theme: ${isDark ? "Dark" : "Light"}`}
         onPress={() => dispatch(toggleTheme())}
         variant="secondary"
-        icon={isDark ? <Moon color={C.text} size={16} /> : <Sun color={C.text} size={16} />}
+        icon={isDark ? <Sun color={C.label} size={16} /> : <Moon color={C.label} size={16} />}
         style={{ marginTop: 14 }}
       />
-      <Button title="Sign out" onPress={onLogout} variant="danger" icon={<LogOut color="#fff" size={16} />}
+      <Button title="Sign out" onPress={onLogout} variant="danger" icon={<LogOut color={C.danger} size={16} />}
         style={{ marginTop: 10 }} />
     </ScrollView>
   );

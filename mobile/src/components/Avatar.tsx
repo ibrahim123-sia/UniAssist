@@ -16,14 +16,14 @@ export const Avatar: React.FC<{ name?: string; uri?: string; size?: number }> = 
     <View
       style={{
         width: size, height: size, borderRadius: size / 2,
-        backgroundColor: C.navy, alignItems: "center", justifyContent: "center",
+        backgroundColor: C.primary, alignItems: "center", justifyContent: "center",
         overflow: "hidden",
       }}
     >
       {src && !failed ? (
         <Image source={{ uri: src }} style={{ width: size, height: size }} onError={() => setFailed(true)} />
       ) : (
-        <Text style={{ color: C.onNavy, fontWeight: "700", fontSize: size * 0.45 }}>
+        <Text style={{ color: C.onPrimary, fontWeight: "700", fontSize: size * 0.45 }}>
           {(name?.trim()?.[0] || "U").toUpperCase()}
         </Text>
       )}

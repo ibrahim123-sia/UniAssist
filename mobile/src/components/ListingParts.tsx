@@ -3,6 +3,7 @@ import { View, Text, Pressable, Linking, Alert } from "react-native";
 import { ExternalLink } from "lucide-react-native";
 import moment from "moment";
 import { useTheme } from "../hooks/useTheme";
+import { tone } from "../theme/palette";
 import { fileUrl } from "../api/client";
 import type { Listing } from "../api/listings";
 
@@ -29,13 +30,13 @@ export const DeadlineBadge: React.FC<{ deadline?: string | null }> = ({ deadline
   const { C } = useTheme();
   const info = deadlineInfo(deadline);
   if (!info) return null;
-  const color = info.closed ? C.red : info.days <= 7 ? C.amber : C.green;
+  const st = tone(C, info.closed ? "danger" : info.days <= 7 ? "warning" : "success");
   return (
     <View style={{
       alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
-      backgroundColor: `${color}22`,
+      backgroundColor: st.bg, borderWidth: 1, borderColor: st.border,
     }}>
-      <Text style={{ color, fontSize: 10, fontWeight: "700" }}>{info.label}</Text>
+      <Text style={{ color: st.text, fontSize: 10, fontWeight: "700" }}>{info.label}</Text>
     </View>
   );
 };
@@ -120,13 +121,13 @@ export const EventStatusBadge: React.FC<{ listing: Listing }> = ({ listing }) =>
   const { C } = useTheme();
   const info = eventInfo(listing);
   if (!info) return null;
-  const color = info.past ? C.muted : info.status === "upcoming" ? C.green : C.amber;
+  const st = tone(C, info.past ? "neutral" : info.status === "upcoming" ? "success" : "warning");
   return (
     <View style={{
       alignSelf: "flex-start", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 999,
-      backgroundColor: `${color}22`,
+      backgroundColor: st.bg, borderWidth: 1, borderColor: st.border,
     }}>
-      <Text style={{ color, fontSize: 10, fontWeight: "700" }}>{info.label}</Text>
+      <Text style={{ color: st.text, fontSize: 10, fontWeight: "700" }}>{info.label}</Text>
     </View>
   );
 };
@@ -136,14 +137,14 @@ export const EventDateBadge: React.FC<{ listing: Listing }> = ({ listing }) => {
   const { C } = useTheme();
   const info = eventInfo(listing);
   if (!info) return null;
-  const color = info.past ? C.muted : C.navy;
+  const color = info.past ? C.muted : C.primary;
   return (
     <View style={{
-      width: 48, borderRadius: 10, overflow: "hidden", borderWidth: 1, borderColor: color,
+      width: 48, borderRadius: 12, overflow: "hidden", borderWidth: 1, borderColor: color,
       alignItems: "center", backgroundColor: C.surface,
     }}>
       <Text style={{
-        color: info.past ? C.surface : C.onNavy, backgroundColor: color, fontSize: 10, fontWeight: "800",
+        color: info.past ? C.surface : C.onPrimary, backgroundColor: color, fontSize: 10, fontWeight: "800",
         width: "100%", textAlign: "center", paddingVertical: 2,
       }}>
         {info.month}
@@ -189,8 +190,8 @@ export const OriginalPostLink: React.FC<{ listing: Listing; style?: any }> = ({ 
     <Pressable onPress={() => openLink(url)} hitSlop={6} accessibilityRole="link"
       accessibilityLabel={`Original post for ${listing.title}`}
       style={[{ flexDirection: "row", alignItems: "center", gap: 4, alignSelf: "flex-start" }, style]}>
-      <ExternalLink color={C.navy} size={12} />
-      <Text style={{ color: C.navy, fontSize: 12, fontWeight: "600" }}>Original post</Text>
+      <ExternalLink color={C.link} size={12} />
+      <Text style={{ color: C.link, fontSize: 12, fontWeight: "600" }}>Original post</Text>
     </Pressable>
   );
 };

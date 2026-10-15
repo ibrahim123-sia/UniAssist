@@ -13,6 +13,7 @@ import { SERVER_URL, setSessionEndedHandler } from "./src/api/client";
 import { useConnectivity } from "./src/hooks/useConnectivity";
 import { useNotificationPolling } from "./src/hooks/useNotificationPolling";
 import { useTheme } from "./src/hooks/useTheme";
+import { palette } from "./src/theme/palette";
 
 const Bootstrap: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -47,9 +48,9 @@ const Bootstrap: React.FC = () => {
 };
 
 const NotConfigured = () => (
-  <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
-    <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8 }}>Server not configured</Text>
-    <Text style={{ textAlign: "center", color: "#5A6372" }}>
+  <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 24, backgroundColor: palette.light.bg }}>
+    <Text style={{ fontSize: 18, fontWeight: "700", marginBottom: 8, color: palette.light.heading }}>Server not configured</Text>
+    <Text style={{ textAlign: "center", color: palette.light.muted }}>
       Set EXPO_PUBLIC_SERVER_URL in mobile/.env and restart Expo with a cleared cache
       (npx expo start -c).
     </Text>

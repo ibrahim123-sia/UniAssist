@@ -47,14 +47,14 @@ const EventCard = ({ item, C, onPress }: { item: Listing; C: Palette; onPress: (
         {poster && !posterFailed ? (
           <Image source={{ uri: poster }} onError={() => setPosterFailed(true)} resizeMode="cover"
             accessibilityLabel={`${item.title} poster`}
-            style={{ width: "100%", height: 150, backgroundColor: C.surfaceAlt, opacity: info?.past ? 0.7 : 1 }} />
+            style={{ width: "100%", height: 150, backgroundColor: C.surfaceMuted, opacity: info?.past ? 0.7 : 1 }} />
         ) : null}
         <View style={{ padding: 14 }}>
           <View style={{ flexDirection: "row", gap: 12 }}>
             <EventDateBadge listing={item} />
             <View style={{ flex: 1 }}>
               <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-                <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, flex: 1 }} numberOfLines={2}>
+                <Text style={{ color: C.heading, fontWeight: "700", fontSize: 14, flex: 1 }} numberOfLines={2}>
                   {item.title}
                 </Text>
                 <EventStatusBadge listing={item} />
@@ -74,10 +74,10 @@ const EventCard = ({ item, C, onPress }: { item: Listing; C: Palette; onPress: (
               accessibilityRole="button" accessibilityLabel={`Register for ${item.title}`}
               style={{
                 marginTop: 12, flexDirection: "row", alignItems: "center", justifyContent: "center",
-                gap: 6, backgroundColor: C.navy, paddingVertical: 9, borderRadius: 10,
+                gap: 6, backgroundColor: C.primary, paddingVertical: 9, borderRadius: 12,
               }}>
-              <ExternalLink color={C.onNavy} size={14} />
-              <Text style={{ color: C.onNavy, fontWeight: "600", fontSize: 13 }}>Register</Text>
+              <ExternalLink color={C.onPrimary} size={14} />
+              <Text style={{ color: C.onPrimary, fontWeight: "600", fontSize: 13 }}>Register</Text>
             </Pressable>
           ) : null}
           <OriginalPostLink listing={item} style={{ marginTop: 10 }} />
@@ -187,12 +187,12 @@ export default function ListingsScreen({ kind, navigation }: { kind: ListingKind
       <View style={{ paddingHorizontal: 14, paddingTop: 12 }}>
         <View style={{
           flexDirection: "row", alignItems: "center", gap: 8,
-          backgroundColor: C.input, borderColor: C.border, borderWidth: 1, borderRadius: 10, paddingHorizontal: 10,
+          backgroundColor: C.inputBg, borderColor: C.border, borderWidth: 1, borderRadius: 12, paddingHorizontal: 10,
         }}>
           <Search color={C.muted} size={14} />
           <TextInput value={search} onChangeText={setSearch} autoCorrect={false} returnKeyType="search"
             placeholder={PLACEHOLDERS[kind]}
-            placeholderTextColor={C.muted}
+            placeholderTextColor={C.placeholder}
             style={{ flex: 1, color: C.text, paddingVertical: 9 }} />
         </View>
         <View style={{ flexDirection: "row", marginTop: 10 }}>
@@ -212,7 +212,7 @@ export default function ListingsScreen({ kind, navigation }: { kind: ListingKind
           <Text style={{ color: C.muted, fontSize: 11, marginTop: 2 }}>{countLine}</Text>
         ) : null}
         {error && items.length > 0 ? (
-          <Text style={{ color: C.red, fontSize: 12, marginTop: 8 }}>{error}. Pull down to retry.</Text>
+          <Text style={{ color: C.danger, fontSize: 12, marginTop: 8 }}>{error}. Pull down to retry.</Text>
         ) : null}
       </View>
 
@@ -220,11 +220,11 @@ export default function ListingsScreen({ kind, navigation }: { kind: ListingKind
         <View style={{ padding: 14 }}>
           <Card>
             <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-              <AlertCircle color={C.red} size={16} />
+              <AlertCircle color={C.danger} size={16} />
               <Text style={{ color: C.text, flex: 1 }}>{error}</Text>
             </View>
             <Pressable onPress={load} style={{ marginTop: 10 }}>
-              <Text style={{ color: C.navy, fontWeight: "600" }}>Try again</Text>
+              <Text style={{ color: C.link, fontWeight: "600" }}>Try again</Text>
             </Pressable>
           </Card>
         </View>
@@ -245,7 +245,7 @@ export default function ListingsScreen({ kind, navigation }: { kind: ListingKind
               <Pressable onPress={() => openDetail(item)} style={{ marginHorizontal: 14, marginBottom: 10 }}>
                 <Card>
                   <View style={{ flexDirection: "row", justifyContent: "space-between", gap: 8 }}>
-                    <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, flex: 1 }} numberOfLines={2}>
+                    <Text style={{ color: C.heading, fontWeight: "700", fontSize: 14, flex: 1 }} numberOfLines={2}>
                       {item.title}
                     </Text>
                     <DeadlineBadge deadline={item.deadline} />
@@ -283,7 +283,7 @@ export default function ListingsScreen({ kind, navigation }: { kind: ListingKind
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
           ListEmptyComponent={
             loading ? (
-              <ActivityIndicator color={C.navy} style={{ marginTop: 30 }} />
+              <ActivityIndicator color={C.primary} style={{ marginTop: 30 }} />
             ) : (
               <EmptyState icon={<Icon color={C.muted} size={48} />}
                 title={query ? `No ${noun}s found`

@@ -21,7 +21,7 @@ const Field = ({ label, value, C }: { label: string; value?: string | null; C: a
 const Section = ({ title, body, C }: { title: string; body?: string | null; C: any }) =>
   body && body.trim() ? (
     <Card style={{ marginTop: 12 }}>
-      <Text style={{ color: C.text, fontWeight: "700", fontSize: 14, marginBottom: 6 }}>{title}</Text>
+      <Text style={{ color: C.heading, fontWeight: "700", fontSize: 14, marginBottom: 6 }}>{title}</Text>
       <Text selectable style={{ color: C.text, fontSize: 13, lineHeight: 19 }}>{body.trim()}</Text>
     </Card>
   ) : null;
@@ -41,7 +41,7 @@ const Poster = ({ uri, title, C }: { uri: string; title: string; C: any }) => {
         if (width > 0 && height > 0) setRatio(Math.max(0.5, Math.min(2.5, width / height)));
       }}
       onError={() => setFailed(true)}
-      style={{ width: "100%", aspectRatio: ratio, borderRadius: 14, backgroundColor: C.surfaceAlt, marginBottom: 12 }} />
+      style={{ width: "100%", aspectRatio: ratio, borderRadius: 18, backgroundColor: C.surfaceMuted, marginBottom: 12 }} />
   );
 };
 
@@ -79,7 +79,7 @@ export default function ListingDetailScreen({ route, navigation }: any) {
         contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
         {poster ? <Poster uri={poster} title={listing.title} C={C} /> : null}
         <Card>
-          <Text selectable style={{ color: C.text, fontWeight: "800", fontSize: 18 }}>{listing.title}</Text>
+          <Text selectable style={{ color: C.heading, fontWeight: "800", fontSize: 18 }}>{listing.title}</Text>
           {listing.organization ? (
             <Text style={{ color: C.muted, fontSize: 14, marginTop: 4 }}>By {listing.organization}</Text>
           ) : null}
@@ -112,7 +112,7 @@ export default function ListingDetailScreen({ route, navigation }: any) {
           ) : null}
           {register ? (
             <Button title="Register" onPress={() => openLink(register)}
-              icon={<ExternalLink color={C.onNavy} size={14} />} style={{ marginTop: 12 }} />
+              icon={<ExternalLink color={C.onPrimary} size={14} />} style={{ marginTop: 12 }} />
           ) : null}
           <OriginalPostLink listing={listing} style={{ marginTop: 12 }} />
         </Card>
@@ -127,7 +127,7 @@ export default function ListingDetailScreen({ route, navigation }: any) {
     <ScrollView style={{ flex: 1, backgroundColor: C.bg }}
       contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
       <Card>
-        <Text selectable style={{ color: C.text, fontWeight: "800", fontSize: 18 }}>{listing.title}</Text>
+        <Text selectable style={{ color: C.heading, fontWeight: "800", fontSize: 18 }}>{listing.title}</Text>
         {listing.organization ? (
           <Text style={{ color: C.muted, fontSize: 14, marginTop: 4 }}>{listing.organization}</Text>
         ) : null}
@@ -162,7 +162,7 @@ export default function ListingDetailScreen({ route, navigation }: any) {
         </View>
         {applyUrl ? (
           <Button title={dl?.closed ? "Application page" : "Apply"} onPress={() => openLink(applyUrl)}
-            icon={<ExternalLink color={C.onNavy} size={14} />} style={{ marginTop: 12 }} />
+            icon={<ExternalLink color={C.onPrimary} size={14} />} style={{ marginTop: 12 }} />
         ) : null}
         <OriginalPostLink listing={listing} style={{ marginTop: 12 }} />
       </Card>

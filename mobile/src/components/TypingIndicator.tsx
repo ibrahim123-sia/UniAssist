@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from "react";
 import { Animated, View, Text } from "react-native";
 import { useTheme } from "../hooks/useTheme";
 import { useElapsed } from "../hooks/useElapsed";
+import { AiAvatar } from "./AiAvatar";
 
 // Same time-based stages as the web chat while one reply is awaited.
 export const replyStage = (seconds: number): string | null =>
@@ -36,16 +37,19 @@ export const TypingIndicator: React.FC<{ startedAt: number }> = ({ startedAt }) 
   return (
     <View style={{ marginHorizontal: 12, marginVertical: 4 }}
       accessibilityLiveRegion="polite" accessibilityLabel={stage || "UniAssist is typing"}>
-      <View style={{
-        alignSelf: "flex-start", flexDirection: "row", gap: 5, paddingHorizontal: 14, paddingVertical: 12,
-        borderRadius: 12, borderWidth: 1, borderColor: C.border, backgroundColor: C.surface,
-      }}>
-        <Dot delay={0} color={C.muted} />
-        <Dot delay={200} color={C.muted} />
-        <Dot delay={400} color={C.muted} />
+      <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
+        <AiAvatar />
+        <View style={{
+          flexDirection: "row", gap: 5, paddingHorizontal: 14, paddingVertical: 12,
+          borderRadius: 16, borderTopLeftRadius: 4, backgroundColor: C.aiBubble,
+        }}>
+          <Dot delay={0} color={C.muted} />
+          <Dot delay={200} color={C.muted} />
+          <Dot delay={400} color={C.muted} />
+        </View>
       </View>
       {stage ? (
-        <Text style={{ color: C.muted, fontSize: 12, marginTop: 4, marginLeft: 2 }}>
+        <Text style={{ color: C.muted, fontSize: 12, marginTop: 4, marginLeft: 38 }}>
           {stage} {seconds} s
         </Text>
       ) : null}

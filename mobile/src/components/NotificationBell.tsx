@@ -16,14 +16,14 @@ export const NotificationBell: React.FC = () => {
     <Pressable onPress={() => navigation.navigate("Notifications")}
       accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
       style={{ paddingHorizontal: 14, paddingVertical: 6 }}>
-      <Bell color={C.text} size={20} />
+      <Bell color={C.label} size={20} strokeWidth={2} />
       {unread > 0 && (
         <View style={{
           position: "absolute", right: 6, top: 2, minWidth: 16, height: 16,
-          paddingHorizontal: 4, borderRadius: 8, backgroundColor: C.red,
+          paddingHorizontal: 4, borderRadius: 8, backgroundColor: C.primary,
           alignItems: "center", justifyContent: "center",
         }}>
-          <Text style={{ color: "#fff", fontSize: 10, fontWeight: "700" }}>
+          <Text style={{ color: C.onPrimary, fontSize: 10, fontWeight: "700" }}>
             {unread > 9 ? "9+" : unread}
           </Text>
         </View>

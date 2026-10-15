@@ -34,18 +34,18 @@ export default function IssuesScreen({ navigation }: any) {
       <View style={{ padding: 14, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
         <Text style={{ color: C.muted, fontSize: 12, flex: 1 }}>Questions and complaints you sent to departments.</Text>
         <Button title="New" onPress={() => navigation.navigate("NewIssue")}
-          icon={<Plus color={C.onNavy} size={16} />} style={{ paddingVertical: 8 }} />
+          icon={<Plus color={C.onPrimary} size={16} />} style={{ paddingVertical: 8 }} />
       </View>
 
       {outbox.length > 0 && (
-        <View style={{ marginHorizontal: 14, marginBottom: 8, padding: 10, borderRadius: 10, backgroundColor: `${C.amber}22` }}>
-          <Text style={{ color: C.amber, fontSize: 12 }}>
+        <View style={{ marginHorizontal: 14, marginBottom: 8, padding: 10, borderRadius: 12, backgroundColor: C.warningBg, borderWidth: 1, borderColor: C.warningBorder }}>
+          <Text style={{ color: C.warning, fontSize: 12 }}>
             {outbox.length} issue{outbox.length > 1 ? "s" : ""} queued and will be sent when you're back online.
           </Text>
         </View>
       )}
       {mineError && mine.length === 0 ? (
-        <Text style={{ color: C.red, marginHorizontal: 14, marginBottom: 8 }}>{mineError}. Pull down to retry.</Text>
+        <Text style={{ color: C.danger, marginHorizontal: 14, marginBottom: 8 }}>{mineError}. Pull down to retry.</Text>
       ) : null}
 
       <FlatList
@@ -58,7 +58,7 @@ export default function IssuesScreen({ navigation }: any) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         ListEmptyComponent={
           mineLoading && mine.length === 0 ? (
-            <ActivityIndicator color={C.navy} style={{ marginTop: 30 }} />
+            <ActivityIndicator color={C.primary} style={{ marginTop: 30 }} />
           ) : mineError ? null : (
             <EmptyState icon={<AlertCircle color={C.muted} size={48} />}
               title="No issues yet"

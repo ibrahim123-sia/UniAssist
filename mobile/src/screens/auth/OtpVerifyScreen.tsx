@@ -75,10 +75,10 @@ export default function OtpVerifyScreen({ navigation, route }: any) {
       <TextInput
         value={otp} onChangeText={(v) => setOtp(v.replace(/\D/g, ""))}
         keyboardType="number-pad" maxLength={6} autoComplete="one-time-code"
-        placeholder="••••••" placeholderTextColor={C.muted}
+        placeholder="••••••" placeholderTextColor={C.placeholder}
         style={{
-          backgroundColor: C.input, color: C.text, borderColor: C.border, borderWidth: 1,
-          borderRadius: 10, padding: 14, marginTop: 24, marginBottom: 16,
+          backgroundColor: C.inputBg, color: C.text, borderColor: C.inputBorder, borderWidth: 1,
+          borderRadius: 12, padding: 14, marginTop: 24, marginBottom: 16,
           fontSize: 20, textAlign: "center", letterSpacing: 8,
         }}
       />

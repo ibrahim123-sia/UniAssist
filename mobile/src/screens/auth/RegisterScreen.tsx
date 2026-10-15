@@ -62,7 +62,7 @@ export default function RegisterScreen({ navigation }: any) {
 
         <Button title="Create account" onPress={onSubmit} loading={loading} loadingTitle="Sending code…" />
         <Pressable onPress={() => navigation.navigate("Login")} style={{ alignItems: "center", marginTop: 18 }}>
-          <Text style={{ color: C.navy }}>Already have an account? Sign in</Text>
+          <Text style={{ color: C.link }}>Already have an account? Sign in</Text>
         </Pressable>
       </ScrollView>
     </KeyboardAvoidingView>

@@ -113,14 +113,14 @@ export const ComplaintSheet: React.FC<{
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}
-        style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)" }}>
+        style={{ flex: 1, backgroundColor: C.overlay }}>
         <Pressable style={{ flex: 1 }} onPress={close} accessibilityLabel="Close" />
         <View style={{
-          backgroundColor: C.surface, borderTopLeftRadius: 20, borderTopRightRadius: 20,
+          backgroundColor: C.surface, borderTopLeftRadius: 22, borderTopRightRadius: 22,
           padding: 18, maxHeight: "85%",
         }}>
           <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-            <Text style={{ color: C.text, fontWeight: "800", fontSize: 16 }}>Register a complaint</Text>
+            <Text style={{ color: C.heading, fontWeight: "800", fontSize: 16 }}>Register a complaint</Text>
             <Pressable onPress={close} disabled={submitting} hitSlop={8} accessibilityLabel="Cancel"
               style={{ opacity: submitting ? 0.4 : 1 }}>
               <X color={C.muted} size={22} />
@@ -135,10 +135,10 @@ export const ComplaintSheet: React.FC<{
               Department
             </Text>
             {deptLoading ? (
-              <ActivityIndicator style={{ alignSelf: "flex-start", marginBottom: 14 }} color={C.navy} />
+              <ActivityIndicator style={{ alignSelf: "flex-start", marginBottom: 14 }} color={C.primary} />
             ) : deptError ? (
               <Pressable onPress={load} style={{ marginBottom: 14 }}>
-                <Text style={{ color: C.red }}>{deptError}. Tap to retry.</Text>
+                <Text style={{ color: C.danger }}>{deptError}. Tap to retry.</Text>
               </Pressable>
             ) : departments.length === 0 ? (
               <Text style={{ color: C.muted, marginBottom: 14 }}>
@@ -148,8 +148,8 @@ export const ComplaintSheet: React.FC<{
               <>
                 {suggestedId ? (
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 4, marginBottom: 6 }}>
-                    <Sparkles color={C.navy} size={12} />
-                    <Text style={{ color: C.navy, fontSize: 11 }}>Suggested from your question — change it if needed.</Text>
+                    <Sparkles color={C.link} size={12} />
+                    <Text style={{ color: C.link, fontSize: 11 }}>Suggested from your question — change it if needed.</Text>
                   </View>
                 ) : (
                   <Text style={{ color: C.muted, fontSize: 11, marginBottom: 6 }}>Pick the department this is about.</Text>
@@ -168,14 +168,14 @@ export const ComplaintSheet: React.FC<{
             </Text>
             <TextInput value={details} onChangeText={setDetails} multiline maxLength={MAX_COMPLAINT_DETAILS_CHARS}
               editable={!submitting}
-              placeholder="Anything the department should know" placeholderTextColor={C.muted}
+              placeholder="Anything the department should know" placeholderTextColor={C.placeholder}
               style={{
-                backgroundColor: C.input, color: C.text, borderColor: C.border, borderWidth: 1,
-                borderRadius: 10, padding: 12, minHeight: 90, textAlignVertical: "top",
+                backgroundColor: C.inputBg, color: C.text, borderColor: C.inputBorder, borderWidth: 1,
+                borderRadius: 12, padding: 12, minHeight: 90, textAlignVertical: "top",
               }} />
             <Text style={{ color: C.muted, fontSize: 11, marginTop: 4 }}>The chat transcript is attached automatically.</Text>
 
-            {error ? <Text style={{ color: C.red, fontSize: 12, marginTop: 10 }}>{error}</Text> : null}
+            {error ? <Text style={{ color: C.danger, fontSize: 12, marginTop: 10 }}>{error}</Text> : null}
 
             <View style={{ flexDirection: "row", gap: 10, marginTop: 14 }}>
               <Button title="Cancel" variant="ghost" onPress={close} disabled={submitting} style={{ flex: 1 }} />

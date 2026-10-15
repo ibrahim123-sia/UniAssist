@@ -82,11 +82,11 @@ export default function ChatListScreen({ navigation }: any) {
       <View style={{ padding: 14, flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
         <Text style={{ color: C.muted, fontSize: 12, flex: 1 }}>Long-press a chat to rename or delete it.</Text>
         <Button title="New" onPress={onNewChat} loading={creating}
-          icon={<Plus color={C.onNavy} size={16} />} style={{ paddingVertical: 8 }} />
+          icon={<Plus color={C.onPrimary} size={16} />} style={{ paddingVertical: 8 }} />
       </View>
 
       {error && chats.length === 0 ? (
-        <Text style={{ color: C.red, marginHorizontal: 14 }}>{error}. Pull down to retry.</Text>
+        <Text style={{ color: C.danger, marginHorizontal: 14 }}>{error}. Pull down to retry.</Text>
       ) : null}
 
       <FlatList
@@ -132,14 +132,14 @@ export default function ChatListScreen({ navigation }: any) {
       />
 
       <Modal visible={!!renaming} transparent animationType="fade" onRequestClose={() => setRenaming(null)}>
-        <View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "center", padding: 24 }}>
-          <View style={{ backgroundColor: C.surface, borderRadius: 14, padding: 18 }}>
-            <Text style={{ color: C.text, fontWeight: "800", fontSize: 16, marginBottom: 12 }}>Rename chat</Text>
+        <View style={{ flex: 1, backgroundColor: C.overlay, justifyContent: "center", padding: 24 }}>
+          <View style={{ backgroundColor: C.surface, borderRadius: 22, padding: 20, borderWidth: 1, borderColor: C.border }}>
+            <Text style={{ color: C.heading, fontWeight: "800", fontSize: 16, marginBottom: 12 }}>Rename chat</Text>
             <TextInput value={newName} onChangeText={setNewName} maxLength={100} autoFocus
-              placeholderTextColor={C.muted} placeholder="Chat name"
+              placeholderTextColor={C.placeholder} placeholder="Chat name"
               style={{
-                backgroundColor: C.input, color: C.text, borderColor: C.border, borderWidth: 1,
-                borderRadius: 10, padding: 12, marginBottom: 14,
+                backgroundColor: C.inputBg, color: C.text, borderColor: C.inputBorder, borderWidth: 1,
+                borderRadius: 12, padding: 12, marginBottom: 14,
               }} />
             <View style={{ flexDirection: "row", gap: 10 }}>
               <Button title="Cancel" variant="ghost" onPress={() => setRenaming(null)} style={{ flex: 1 }} />

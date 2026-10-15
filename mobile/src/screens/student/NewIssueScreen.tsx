@@ -133,10 +133,10 @@ export default function NewIssueScreen({ navigation }: any) {
 
       <Text style={{ color: C.muted, fontSize: 11, fontWeight: "600", marginBottom: 6, textTransform: "uppercase" }}>Department</Text>
       {deptLoading ? (
-        <ActivityIndicator style={{ alignSelf: "flex-start", marginBottom: 14 }} color={C.navy} />
+        <ActivityIndicator style={{ alignSelf: "flex-start", marginBottom: 14 }} color={C.primary} />
       ) : deptError ? (
         <Pressable onPress={loadDepartments} style={{ marginBottom: 14 }}>
-          <Text style={{ color: C.red }}>{deptError}. Tap to retry.</Text>
+          <Text style={{ color: C.danger }}>{deptError}. Tap to retry.</Text>
         </Pressable>
       ) : departments.length === 0 ? (
         <Text style={{ color: C.muted, marginBottom: 14 }}>
@@ -175,7 +175,7 @@ export default function NewIssueScreen({ navigation }: any) {
             {f.name}{f.size ? ` (${Math.round(f.size / 1024)} KB)` : ""}
           </Text>
           <Pressable onPress={() => setFiles((l) => l.filter((x) => x.uri !== f.uri))} accessibilityLabel={`Remove ${f.name}`}>
-            <X color={C.red} size={16} />
+            <X color={C.danger} size={16} />
           </Pressable>
         </View>
       ))}

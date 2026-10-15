@@ -5,17 +5,17 @@ import { Paperclip, Star } from "lucide-react-native";
 import { useTheme } from "../hooks/useTheme";
 import { fileUrl } from "../api/client";
 import { Card } from "./Card";
-import { statusColor } from "./IssueCard";
+import { statusTone } from "./IssueCard";
 
 export const StatusPill: React.FC<{ status: string }> = ({ status }) => {
   const { C } = useTheme();
-  const color = statusColor(status, C);
+  const st = statusTone(status, C);
   return (
     <View style={{
       alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999,
-      backgroundColor: `${color}26`, borderWidth: 1, borderColor: `${color}66`,
+      backgroundColor: st.bg, borderWidth: 1, borderColor: st.border,
     }}>
-      <Text style={{ color, fontSize: 12, fontWeight: "700" }}>{status}</Text>
+      <Text style={{ color: st.text, fontSize: 12, fontWeight: "700" }}>{status}</Text>
     </View>
   );
 };
@@ -35,8 +35,8 @@ export const Attachments: React.FC<{ items?: any[] }> = ({ items }) => {
           }}
           style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
         >
-          <Paperclip color={C.navy} size={13} />
-          <Text style={{ color: C.navy, fontSize: 12, flex: 1 }} numberOfLines={1}>
+          <Paperclip color={C.link} size={13} />
+          <Text style={{ color: C.link, fontSize: 12, flex: 1 }} numberOfLines={1}>
             {a.originalName || a.filename}
             {a.size ? <Text style={{ color: C.muted }}> ({Math.round(a.size / 1024)} KB)</Text> : null}
           </Text>
@@ -55,7 +55,7 @@ export const ReplyList: React.FC<{ replies?: any[]; emptyText: string }> = ({ re
         // A reply from the department (vs the student's own follow-up).
         const fromDept = !!r.authorRole && r.authorRole !== "student";
         return (
-          <Card key={r._id || i} style={{ marginBottom: 8, borderColor: fromDept ? C.navy : C.border }}>
+          <Card key={r._id || i} style={{ marginBottom: 8, borderColor: fromDept ? C.primary : C.border }}>
             <Text style={{ color: C.muted, fontSize: 11 }}>
               <Text style={{ color: C.text, fontWeight: "600" }}>{r.authorName}</Text>
               {fromDept ? "  DEPARTMENT" : ""} · {moment(r.createdAt).fromNow()}
@@ -78,7 +78,7 @@ export const StarRating: React.FC<{ value: number; onChange?: (v: number) => voi
       accessibilityLabel={`${value} out of 5 stars`}>
       {[1, 2, 3, 4, 5].map((n) => {
         const on = n <= value;
-        const star = <Star size={size} color={on ? C.amber : C.muted} fill={on ? C.amber : "transparent"} />;
+        const star = <Star size={size} color={on ? C.warning : C.muted} fill={on ? C.warning : "transparent"} />;
         return onChange ? (
           <Pressable key={n} onPress={() => onChange(n)} hitSlop={4}
             accessibilityRole="button" accessibilityLabel={`${n} star${n === 1 ? "" : "s"}`}>
@@ -96,7 +96,7 @@ export const FeedbackView: React.FC<{ feedback?: any; title?: string }> = ({ fee
   if (!feedback?.rating) return null;
   return (
     <Card style={{ marginTop: 12 }}>
-      <Text style={{ color: C.text, fontWeight: "700", marginBottom: 6 }}>{title}</Text>
+      <Text style={{ color: C.heading, fontWeight: "700", marginBottom: 6 }}>{title}</Text>
       <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
         <StarRating value={feedback.rating} size={16} />
         <Text style={{ color: C.muted, fontSize: 12 }}>

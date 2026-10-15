@@ -61,11 +61,11 @@ export default function LoginScreen({ navigation }: any) {
         <View style={{ alignItems: "center", marginBottom: 24 }}>
           <View style={{
             width: 64, height: 64, borderRadius: 14,
-            backgroundColor: C.navy, alignItems: "center", justifyContent: "center",
+            backgroundColor: C.primary, alignItems: "center", justifyContent: "center",
           }}>
-            <GraduationCap color={C.onNavy} size={32} />
+            <GraduationCap color={C.onPrimary} size={32} />
           </View>
-          <Text style={{ color: C.text, fontSize: 22, fontWeight: "800", marginTop: 12 }}>
+          <Text style={{ color: C.heading, fontSize: 22, fontWeight: "800", marginTop: 12 }}>
             UniAssist
           </Text>
           <Text style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>
@@ -83,10 +83,10 @@ export default function LoginScreen({ navigation }: any) {
 
         <View style={{ flexDirection: "row", justifyContent: "space-between", marginTop: 16 }}>
           <Pressable onPress={() => navigation.navigate("ForgotPassword", { email: email.trim() })}>
-            <Text style={{ color: C.navy, fontSize: 13 }}>Forgot password?</Text>
+            <Text style={{ color: C.link, fontSize: 13 }}>Forgot password?</Text>
           </Pressable>
           <Pressable onPress={() => navigation.navigate("Register")}>
-            <Text style={{ color: C.navy, fontSize: 13 }}>Create account →</Text>
+            <Text style={{ color: C.link, fontSize: 13 }}>Create account →</Text>
           </Pressable>
         </View>
       </ScrollView>

@@ -30,7 +30,7 @@ export default function RootNavigator() {
   if (!bootstrapped) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: C.bg }}>
-        <ActivityIndicator size="large" color={C.navy} />
+        <ActivityIndicator size="large" color={C.primary} />
       </View>
     );
   }
@@ -39,13 +39,13 @@ export default function RootNavigator() {
   const stackHeader = {
     headerShown: true,
     headerStyle: { backgroundColor: C.surface },
-    headerTitleStyle: { color: C.text },
-    headerTintColor: C.navy,
+    headerTitleStyle: { color: C.heading, fontWeight: "700" as const },
+    headerTintColor: C.link,
   };
 
   return (
     <NavigationContainer
-      theme={{ ...navTheme, colors: { ...navTheme.colors, background: C.bg, card: C.surface, border: C.border, primary: C.navy } }}
+      theme={{ ...navTheme, colors: { ...navTheme.colors, background: C.bg, card: C.surface, border: C.border, primary: C.primary } }}
     >
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!signedIn ? (

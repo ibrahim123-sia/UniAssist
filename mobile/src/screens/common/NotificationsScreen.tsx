@@ -60,13 +60,13 @@ export default function NotificationsScreen({ navigation }: any) {
         {unreadCount > 0 && (
           <Pressable onPress={onMarkAll} accessibilityRole="button"
             style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
-            <CheckCheck color={C.navy} size={14} />
-            <Text style={{ color: C.navy, fontSize: 12, fontWeight: "600" }}>Mark all read</Text>
+            <CheckCheck color={C.link} size={14} />
+            <Text style={{ color: C.link, fontSize: 12, fontWeight: "600" }}>Mark all read</Text>
           </Pressable>
         )}
       </View>
       {error && items.length === 0 ? (
-        <Text style={{ color: C.red, marginHorizontal: 14 }}>{error}. Pull down to retry.</Text>
+        <Text style={{ color: C.danger, marginHorizontal: 14 }}>{error}. Pull down to retry.</Text>
       ) : null}
       <FlatList
         data={items}
@@ -75,13 +75,13 @@ export default function NotificationsScreen({ navigation }: any) {
           <Pressable onPress={() => open(item)} style={{ marginHorizontal: 14 }} accessibilityRole="button">
             <Card style={{
               marginBottom: 8,
-              backgroundColor: item.isRead ? C.surface : `${C.navy}11`,
-              borderColor: item.isRead ? C.border : C.navy,
+              backgroundColor: item.isRead ? C.surface : C.navActiveBg,
+              borderColor: item.isRead ? C.border : C.infoBorder,
             }}>
               <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 10 }}>
                 <View style={{
                   width: 8, height: 8, borderRadius: 4, marginTop: 6,
-                  backgroundColor: item.isRead ? C.border : C.navy,
+                  backgroundColor: item.isRead ? C.border : C.primary,
                 }} />
                 <View style={{ flex: 1 }}>
                   <Text style={{ color: C.text, fontWeight: item.isRead ? "500" : "700" }}>

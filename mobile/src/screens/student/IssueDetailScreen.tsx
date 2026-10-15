@@ -89,9 +89,9 @@ export default function IssueDetailScreen({ route }: any) {
         {error ? (
           <>
             <Text style={{ color: C.text, textAlign: "center", marginBottom: 12 }}>{error}</Text>
-            <Pressable onPress={load}><Text style={{ color: C.navy, fontWeight: "600" }}>Retry</Text></Pressable>
+            <Pressable onPress={load}><Text style={{ color: C.link, fontWeight: "600" }}>Retry</Text></Pressable>
           </>
-        ) : <ActivityIndicator color={C.navy} />}
+        ) : <ActivityIndicator color={C.primary} />}
       </View>
     );
   }
@@ -101,7 +101,7 @@ export default function IssueDetailScreen({ route }: any) {
       keyboardVerticalOffset={Platform.OS === "ios" ? headerHeight : 0} style={{ flex: 1, backgroundColor: C.bg }}>
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
         <Card>
-          <Text style={{ color: C.text, fontWeight: "800", fontSize: 18 }}>{issue.title}</Text>
+          <Text style={{ color: C.heading, fontWeight: "800", fontSize: 18 }}>{issue.title}</Text>
           <Text style={{ color: C.muted, marginTop: 4, fontSize: 12 }}>
             {[issue.department?.code && `${issue.department.code} — ${issue.department.name}`,
               issue.category && `Category: ${issue.category}`,
@@ -109,7 +109,7 @@ export default function IssueDetailScreen({ route }: any) {
           </Text>
           <View style={{ marginTop: 10 }}><StatusPill status={issue.status} /></View>
           {issue.status === "Rejected" && issue.rejectionReason ? (
-            <Text style={{ color: C.red, marginTop: 8, fontSize: 13 }}>
+            <Text style={{ color: C.danger, marginTop: 8, fontSize: 13 }}>
               Rejection reason: {issue.rejectionReason}
             </Text>
           ) : null}
@@ -122,7 +122,7 @@ export default function IssueDetailScreen({ route }: any) {
             <FeedbackView feedback={issue.feedback} title="Your feedback" />
           ) : (
             <Card style={{ marginTop: 12 }}>
-              <Text style={{ color: C.text, fontWeight: "700" }}>How was this handled?</Text>
+              <Text style={{ color: C.heading, fontWeight: "700" }}>How was this handled?</Text>
               <Text style={{ color: C.muted, fontSize: 12, marginTop: 2, marginBottom: 10 }}>
                 Rate the department's response. You can only rate once.
               </Text>
@@ -131,10 +131,10 @@ export default function IssueDetailScreen({ route }: any) {
                 {rating ? <Text style={{ color: C.muted, fontSize: 12 }}>{RATING_LABELS[rating]}</Text> : null}
               </View>
               <TextInput value={comment} onChangeText={setComment} multiline maxLength={MAX_FEEDBACK_CHARS}
-                placeholder="Comment (optional)" placeholderTextColor={C.muted}
+                placeholder="Comment (optional)" placeholderTextColor={C.placeholder}
                 style={{
-                  backgroundColor: C.input, color: C.text, borderColor: C.border, borderWidth: 1,
-                  borderRadius: 10, padding: 12, marginTop: 12, marginBottom: 10, minHeight: 70, textAlignVertical: "top",
+                  backgroundColor: C.inputBg, color: C.text, borderColor: C.inputBorder, borderWidth: 1,
+                  borderRadius: 12, padding: 12, marginTop: 12, marginBottom: 10, minHeight: 70, textAlignVertical: "top",
                 }} />
               <Button title="Submit feedback" onPress={onFeedback} loading={ratingSending} loadingTitle="Sending…"
                 disabled={rating < 1} />
@@ -142,16 +142,16 @@ export default function IssueDetailScreen({ route }: any) {
           )
         ) : null}
 
-        <Text style={{ color: C.text, fontWeight: "700", fontSize: 15, marginTop: 18, marginBottom: 8 }}>Replies</Text>
+        <Text style={{ color: C.heading, fontWeight: "700", fontSize: 15, marginTop: 18, marginBottom: 8 }}>Replies</Text>
         <ReplyList replies={issue.replies} emptyText="No replies yet. Staff updates appear here." />
 
         {issue.status !== "Closed" ? (
           <>
             <TextInput value={reply} onChangeText={setReply} multiline maxLength={MAX_REPLY_CHARS}
-              placeholder="Add a follow-up reply…" placeholderTextColor={C.muted}
+              placeholder="Add a follow-up reply…" placeholderTextColor={C.placeholder}
               style={{
-                backgroundColor: C.input, color: C.text, borderColor: C.border, borderWidth: 1,
-                borderRadius: 10, padding: 12, marginTop: 14, marginBottom: 10, minHeight: 90, textAlignVertical: "top",
+                backgroundColor: C.inputBg, color: C.text, borderColor: C.inputBorder, borderWidth: 1,
+                borderRadius: 12, padding: 12, marginTop: 14, marginBottom: 10, minHeight: 90, textAlignVertical: "top",
               }} />
             <Button title="Send reply" onPress={onReply} loading={sending} loadingTitle="Sending…" disabled={!reply.trim()} />
           </>

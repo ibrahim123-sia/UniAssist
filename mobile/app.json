@@ -7,7 +7,7 @@
     "userInterfaceStyle": "automatic",
     "splash": {
       "resizeMode": "contain",
-      "backgroundColor": "#1E2A66"
+      "backgroundColor": "#3B63E8"
     },
     "assetBundlePatterns": [
       "**/*"
@@ -18,7 +18,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "backgroundColor": "#1E2A66"
+        "backgroundColor": "#3B63E8"
       },
       "package": "edu.maju.uniassist"
     },
