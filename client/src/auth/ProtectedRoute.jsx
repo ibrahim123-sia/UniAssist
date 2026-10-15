@@ -18,8 +18,8 @@ const ProtectedRoute = ({ children, roles }) => {
 
   if (loadingUser) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="w-12 h-12 border-t-4 border-blue-600 border-solid rounded-full animate-spin"></div>
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="w-12 h-12 border-4 border-border border-t-primary rounded-full animate-spin"></div>
       </div>
     );
   }

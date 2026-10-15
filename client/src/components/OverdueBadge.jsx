@@ -2,14 +2,13 @@ import React from "react";
 import { AlarmClock } from "lucide-react";
 import { isOverdue } from "../utils/issues";
 
-// Red "Overdue" pill for issues escalated past their department's SLA.
-const OverdueBadge = ({ issue, isDark, className = "" }) => {
+// Danger-toned "Overdue" pill for issues escalated past their department's SLA.
+// (Callers may still pass isDark; the tokens follow the theme on their own.)
+const OverdueBadge = ({ issue, className = "" }) => {
   if (!isOverdue(issue)) return null;
-  const color = isDark ? "#F08D7B" : "#C0261D";
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-semibold uppercase whitespace-nowrap ${className}`}
-      style={{ backgroundColor: isDark ? "#3a1818" : "#FCE6E6", color }}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded-full font-semibold uppercase whitespace-nowrap border bg-danger-bg text-danger border-danger-border ${className}`}
       title={
         issue.escalatedAt
           ? `No staff response within the department's SLA — escalated ${new Date(issue.escalatedAt).toLocaleString()}`

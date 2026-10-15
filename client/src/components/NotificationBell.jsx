@@ -21,21 +21,9 @@ const NotificationBell = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const { notifications, unreadCount } = useSelector((s) => s.notification);
-  const theme = useSelector((s) => s.theme.theme);
   const user = useSelector((s) => s.auth.user);
   const [open, setOpen] = useState(false);
   const popRef = useRef(null);
-  const isDark = theme === "dark";
-
-  const C = {
-    surface: isDark ? "#16203A" : "#FFFFFF",
-    surfaceAlt: isDark ? "#1E2A47" : "#F2F3F8",
-    border: isDark ? "#2A3656" : "#D8DAE6",
-    text: isDark ? "#ECEEF5" : "#1F2330",
-    muted: isDark ? "#9AA5BD" : "#5A6372",
-    navy: isDark ? "#E63027" : "#1E2A66",
-    red: isDark ? "#C48A4A" : "#E63027",
-  };
 
   useEffect(() => {
     if (!user) return;
@@ -74,17 +62,13 @@ const NotificationBell = () => {
     <div className="relative" ref={popRef}>
       <button
         onClick={() => setOpen((v) => !v)}
-        className="relative p-2 rounded-lg transition-colors"
-        style={{ color: C.text }}
-        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.surfaceAlt)}
-        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+        className="relative p-2 rounded-control transition-colors text-label hover:bg-nav-hover focus-ring"
         aria-label="Notifications"
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
           <span
-            className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center text-white"
-            style={{ backgroundColor: C.red }}
+            className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold flex items-center justify-center bg-primary text-on-primary"
           >
             {unreadCount > 99 ? "99+" : unreadCount}
           </span>
@@ -93,19 +77,16 @@ const NotificationBell = () => {
 
       {open && (
         <div
-          className="absolute left-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-hidden rounded-xl border shadow-lg z-50 flex flex-col"
-          style={{ backgroundColor: C.surface, borderColor: C.border, color: C.text }}
+          className="absolute left-0 mt-2 w-80 max-w-[calc(100vw-2rem)] max-h-96 overflow-hidden rounded-card border bg-surface border-border text-text shadow-panel z-50 flex flex-col"
         >
           <div
-            className="flex items-center justify-between px-4 py-2.5 border-b"
-            style={{ borderColor: C.border }}
+            className="flex items-center justify-between px-4 py-2.5 border-b border-border"
           >
-            <span className="font-semibold text-sm">Notifications</span>
+            <span className="font-bold text-sm text-heading">Notifications</span>
             {unreadCount > 0 && (
               <button
                 onClick={handleMarkAll}
-                className="text-xs inline-flex items-center gap-1"
-                style={{ color: C.navy }}
+                className="text-xs font-semibold inline-flex items-center gap-1 text-link hover:text-link-hover rounded focus-ring"
               >
                 <Check className="w-3.5 h-3.5" /> Mark all read
               </button>
@@ -114,7 +95,7 @@ const NotificationBell = () => {
 
           <div className="overflow-y-auto flex-1">
             {notifications.length === 0 ? (
-              <div className="text-center text-sm py-10" style={{ color: C.muted }}>
+              <div className="text-center text-sm py-10 text-muted">
                 No notifications yet
               </div>
             ) : (
@@ -122,26 +103,17 @@ const NotificationBell = () => {
                 <button
                   key={n._id}
                   onClick={() => handleClickItem(n)}
-                  className="w-full text-left p-3 border-b transition-colors"
-                  style={{
-                    borderColor: C.border,
-                    backgroundColor: n.isRead ? "transparent" : C.surfaceAlt,
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.surfaceAlt)}
-                  onMouseLeave={(e) =>
-                    (e.currentTarget.style.backgroundColor = n.isRead ? "transparent" : C.surfaceAlt)
-                  }
+                  className={`w-full text-left p-3 border-b border-border transition-colors hover:bg-row-hover focus-ring ${
+                    n.isRead ? "" : "bg-nav-active-bg"
+                  }`}
                 >
                   <div className="flex items-start gap-2">
                     {!n.isRead && (
-                      <span
-                        className="w-2 h-2 rounded-full mt-1.5 shrink-0"
-                        style={{ backgroundColor: C.red }}
-                      />
+                      <span className="w-2 h-2 rounded-full mt-1.5 shrink-0 bg-primary" />
                     )}
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm" style={{ color: C.text }}>{n.message}</p>
-                      <p className="text-xs mt-0.5" style={{ color: C.muted }}>
+                      <p className="text-sm text-text">{n.message}</p>
+                      <p className="text-xs mt-0.5 text-muted">
                         {moment(n.createdAt).fromNow()}
                       </p>
                     </div>

@@ -1,13 +1,7 @@
 import React from "react";
-import { useSelector } from "react-redux";
 import { CheckCircle2, Circle, Loader2, XCircle, Info } from "lucide-react";
-import { getPalette } from "../administrator/utils/palette";
+import { C, alpha } from "../theme/palette";
 import { useElapsed, formatElapsed } from "../utils/useElapsed";
-
-const usePaletteFromTheme = () => {
-  const theme = useSelector((s) => s.theme.theme);
-  return getPalette(theme === "dark");
-};
 
 // Seconds shown next to a long action: live while it runs, frozen once
 // `endedAt` is set.
@@ -36,7 +30,6 @@ const useShownSeconds = (startedAt, endedAt) => {
  * detail:    text under the active step (e.g. the server's stage label)
  */
 const ProgressSteps = ({ title, steps, current, status = "running", startedAt, endedAt, note, detail, error }) => {
-  const C = usePaletteFromTheme();
   const seconds = useShownSeconds(startedAt, endedAt);
   const currentIndex = Math.max(0, steps.findIndex((s) => s.key === current));
 
@@ -62,7 +55,7 @@ const ProgressSteps = ({ title, steps, current, status = "running", startedAt, e
           const active = !done && i === currentIndex;
           const failed = active && status === "failed";
           const Icon = done ? CheckCircle2 : failed ? XCircle : active ? Loader2 : Circle;
-          const color = done ? C.green : failed ? C.danger : active ? C.navy : C.border;
+          const color = done ? C.success : failed ? C.danger : active ? C.primary : C.borderStrong;
           return (
             <li key={step.key} className="flex items-start gap-2">
               <Icon
@@ -89,7 +82,7 @@ const ProgressSteps = ({ title, steps, current, status = "running", startedAt, e
         })}
       </ol>
       {note && (
-        <p className="flex items-start gap-1.5 text-xs mt-2" style={{ color: C.amber }}>
+        <p className="flex items-start gap-1.5 text-xs mt-2" style={{ color: C.warning }}>
           <Info className="w-3.5 h-3.5 mt-px shrink-0" aria-hidden="true" />
           <span>{note}</span>
         </p>
@@ -109,7 +102,6 @@ const ProgressSteps = ({ title, steps, current, status = "running", startedAt, e
  * signing in to the mail server...).
  */
 export const ProgressLine = ({ label, startedAt, className = "", showSpinner = true }) => {
-  const C = usePaletteFromTheme();
   const seconds = useElapsed(startedAt);
   return (
     <span
@@ -118,7 +110,7 @@ export const ProgressLine = ({ label, startedAt, className = "", showSpinner = t
       className={`inline-flex items-center gap-1.5 text-xs ${className}`}
       style={{ color: C.muted }}
     >
-      {showSpinner && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" style={{ color: C.navy }} aria-hidden="true" />}
+      {showSpinner && <Loader2 className="w-3.5 h-3.5 animate-spin shrink-0" style={{ color: C.primary }} aria-hidden="true" />}
       <span>{label}</span>
       {startedAt ? <span className="tabular-nums">· {formatElapsed(seconds)}</span> : null}
     </span>
@@ -127,7 +119,6 @@ export const ProgressLine = ({ label, startedAt, className = "", showSpinner = t
 
 /** Upload progress bar (axios onUploadProgress percentage, 0–100). */
 export const UploadProgress = ({ percent, label = "Uploading" }) => {
-  const C = usePaletteFromTheme();
   const pct = Math.max(0, Math.min(100, Math.round(percent || 0)));
   return (
     <div role="status" aria-live="polite" className="text-xs space-y-1">
@@ -137,13 +128,13 @@ export const UploadProgress = ({ percent, label = "Uploading" }) => {
       </div>
       <div
         className="h-1.5 rounded-full overflow-hidden"
-        style={{ backgroundColor: C.surfaceAlt }}
+        style={{ backgroundColor: alpha(C.primary, 20) }}
         role="progressbar"
         aria-valuemin={0}
         aria-valuemax={100}
         aria-valuenow={pct}
       >
-        <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: C.navy }} />
+        <div className="h-full transition-all" style={{ width: `${pct}%`, backgroundColor: C.primary }} />
       </div>
     </div>
   );

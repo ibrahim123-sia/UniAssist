@@ -42,6 +42,7 @@ import moment from "moment";
 import { useNavigate, useLocation } from "react-router-dom";
 import NotificationBell from "./NotificationBell";
 import ConfirmDialog from "../administrator/components/ConfirmDialog";
+import BrandMark from "./BrandMark";
 
 // Sidebar title: the server auto-names a chat after its first question (or
 // the student renamed it); fall back to the first message for old chats.
@@ -76,20 +77,6 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
   const isStudent = user?.role === "student" || !user?.role;
   const isStaff = user?.role === "staff";
   const isAdmin = user?.role === "admin";
-
-  // palette tokens
-  const C = {
-    bg: isDark ? "#0E1422" : "#FFFFFF",
-    surface: isDark ? "#16203A" : "#FFFFFF",
-    surfaceAlt: isDark ? "#1E2A47" : "#F2F3F8",
-    input: isDark ? "#0B1120" : "#F2F3F8",
-    border: isDark ? "#2A3656" : "#D8DAE6",
-    text: isDark ? "#ECEEF5" : "#1F2330",
-    muted: isDark ? "#9AA5BD" : "#5A6372",
-    navy: isDark ? "#E63027" : "#1E2A66",
-    red: isDark ? "#C48A4A" : "#E63027",
-    danger: isDark ? "#F06A62" : "#C81E15",
-  };
 
   // Close sidebar when clicking outside on mobile
   useEffect(() => {
@@ -219,24 +206,19 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
     if (!result.success) toast.error(result.message || "Failed to rename chat");
   };
 
-  const NavLink = ({ to, icon, label, accent }) => {
+  const NavLink = ({ to, icon, label }) => {
     const active = location.pathname === to || location.pathname.startsWith(to + "/");
     return (
       <Link
         to={to}
-        className="w-full flex items-center gap-3 px-2 py-1.5 rounded-lg transition-all text-sm"
-        style={{
-          color: C.text,
-          backgroundColor: active ? C.surfaceAlt : "transparent",
-        }}
-        onMouseEnter={(e) => {
-          if (!active) e.currentTarget.style.backgroundColor = C.surfaceAlt;
-        }}
-        onMouseLeave={(e) => {
-          if (!active) e.currentTarget.style.backgroundColor = "transparent";
-        }}
+        aria-current={active ? "page" : undefined}
+        className={`w-full flex items-center gap-3 px-2 py-1.5 rounded-control transition-colors text-sm focus-ring ${
+          active
+            ? "bg-nav-active-bg text-nav-active-text font-semibold"
+            : "text-text font-medium hover:bg-nav-hover"
+        }`}
       >
-        <span style={{ color: accent }}>{icon}</span>
+        <span className={active ? "text-nav-active-text" : "text-label"}>{icon}</span>
         <span>{label}</span>
       </Link>
     );
@@ -247,8 +229,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
       {/* Mobile Overlay */}
       {isMenuOpen && window.innerWidth < 768 && (
         <div
-          className="fixed inset-0 z-40 transition-opacity duration-300"
-          style={{ backgroundColor: "rgba(15, 22, 38, 0.6)" }}
+          className="fixed inset-0 z-40 transition-opacity duration-300 bg-overlay"
           onClick={() => setIsMenuOpen(false)}
         ></div>
       )}
@@ -256,19 +237,13 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
       {/* Sidebar */}
       <aside
         ref={sidebarRef}
-        className={`flex flex-col h-screen w-64 z-50 border-r transition-all duration-300 fixed md:relative
+        className={`flex flex-col h-screen w-64 z-50 border-r transition-all duration-300 fixed md:relative bg-sidebar-bg border-sidebar-border text-text
         ${isMenuOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
-        style={{
-          backgroundColor: C.surface,
-          borderColor: C.border,
-          color: C.text,
-        }}
       >
         {/* Close button for mobile */}
         <button
           onClick={() => setIsMenuOpen(false)}
-          className="md:hidden absolute top-4 right-4 p-2 rounded-lg transition-colors"
-          style={{ color: C.muted }}
+          className="md:hidden absolute top-4 right-4 p-2 rounded-control transition-colors text-label hover:bg-nav-hover focus-ring"
           aria-label="Close menu"
         >
           <X className="w-5 h-5" />
@@ -276,22 +251,13 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
 
         {/* Logo Section */}
         <Link to={isStaff ? "/staff/dashboard" : isAdmin ? "/admin/dashboard" : "/chat"}>
-          <div className="p-4 border-b flex items-center gap-3" style={{ borderColor: C.border }}>
-            <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center relative"
-              style={{ backgroundColor: C.navy }}
-            >
-              <span className="text-white font-bold text-lg leading-none">M</span>
-              <span
-                className="absolute bottom-1 left-2 right-2 h-0.5 rounded-full"
-                style={{ backgroundColor: C.red }}
-              />
-            </div>
+          <div className="p-4 border-b border-sidebar-border flex items-center gap-3">
+            <BrandMark />
             <div>
-              <h1 className="text-lg font-bold leading-tight" style={{ color: C.text }}>
+              <h1 className="text-[19px] font-extrabold leading-tight text-heading">
                 UniAssist
               </h1>
-              <p className="text-[11px]" style={{ color: C.muted }}>
+              <p className="text-[11px] text-muted">
                 MAJU Student Assistant
               </p>
             </div>
@@ -299,15 +265,14 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         </Link>
 
         {/* User Profile + Bell — clicking the profile area goes to /profile */}
-        <div className="p-3 border-b flex items-center gap-3" style={{ borderColor: C.border }}>
+        <div className="p-3 border-b border-sidebar-border flex items-center gap-3">
           <Link
             to="/profile"
-            className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-90 transition"
+            className="flex items-center gap-3 flex-1 min-w-0 hover:opacity-90 transition rounded-control focus-ring"
             title="Manage your profile"
           >
             <div
-              className="w-9 h-9 rounded-full flex items-center justify-center overflow-hidden"
-              style={{ backgroundColor: C.navy }}
+              className="w-9 h-9 rounded-full flex items-center justify-center overflow-hidden bg-primary"
             >
               {user?.profilePicture ? (
                 <img
@@ -316,16 +281,16 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                   className="w-full h-full object-cover"
                 />
               ) : (
-                <span className="text-white font-semibold text-sm">
+                <span className="text-on-primary font-semibold text-sm">
                   {user?.name?.charAt(0)?.toUpperCase() || "U"}
                 </span>
               )}
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate" style={{ color: C.text }}>
+              <p className="text-sm font-semibold truncate text-heading">
                 {user?.name || "User"}
               </p>
-              <p className="text-xs truncate" style={{ color: C.muted }}>
+              <p className="text-xs truncate text-muted">
                 {isStaff ? (user?.staffTitle || "Staff") : isAdmin ? "Administrator" : (user?.email || "student@maju.edu.pk")}
               </p>
             </div>
@@ -340,10 +305,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
               onClick={handleNewChat}
               disabled={creatingChat}
               aria-busy={creatingChat}
-              className="w-full text-white font-medium py-2.5 rounded-lg flex items-center justify-center gap-2 transition-all text-sm cursor-pointer disabled:opacity-70 disabled:cursor-wait"
-              style={{ backgroundColor: C.navy }}
-              onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = isDark ? "#C81E15" : "#16204D")}
-              onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = C.navy)}
+              className="w-full bg-primary hover:bg-primary-hover text-on-primary font-bold py-2.5 rounded-control flex items-center justify-center gap-2 transition-colors text-sm cursor-pointer focus-ring disabled:bg-disabled-bg disabled:text-disabled-text disabled:cursor-wait"
             >
               <Plus className="w-4 h-4" />
               New Conversation
@@ -355,21 +317,13 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         {isStudent && (
           <div className="px-3 pb-3">
             <div className="relative">
-              <Search
-                className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4"
-                style={{ color: C.muted }}
-              />
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-label" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 placeholder="Search conversations..."
-                className="w-full pl-10 pr-4 py-2.5 text-sm rounded-lg border focus:outline-none"
-                style={{
-                  backgroundColor: C.input,
-                  borderColor: C.border,
-                  color: C.text,
-                }}
+                className="w-full pl-10 pr-4 py-2.5 text-sm rounded-control border bg-input-bg border-input-border text-text placeholder:text-placeholder focus:border-primary focus:outline-none focus:shadow-[var(--focus-ring)]"
               />
             </div>
           </div>
@@ -378,7 +332,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         {/* Recent Chats (student only) */}
         {isStudent && (
           <div className="flex-1 overflow-y-auto px-3 pb-3">
-            <h3 className="text-xs font-semibold uppercase tracking-wide mb-3" style={{ color: C.muted }}>
+            <h3 className="text-xs font-semibold uppercase tracking-wide mb-3 text-muted">
               Recent Conversations
             </h3>
 
@@ -399,22 +353,16 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                     <div
                       key={chat._id || chat.id}
                       onClick={() => handleChatClick(chat)}
-                      className="group flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all"
-                      style={{
-                        backgroundColor: isSelected ? C.surfaceAlt : "transparent",
-                        border: isSelected ? `1px solid ${C.border}` : "1px solid transparent",
-                        opacity: isLoading ? 0.5 : 1,
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isSelected) e.currentTarget.style.backgroundColor = C.surfaceAlt;
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isSelected) e.currentTarget.style.backgroundColor = "transparent";
-                      }}
+                      className={`group flex items-center justify-between p-3 rounded-control cursor-pointer transition-colors border border-transparent ${
+                        isSelected ? "bg-nav-active-bg" : "hover:bg-nav-hover"
+                      }`}
+                      style={{ opacity: isLoading ? 0.5 : 1 }}
                     >
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <MessageSquare className="w-4 h-4 shrink-0" style={{ color: C.muted }} />
+                          <MessageSquare
+                            className={`w-4 h-4 shrink-0 ${isSelected ? "text-nav-active-text" : "text-label"}`}
+                          />
                           {renaming?.id === chat._id ? (
                             <input
                               autoFocus
@@ -429,22 +377,22 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                                 if (e.key === "Enter") e.currentTarget.blur();
                                 else if (e.key === "Escape") setRenaming(null);
                               }}
-                              className="flex-1 min-w-0 text-sm px-1 py-0.5 rounded border focus:outline-none"
-                              style={{ backgroundColor: C.input, borderColor: C.border, color: C.text }}
+                              className="flex-1 min-w-0 text-sm px-1 py-0.5 rounded border bg-input-bg border-input-border text-text focus:border-primary focus:outline-none"
                             />
                           ) : (
-                            <p className="text-sm font-medium truncate" style={{ color: C.text }}>
+                            <p
+                              className={`text-sm font-medium truncate ${isSelected ? "text-nav-active-text" : "text-text"}`}
+                            >
                               {chatTitle(chat)}
                             </p>
                           )}
                           {isLoading && (
                             <div
-                              className="ml-2 w-3 h-3 border-2 rounded-full animate-spin shrink-0"
-                              style={{ borderColor: C.border, borderTopColor: C.navy }}
+                              className="ml-2 w-3 h-3 border-2 rounded-full animate-spin shrink-0 border-border border-t-primary"
                             ></div>
                           )}
                         </div>
-                        <p className="text-xs" style={{ color: C.muted }}>
+                        <p className="text-xs text-muted">
                           {chat.updatedAt
                             ? moment(chat.updatedAt).fromNow()
                             : "Just now"}
@@ -455,13 +403,10 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                         <div className="flex items-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
                           <button
                             onClick={(e) => startRename(e, chat)}
-                            className="p-1 rounded"
+                            className="p-1 rounded text-muted hover:text-text focus-ring"
                             aria-label="Rename chat"
                             title="Rename"
                             disabled={isLoading}
-                            style={{ color: C.muted }}
-                            onMouseEnter={(e) => (e.currentTarget.style.color = C.text)}
-                            onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
                           >
                             <Pencil className="w-3.5 h-3.5" />
                           </button>
@@ -470,13 +415,10 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                               e.stopPropagation();
                               setConfirmDeleteId(chat._id || chat.id);
                             }}
-                            className="p-1 rounded"
+                            className="p-1 rounded text-muted hover:text-danger focus-ring"
                             aria-label="Delete chat"
                             title="Delete"
                             disabled={isLoading}
-                            style={{ color: C.muted }}
-                            onMouseEnter={(e) => (e.currentTarget.style.color = C.danger)}
-                            onMouseLeave={(e) => (e.currentTarget.style.color = C.muted)}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -488,11 +430,11 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
 
               {chats.length === 0 && (
                 <div className="text-center py-8">
-                  <MessageSquare className="w-10 h-10 mx-auto mb-3" style={{ color: C.border }} />
-                  <p className="text-sm" style={{ color: C.muted }}>
+                  <MessageSquare className="w-10 h-10 mx-auto mb-3 text-border-strong" />
+                  <p className="text-sm text-muted">
                     No conversations yet
                   </p>
-                  <p className="text-xs mt-1" style={{ color: C.muted, opacity: 0.7 }}>
+                  <p className="text-xs mt-1 text-muted">
                     Start a new chat to get started
                   </p>
                 </div>
@@ -504,74 +446,63 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         {/* Admin nav (top, scrollable) */}
         {isAdmin && (
           <div className="flex-1 overflow-y-auto px-2 pt-3 pb-2 space-y-1">
-            <h3 className="text-xs font-semibold uppercase tracking-wide px-2 mb-2" style={{ color: C.muted }}>
+            <h3 className="text-xs font-semibold uppercase tracking-wide px-2 mb-2 text-muted">
               Admin Console
             </h3>
             <NavLink
               to="/admin/dashboard"
               icon={<LayoutDashboard className="w-4 h-4" />}
               label="Dashboard"
-              accent={C.navy}
             />
             <NavLink
               to="/admin/users"
               icon={<UsersIcon className="w-4 h-4" />}
               label="Users"
-              accent={C.navy}
             />
             <NavLink
               to="/admin/staff"
               icon={<UserPlus className="w-4 h-4" />}
               label="Staff"
-              accent={C.red}
             />
             <NavLink
               to="/admin/departments"
               icon={<Building2 className="w-4 h-4" />}
               label="Departments"
-              accent={C.navy}
             />
             <NavLink
               to="/admin/query"
               icon={<HelpCircle className="w-4 h-4" />}
               label="Query"
-              accent={C.red}
             />
             <NavLink
               to="/admin/questions"
               icon={<MessageCircleQuestion className="w-4 h-4" />}
               label="Questions"
-              accent={C.red}
             />
             <NavLink
               to="/admin/listings"
               icon={<Briefcase className="w-4 h-4" />}
               label="Listings"
-              accent={C.navy}
             />
             <NavLink
               to="/admin/data"
               icon={<Database className="w-4 h-4" />}
               label="Data"
-              accent={C.navy}
             />
             <NavLink
               to="/admin/logs"
               icon={<Activity className="w-4 h-4" />}
               label="Logs & Activity"
-              accent={C.red}
             />
             <NavLink
               to="/admin/health"
               icon={<HeartPulse className="w-4 h-4" />}
               label="System Health"
-              accent={C.navy}
             />
             <NavLink
               to="/admin/settings"
               icon={<SettingsIcon className="w-4 h-4" />}
               label="Settings"
-              accent={C.red}
             />
           </div>
         )}
@@ -580,38 +511,33 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
         {!isStudent && !isAdmin && <div className="flex-1" />}
 
         {/* Quick Actions / Nav */}
-        <div className="p-1.5 border-t space-y-1" style={{ borderColor: C.border }}>
+        <div className="p-1.5 border-t border-sidebar-border space-y-1">
           {isStudent && (
             <>
               <NavLink
                 to="/issues"
                 icon={<AlertCircle className="w-4 h-4" />}
                 label="My Issues"
-                accent={C.red}
               />
               <NavLink
                 to="/questions"
                 icon={<MessageCircleQuestion className="w-4 h-4" />}
                 label="My Questions"
-                accent={C.navy}
               />
               <NavLink
                 to="/jobs"
                 icon={<Briefcase className="w-4 h-4" />}
                 label="Jobs"
-                accent={C.red}
               />
               <NavLink
                 to="/scholarships"
                 icon={<GraduationCap className="w-4 h-4" />}
                 label="Scholarships"
-                accent={C.navy}
               />
               <NavLink
                 to="/events"
                 icon={<Calendar className="w-4 h-4" />}
                 label="Events"
-                accent={C.red}
               />
             </>
           )}
@@ -621,30 +547,21 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 to="/staff/dashboard"
                 icon={<LayoutDashboard className="w-4 h-4" />}
                 label="Dashboard"
-                accent={C.navy}
               />
               <NavLink
                 to="/staff/issues"
                 icon={<Inbox className="w-4 h-4" />}
                 label="Department Inbox"
-                accent={C.red}
               />
             </>
           )}
         </div>
 
-        <div className="p-1.5 border-t" style={{ borderColor: C.border }}>
-          <div
-            className="flex items-center justify-between rounded-lg px-3 py-2 mb-2"
-            style={{ backgroundColor: C.surfaceAlt }}
-          >
-            <div className="flex items-center gap-3">
-              {isDark ? (
-                <Moon className="w-4 h-4" style={{ color: C.navy }} />
-              ) : (
-                <Sun className="w-4 h-4" style={{ color: C.red }} />
-              )}
-              <span className="text-sm font-medium" style={{ color: C.text }}>
+        <div className="p-1.5 border-t border-sidebar-border">
+          <div className="flex items-center justify-between rounded-control px-3 py-2 mb-2 bg-nav-hover">
+            <div className="flex items-center gap-3 text-label">
+              {isDark ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
+              <span className="text-sm font-medium text-text">
                 Theme
               </span>
             </div>
@@ -653,14 +570,16 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
                 type="checkbox"
                 checked={isDark}
                 onChange={() => dispatch(setTheme(isDark ? "light" : "dark"))}
+                aria-label="Dark mode"
                 className="sr-only peer"
               />
               <div
-                className="w-10 h-5 rounded-full transition-colors"
-                style={{ backgroundColor: isDark ? C.navy : C.border }}
+                className={`w-10 h-5 rounded-full transition-colors peer-focus-visible:shadow-[var(--focus-ring)] ${
+                  isDark ? "bg-primary" : "bg-border-strong"
+                }`}
               ></div>
               <div
-                className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-surface transition-transform"
                 style={{ transform: isDark ? "translateX(20px)" : "translateX(0)" }}
               ></div>
             </label>
@@ -668,10 +587,7 @@ const Sidebar = ({ isMenuOpen, setIsMenuOpen }) => {
 
           <button
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 p-2 rounded-lg transition-all text-sm"
-            style={{ color: C.text }}
-            onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = C.surfaceAlt)}
-            onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = "transparent")}
+            className="w-full flex items-center justify-center gap-2 p-2 rounded-control transition-colors text-sm text-label hover:bg-nav-hover hover:text-danger focus-ring"
           >
             <LogOut className="w-4 h-4" />
             <span className="font-medium">Logout</span>

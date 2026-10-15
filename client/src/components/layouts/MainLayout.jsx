@@ -16,7 +16,7 @@ const MainLayout = () => {
 
   // Logged-in user layout - with sidebar
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-bg text-text">
       {/* Mobile Menu Button */}
       <MobileMenuButton 
         isMenuOpen={isMenuOpen}
