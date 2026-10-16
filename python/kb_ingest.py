@@ -65,6 +65,12 @@ _jobs_lock = threading.Lock()
 _write_lock = threading.Lock()
 
 
+def active_job_count():
+    """Queued or running ingest jobs (the KB snapshot waits for them)."""
+    with _jobs_lock:
+        return sum(1 for j in _jobs.values() if j["status"] in ("queued", "running"))
+
+
 def _now():
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 

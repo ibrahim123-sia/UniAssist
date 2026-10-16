@@ -65,6 +65,7 @@ import re             # For regular expression operations in validation
 import hmac           # For constant-time comparison of the internal shared secret
 import uuid           # For generating unique identifiers for document records
 import tempfile       # For creating temporary files during audio transcription
+from contextlib import asynccontextmanager  # App startup/shutdown hooks (KB snapshot restore/flush)
 from typing import Optional, List, Literal  # For type hinting in API request models
 
 import jwt            # For verifying and decoding JWT tokens from the Node server
@@ -80,6 +81,7 @@ import config         # Application configurations and global settings
 import rag            # Retrieval Augmented Generation pipeline
 import database       # ChromaDB operations and search queries
 import kb_ingest      # Admin URL ingestion jobs + admin Q&A chunks
+import kb_snapshot    # ChromaDB snapshot in Cloudflare R2 (ephemeral container disk)
 import listing_extract  # Job/scholarship/event field extraction from a link
 import question_cluster  # Grouping of similar unanswered questions
 import system_health  # Provider / KB checks for the admin health page
@@ -105,10 +107,38 @@ for _stream in (sys.stdout, sys.stderr):
 # APP SETUP
 # =============================================================
 
+@asynccontextmanager
+async def lifespan(_app):
+    # Cloudflare containers start on a blank disk: bring back the knowledge
+    # base from R2 before anything opens ChromaDB, and save unsaved changes
+    # on shutdown (no-ops without R2 settings — see kb_snapshot.py).
+    kb_snapshot.restore()
+    kb_snapshot.start()
+    yield
+    kb_snapshot.flush()
+
+
 app = FastAPI(
     title="UniAssist RAG + Admin API",
     description="RAG endpoint for students; admin CRUD for the vector store.",
+    lifespan=lifespan,
 )
+
+# Requests that change the knowledge base (ChromaDB): a successful one marks
+# it for the next R2 snapshot.
+KB_WRITE_PATHS = ("/chunks", "/documents", "/kb/")
+
+
+@app.middleware("http")
+async def track_kb_writes(request, call_next):
+    response = await call_next(request)
+    if (
+        request.method in ("POST", "PUT", "PATCH", "DELETE")
+        and request.url.path.startswith(KB_WRITE_PATHS)
+        and response.status_code < 400
+    ):
+        kb_snapshot.mark_dirty()
+    return response
 
 # CORS — allow Vite dev client (5173) and any extra origin via env
 default_origins = ["http://localhost:5173", "http://127.0.0.1:5173"]

@@ -1,0 +1,17 @@
+venv
+.venv
+Lib
+Scripts
+Include
+__pycache__
+*.pyc
+.env
+.env.*
+!.env.example
+chroma_db
+data/*.json
+data/urls.txt
+.hf-cache
+*.log
+Dockerfile
+.dockerignore
