@@ -1,25 +1,52 @@
+<div align="center">
+
+<img src="client/public/logo-mark.svg" alt="UniAssist logo" width="72" height="72" />
+
 # UniAssist
 
-> A centralized AI student portal for Muhammad Ali Jinnah University (MAJU) — a Retrieval-Augmented Generation chatbot with voice and Roman-Urdu support, an issue tracker, a staff department portal, and an admin panel with a vector-database knowledge-base manager.
+**An AI student portal for Muhammad Ali Jinnah University (MAJU)**
+
+A Retrieval-Augmented Generation chatbot with voice and Roman-Urdu support, an issue tracker with a staff department portal, and an admin panel with a vector knowledge-base manager — on the web and on mobile.
 
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
 ![Vite](https://img.shields.io/badge/Vite-7-646CFF?logo=vite&logoColor=white)
-![Redux Toolkit](https://img.shields.io/badge/Redux_Toolkit-2-764ABC?logo=redux&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?logo=tailwindcss&logoColor=white)
 ![Node.js](https://img.shields.io/badge/Node.js-Express_5-339933?logo=node.js&logoColor=white)
 ![MongoDB](https://img.shields.io/badge/MongoDB-Mongoose-47A248?logo=mongodb&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-FastAPI-3776AB?logo=python&logoColor=white)
 ![ChromaDB](https://img.shields.io/badge/Vector_DB-ChromaDB-FF6F61)
-![Sentence Transformers](https://img.shields.io/badge/Embeddings-all--MiniLM--L6--v2-FFD21E?logo=huggingface&logoColor=black)
-![Whisper](https://img.shields.io/badge/STT-faster--whisper-000000)
 ![Expo](https://img.shields.io/badge/Mobile-Expo_/_React_Native-000020?logo=expo&logoColor=white)
-![Cloudflare](https://img.shields.io/badge/Deploy-Cloudflare_Workers_+_Containers-F38020?logo=cloudflare&logoColor=white)
+![Cloudflare](https://img.shields.io/badge/Deploy-Cloudflare-F38020?logo=cloudflare&logoColor=white)
+[![License: MIT](https://img.shields.io/badge/License-MIT-3B63E8.svg)](LICENSE)
 
-UniAssist unifies every routine student interaction with the university behind one AI-first interface. Students (and guests) chat with **MAJU Assistant**, a RAG assistant grounded in the university's own website content and admin-curated documents — in English, Roman Urdu, or a mix, by text or voice. Beyond the chatbot, students raise support tickets to specific departments, staff triage and resolve them, and admins manage users, departments, audit trails, and the underlying vector knowledge base from a dedicated dashboard.
+[Features](#-features) · [Screenshots](#-screenshots) · [Tech stack](#-tech-stack) · [Getting started](#-getting-started) · [Deploy](#-deploying-to-cloudflare) · [Structure](#-project-structure)
 
-<p align="center">
-  <img src="preview.png" alt="UniAssist preview" width="100%"/>
-</p>
+<br />
+
+<img src=".github/assets/preview.png" alt="UniAssist in Day Desk (light) and Night Desk (dark)" width="100%" />
+
+</div>
+
+## 📖 Overview
+
+UniAssist puts every routine student interaction with the university behind one AI-first interface. Students and guests chat with the **MAJU Assistant**, a RAG assistant grounded in the university's own website and admin-curated documents — in English, Roman Urdu or a mix, by text or voice. Beyond the chatbot, students raise tickets to specific departments, staff triage and resolve them, and admins manage users, departments, audit trails and the vector knowledge base from one dashboard.
+
+- **Grounded answers** from the university's own content, with hybrid semantic + keyword retrieval.
+- **Human in the loop**: questions the bot can't answer go to admins, and their replies feed back into the knowledge base.
+- **One backend, two clients**: a React web portal for every role and an Expo mobile app for students.
+- **Cloudflare deployment included**: Workers, Containers and R2 config, deployed from a manual GitHub Actions workflow.
+
+### Contents
+
+- [Features](#-features)
+- [Who uses it](#-who-uses-it)
+- [Screenshots](#-screenshots)
+- [Tech stack](#-tech-stack)
+- [Getting started](#-getting-started)
+- [Deploying to Cloudflare](#-deploying-to-cloudflare)
+- [Project structure](#-project-structure)
+- [Security](#-security)
+- [License](#-license)
 
 ## ✨ Features
 
@@ -53,12 +80,36 @@ UniAssist unifies every routine student interaction with the university behind o
 
 ### 🎓 Student Extras
 - **Jobs** and **Scholarships** published by the admin (deadline-aware, searchable), **Events** (upcoming / past) published by the admin, **My Questions** to follow up on questions sent to the admin, and profile management with avatar upload.
-- Day Desk (light, default) and Night Desk (dark) themes, OTP email verification, and password reset flows.
+- OTP email verification and password reset flows.
+
+### 🎨 Design
+- Two themes from one set of design tokens: **Day Desk** (light, the default) and **Night Desk** (dark), with the same primary blue in both and the Manrope typeface.
+- All colors live in [`client/src/theme/tokens.css`](client/src/theme/tokens.css); the mobile app mirrors them in [`mobile/src/theme/palette.ts`](mobile/src/theme/palette.ts).
 
 ### 📱 Mobile App
-- An Expo / React Native client (`mobile/`) sharing the same Node and Python backends.
+- An Expo / React Native app for students (`mobile/`) on the same Node backend — chat with voice, issues, jobs, scholarships, events and notifications. See [`mobile/README.md`](mobile/README.md).
 
-## 🛠️ Tech Stack
+## 👥 Who uses it
+
+| Role | Signs in on | What they can do |
+| --- | --- | --- |
+| **Guest** | Web | Chat with the assistant (text only); history kept for the session |
+| **Student** | Web + mobile | Chat with voice and email drafts, raise and track issues, register complaints from chat, ask an admin, browse jobs, scholarships and events |
+| **Staff** | Web | Department dashboard, triage and reply to their department's issues, assign tickets, update status |
+| **Admin** | Web | Users, staff and departments, knowledge base, website import, listings, unanswered questions, logs, health and email settings |
+
+## 📸 Screenshots
+
+| Day Desk (light) | Night Desk (dark) |
+| :---: | :---: |
+| <img src=".github/assets/guest-light.png" alt="Guest chat — light" /> | <img src=".github/assets/guest-dark.png" alt="Guest chat — dark" /> |
+| Guest chat | Guest chat |
+| <img src=".github/assets/login-light.png" alt="Sign in — light" /> | <img src=".github/assets/login-dark.png" alt="Sign in — dark" /> |
+| Sign in | Sign in |
+| <img src=".github/assets/register-light.png" alt="Create account — light" /> | <img src=".github/assets/register-dark.png" alt="Create account — dark" /> |
+| Create account | Create account |
+
+## 🧰 Tech Stack
 
 | Layer | Technologies |
 | --- | --- |
@@ -66,7 +117,7 @@ UniAssist unifies every routine student interaction with the university behind o
 | **API server** (`server/`) | Node.js, Express 5, MongoDB (Mongoose), JWT auth, bcryptjs, multer uploads, nodemailer, express-rate-limit |
 | **AI service** (`python/`) | FastAPI, Uvicorn, ChromaDB, sentence-transformers (`all-MiniLM-L6-v2`), faster-whisper, Groq / Gemini or Ollama, BeautifulSoup scraper |
 | **Mobile** (`mobile/`) | Expo, React Native, React Navigation, Redux Toolkit + redux-persist |
-| **Deployment** (`cloudflare/`) | Cloudflare Workers (static assets + a front-door Worker), Cloudflare Containers, R2, Cron Triggers |
+| **Deployment** (`cloudflare/`) | Cloudflare Workers (static assets + a front-door Worker), Cloudflare Containers, R2, Cron Triggers, GitHub Actions |
 
 ### How the pieces fit
 
@@ -85,13 +136,14 @@ UniAssist unifies every routine student interaction with the university behind o
 - The **client** talks to the Node **server** for auth, chats, issues, notifications, and admin data, and directly to the **Python** service for admin vector-DB operations.
 - The **server** proxies chat and voice requests to the Python `/ask` and `/transcribe` endpoints, attaching trimmed conversation history and user context.
 - The **Python** service performs retrieval + generation and calls back to Node's internal endpoints to verify admin JWTs and flag abusive users.
+- In production the same three parts run on Cloudflare behind one Worker — see [Deploying to Cloudflare](#-deploying-to-cloudflare).
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
-- Node.js 18+ and npm
-- Python 3.10+ and pip
+- Node.js 20.19+ (22 recommended) and npm
+- Python 3.12 (tested) and pip
 - MongoDB (local or Atlas connection string)
 - A Groq and/or Gemini API key for cloud inference (default), **or** [Ollama](https://ollama.com) with a model pulled (`ollama pull llama3.2:3b`) if you set `USE_LOCAL_LLM=true`
 - (Optional) `ffmpeg` on PATH for non-WAV voice transcription
@@ -120,7 +172,8 @@ npm install
 
 Create the `.env` files below. Use your own values — never commit real secrets.
 
-**`server/.env`**
+<details>
+<summary><b><code>server/.env</code></b></summary>
 
 ```env
 PORT=3000
@@ -149,7 +202,10 @@ CLIENT_URL=http://localhost:5173
 # R2_BUCKET=uniassist-uploads
 ```
 
-**`python/.env`**
+</details>
+
+<details>
+<summary><b><code>python/.env</code></b></summary>
 
 ```env
 # Auth bridge to Node (must match server values)
@@ -182,18 +238,25 @@ WHISPER_COMPUTE_TYPE=int8
 # R2_BUCKET=uniassist-uploads
 ```
 
-**`client/.env`** (see `client/.env.example`)
+</details>
+
+<details>
+<summary><b><code>client/.env</code></b> and <b><code>mobile/.env</code></b></summary>
+
+`client/.env` (see `client/.env.example`):
 
 ```env
 VITE_SERVER_URL=http://localhost:3000
 VITE_PYTHON_URL=http://localhost:8000
 ```
 
-**`mobile/.env`** (see `mobile/.env.example`)
+`mobile/.env` (see `mobile/.env.example`):
 
 ```env
 EXPO_PUBLIC_SERVER_URL=http://localhost:3000
 ```
+
+</details>
 
 ### Running locally
 
@@ -242,7 +305,7 @@ Then open **http://localhost:5173**.
    Until this is done, student registration and password reset answer "Email service is not configured yet"
    (the `.env` `EMAIL_USER`/`EMAIL_PASS` fallback is used if set).
 
-## ☁️ Deploying to Cloudflare
+## 🌐 Deploying to Cloudflare
 
 Everything runs on Cloudflare; MongoDB stays on Atlas.
 
@@ -303,28 +366,49 @@ UniAssist/
 │       ├── staff/          # Department portal (dashboard, issue triage)
 │       ├── administrator/  # Admin dashboard, users, data (KB), logs
 │       ├── profile/        # Profile management
+│       ├── theme/          # Design tokens (Day Desk / Night Desk)
 │       └── redux/          # Redux Toolkit store & slices
 ├── server/                 # Node/Express + MongoDB API (port 3000)
 │   ├── controllers/        # chat, guest, message, user, admin, issue, ...
 │   ├── models/             # User, Chat, Issue, Department, AuditLog, ...
 │   ├── routes/             # REST route definitions
 │   ├── middlewares/        # auth, requireRole, upload, audit
-│   └── services/           # email/notification helpers
+│   └── services/           # email, notifications, scheduler, file storage
 ├── python/                 # FastAPI RAG + STT service (port 8000)
 │   ├── api.py              # FastAPI app: /ask, /transcribe, admin CRUD
 │   ├── rag.py              # Retrieval → prompt → LLM pipeline
 │   ├── database.py         # ChromaDB build + hybrid search
+│   ├── kb_snapshot.py      # Knowledge-base snapshot to R2 (Cloudflare)
 │   ├── scraper.py          # MAJU website scraper & chunker
 │   ├── transcribe.py       # faster-whisper speech-to-text
 │   ├── moderation.py       # profanity/abuse detection
 │   ├── language_detect.py  # English / Roman-Urdu classifier
 │   ├── config.py           # central configuration
 │   └── run.py              # CLI: scrape | build | server | ask | test
-├── mobile/                 # Expo / React Native app
-├── cloudflare/             # Worker + container config for Cloudflare (wrangler.jsonc, src/index.js)
-└── .github/workflows/      # deploy-cloudflare.yml (manual "Deploy to Cloudflare" workflow)
+├── mobile/                 # Expo / React Native app for students
+├── cloudflare/             # Worker + container config for Cloudflare
+├── .github/
+│   ├── assets/             # README images
+│   └── workflows/          # deploy-cloudflare.yml ("Deploy to Cloudflare")
+├── LICENSE                 # MIT
+└── README.md
 ```
+
+## 🔒 Security
+
+- **Roles enforced on the server**: protected routes check the JWT and the user's role (student / staff / admin); the mobile app also refuses non-student sign-ins.
+- **Rate limits** on sign-in, OTP and password-reset routes, keyed per IP and account.
+- **Service-to-service calls** between Node and Python carry a shared `INTERNAL_SECRET`, compared in constant time.
+- **Uploads** are allow-listed by MIME type (PDF / images) with server-chosen extensions and size caps, and served with `nosniff`.
+- **Website import and link scraping** fetch through an SSRF-safe client that only connects to public addresses (no private, loopback or link-local hosts).
+- **Secrets** stay in `.env` files (git-ignored) locally and in Worker secrets on Cloudflare — never in the repository.
+
+To report a vulnerability, please use GitHub's private **Report a vulnerability** option on this repository rather than opening a public issue.
+
+## 📄 License
+
+Released under the [MIT License](LICENSE).
 
 ---
 
-<p align="center">Built by <b>Syed Ibrahim Ali</b> — Full-Stack &amp; AI Engineer</p>
+<p align="center">Built by <b>Syed Ibrahim Ali</b> — Full-Stack &amp; AI Engineer · Final Year Project, Muhammad Ali Jinnah University</p>
