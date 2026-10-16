@@ -38,7 +38,8 @@ a LAN/dev server URL like the one above. `app.json` sets
 `android.usesCleartextTraffic: true` through the `expo-build-properties` plugin so
 `http://` server URLs keep working in `eas build` / `expo prebuild` builds. For a
 production deployment, serve the API over `https://` and remove that setting.
-(Expo Go and debug builds allow http already.)
+(Expo Go and debug builds allow http already.) On Cloudflare the API is the
+backend Worker's URL, e.g. `EXPO_PUBLIC_SERVER_URL=https://uniassist-api.<you>.workers.dev`.
 
 ## What students can do
 
@@ -80,7 +81,8 @@ is in the foreground).
 - **Events**: published events (`GET /api/listings?kind=event`), Upcoming by default
   or Past (`past=true`), with poster, date, time, venue, organizer and Register.
 - **Profile**: display name, avatar (JPG/PNG/GIF/WebP, max 2 MB; upload shows its
-  progress), password change, light/dark theme (same MAJU palette as the web).
+  progress), password change, Day Desk (light, default) / Night Desk (dark) theme
+  with the same colors and Manrope font as the web.
 
 There are no push notifications: the server doesn't send them.
 
@@ -95,7 +97,7 @@ src/
 ├── navigation/   RootNavigator (auth stack / student stack) + StudentTabs
 ├── redux/        store (persists theme, cached user, outbox) + slices
 ├── screens/      auth/, student/, common/
-├── theme/        light/dark palette (MAJU brand tokens)
+├── theme/        palette.ts (same tokens as client/src/theme/tokens.css), typography.tsx (Manrope)
 └── utils/        validation (MAJU student email rule), toast
 ```
 

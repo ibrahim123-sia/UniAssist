@@ -13,6 +13,7 @@
 ![Sentence Transformers](https://img.shields.io/badge/Embeddings-all--MiniLM--L6--v2-FFD21E?logo=huggingface&logoColor=black)
 ![Whisper](https://img.shields.io/badge/STT-faster--whisper-000000)
 ![Expo](https://img.shields.io/badge/Mobile-Expo_/_React_Native-000020?logo=expo&logoColor=white)
+![Cloudflare](https://img.shields.io/badge/Deploy-Cloudflare_Workers_+_Containers-F38020?logo=cloudflare&logoColor=white)
 
 UniAssist unifies every routine student interaction with the university behind one AI-first interface. Students (and guests) chat with **MAJU Assistant**, a RAG assistant grounded in the university's own website content and admin-curated documents — in English, Roman Urdu, or a mix, by text or voice. Beyond the chatbot, students raise support tickets to specific departments, staff triage and resolve them, and admins manage users, departments, audit trails, and the underlying vector knowledge base from a dedicated dashboard.
 
@@ -52,7 +53,7 @@ UniAssist unifies every routine student interaction with the university behind o
 
 ### 🎓 Student Extras
 - **Jobs** and **Scholarships** published by the admin (deadline-aware, searchable), **Events** (upcoming / past) published by the admin, **My Questions** to follow up on questions sent to the admin, and profile management with avatar upload.
-- Light/dark theme, OTP email verification, and password reset flows.
+- Day Desk (light, default) and Night Desk (dark) themes, OTP email verification, and password reset flows.
 
 ### 📱 Mobile App
 - An Expo / React Native client (`mobile/`) sharing the same Node and Python backends.
@@ -65,6 +66,7 @@ UniAssist unifies every routine student interaction with the university behind o
 | **API server** (`server/`) | Node.js, Express 5, MongoDB (Mongoose), JWT auth, bcryptjs, multer uploads, nodemailer, express-rate-limit |
 | **AI service** (`python/`) | FastAPI, Uvicorn, ChromaDB, sentence-transformers (`all-MiniLM-L6-v2`), faster-whisper, Groq / Gemini or Ollama, BeautifulSoup scraper |
 | **Mobile** (`mobile/`) | Expo, React Native, React Navigation, Redux Toolkit + redux-persist |
+| **Deployment** (`cloudflare/`) | Cloudflare Workers (static assets + a front-door Worker), Cloudflare Containers, R2, Cron Triggers |
 
 ### How the pieces fit
 
@@ -140,6 +142,11 @@ CLIENT_URL=http://localhost:5173
 # TRUST_PROXY=1
 # Hours before an unanswered ticket is escalated (departments can override)
 # ISSUE_SLA_HOURS=48
+# Cloudflare R2 (production): uploads are also stored in this bucket
+# R2_ACCOUNT_ID=<cloudflare-account-id>
+# R2_ACCESS_KEY_ID=<r2-access-key>
+# R2_SECRET_ACCESS_KEY=<r2-secret>
+# R2_BUCKET=uniassist-uploads
 ```
 
 **`python/.env`**
@@ -167,9 +174,15 @@ GEMINI_MODEL=gemini-2.5-flash
 WHISPER_MODEL=base
 WHISPER_DEVICE=cpu
 WHISPER_COMPUTE_TYPE=int8
+
+# Cloudflare R2 (production): the knowledge base is snapshotted to this bucket
+# R2_ACCOUNT_ID=<cloudflare-account-id>
+# R2_ACCESS_KEY_ID=<r2-access-key>
+# R2_SECRET_ACCESS_KEY=<r2-secret>
+# R2_BUCKET=uniassist-uploads
 ```
 
-**`client/.env`**
+**`client/.env`** (see `client/.env.example`)
 
 ```env
 VITE_SERVER_URL=http://localhost:3000
@@ -229,6 +242,55 @@ Then open **http://localhost:5173**.
    Until this is done, student registration and password reset answer "Email service is not configured yet"
    (the `.env` `EMAIL_USER`/`EMAIL_PASS` fallback is used if set).
 
+## ☁️ Deploying to Cloudflare
+
+Everything runs on Cloudflare; MongoDB stays on Atlas.
+
+| Part | Runs on | Config |
+| --- | --- | --- |
+| Web client | Workers static assets (`uniassist-web`), SPA fallback | `client/wrangler.jsonc` |
+| API server (`server/`) | Cloudflare Container `ApiServer` — `basic`, 1 GiB | `server/Dockerfile` |
+| AI service (`python/`) | Cloudflare Container `AiService` — `standard-1`, 4 GiB, models baked into the image | `python/Dockerfile` |
+| Front door | Worker `uniassist-api`: `/uploads/*` → R2, `/ai/*` → AI service, everything else → API server | `cloudflare/` |
+| Files | R2 bucket `uniassist-uploads`: uploads + the knowledge-base snapshot | — |
+| Background jobs | Cron Trigger every 30 min → SLA escalation | `cloudflare/wrangler.jsonc` |
+
+Container disks are wiped whenever a container sleeps or is redeployed, so:
+
+- **Uploads** (attachments, avatars, posters) are copied to R2 as they are saved (`server/services/fileStore.js`), and the Worker serves `/uploads/*` from the bucket.
+- **The knowledge base** (ChromaDB) is restored from R2 on startup and saved back after admin changes (`python/kb_snapshot.py`).
+- Both are no-ops without the `R2_*` settings, so local development is unchanged.
+
+**You need:** the Workers Paid plan ($5/month, required for Containers), a MongoDB Atlas cluster that allows connections from anywhere (`0.0.0.0/0`), and Docker — or use the **Deploy to Cloudflare** GitHub Actions workflow, whose runners have Docker.
+
+```bash
+# 1. Bucket + login (once)
+cd cloudflare && npm install
+npx wrangler login
+npx wrangler r2 bucket create uniassist-uploads
+
+# 2. Edit cloudflare/wrangler.jsonc → vars: PUBLIC_URL, CLIENT_URL, R2_ACCOUNT_ID
+
+# 3. Secrets (once; values from your server/.env and python/.env)
+npx wrangler secret put MONGODB_URI
+npx wrangler secret put JWT_SECRET
+npx wrangler secret put INTERNAL_SECRET
+npx wrangler secret put R2_ACCESS_KEY_ID        # R2 API token, Object Read & Write
+npx wrangler secret put R2_SECRET_ACCESS_KEY
+npx wrangler secret put GROQ_API_KEY            # and/or GEMINI_API_KEY
+
+# 4. Backend: Worker + both containers (Docker must be running)
+npm run deploy
+
+# 5. Web client
+cd ../client
+VITE_SERVER_URL=https://uniassist-api.<you>.workers.dev \
+VITE_PYTHON_URL=https://uniassist-api.<you>.workers.dev/ai \
+npm run build && npx wrangler deploy
+```
+
+Then create the first admin from your machine against the Atlas database (`npm run create-admin` in `server/`), and point the mobile app at the Worker (`EXPO_PUBLIC_SERVER_URL=https://uniassist-api.<you>.workers.dev`). The full step-by-step guide (with costs, custom domains and troubleshooting) is the Cloudflare deployment PDF in `doc/`.
+
 ## 📁 Project Structure
 
 ```
@@ -258,7 +320,9 @@ UniAssist/
 │   ├── language_detect.py  # English / Roman-Urdu classifier
 │   ├── config.py           # central configuration
 │   └── run.py              # CLI: scrape | build | server | ask | test
-└── mobile/                 # Expo / React Native app
+├── mobile/                 # Expo / React Native app
+├── cloudflare/             # Worker + container config for Cloudflare (wrangler.jsonc, src/index.js)
+└── .github/workflows/      # deploy-cloudflare.yml (manual "Deploy to Cloudflare" workflow)
 ```
 
 ---

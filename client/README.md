@@ -1,16 +1,52 @@
-# React + Vite
+# UniAssist Web Client
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + Vite 7 web app for students, department staff and admins. See the
+root `README.md` for the whole project.
 
-Currently, two official plugins are available:
+## Run locally
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+```bash
+cp .env.example .env   # VITE_SERVER_URL (Node API) and VITE_PYTHON_URL (AI service)
+npm install
+npm run dev            # http://localhost:5173
+```
 
-## React Compiler
+| Script | What it does |
+| --- | --- |
+| `npm run dev` | Vite dev server with HMR |
+| `npm run build` | Production build into `dist/` (the `VITE_*` URLs are baked in) |
+| `npm run preview` | Serve the built `dist/` locally |
+| `npm run lint` | ESLint |
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## Theme
 
-## Expanding the ESLint configuration
+Two modes from one set of tokens: **Day Desk** (light, the default) and
+**Night Desk** (dark).
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+- All colors are CSS variables in `src/theme/tokens.css` (`:root` = light,
+  `[data-theme="dark"]` = dark), mapped to Tailwind classes such as
+  `bg-surface`, `text-muted`, `bg-primary`, `text-success`, plus
+  `rounded-card` / `rounded-panel` and `shadow-card` / `shadow-panel`.
+- Inline styles use the same tokens via `C` in `src/theme/palette.js`;
+  charts use `useChartColors()`.
+- The mode lives on `<html data-theme>`, is saved as `uniassist-theme` in
+  localStorage, and is applied by a small script in `index.html` before
+  React renders (no flash).
+- Don't put hex colors in components. To add a token, define it in both blocks
+  of `tokens.css`, map it in its `@theme inline` block, and add it to `C` if
+  inline styles need it.
+- Font: Manrope (loaded in `index.html`).
+
+## Deploy (Cloudflare)
+
+`wrangler.jsonc` deploys `dist/` as Workers static assets with a single-page-app
+fallback (`BrowserRouter` routes like `/chat` serve `index.html`), and
+`public/_headers` caches the hashed bundles for a year.
+
+```bash
+VITE_SERVER_URL=https://uniassist-api.<you>.workers.dev \
+VITE_PYTHON_URL=https://uniassist-api.<you>.workers.dev/ai \
+npm run build && npx wrangler deploy
+```
+
+Or run the **Deploy to Cloudflare** GitHub Actions workflow (target `web`).
