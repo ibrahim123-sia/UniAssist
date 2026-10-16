@@ -10,8 +10,8 @@
     "create-admin": "node scripts/createAdmin.js"
   },
   "keywords": [],
-  "author": "",
-  "license": "ISC",
+  "author": "Syed Ibrahim Ali",
+  "license": "MIT",
   "dependencies": {
     "aws4fetch": "^1.0.20",
     "bcryptjs": "^3.0.3",
