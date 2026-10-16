@@ -1,4 +1,3 @@
-import fs from "fs";
 import mongoose from "mongoose";
 import Issue from "../models/Issue.js";
 import Department from "../models/Department.js";
@@ -7,11 +6,12 @@ import Chat from "../models/Chat.js";
 import { notify } from "../services/notify.js";
 import { suggestDepartment, forgetDepartmentTitles } from "../services/departmentSuggestion.js";
 import { withKeyLock } from "../utils/keyedLock.js";
+import { deleteUpload } from "../services/fileStore.js";
 
 const cleanupFiles = (files) => {
   if (!files) return;
   for (const f of files) {
-    fs.unlink(f.path, () => {});
+    deleteUpload(f.path);
   }
 };
 

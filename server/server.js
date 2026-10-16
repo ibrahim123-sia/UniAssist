@@ -15,6 +15,7 @@ import listingRouter from "./routes/listingRoutes.js";
 import questionRouter from "./routes/questionRoutes.js";
 import { startSchedulers } from "./services/scheduler.js";
 import { logEmailStatus } from "./services/mailer.js";
+import { serveUploadFromRemote } from "./services/fileStore.js";
 
 // Fail fast on missing config instead of failing on the first request.
 // Email is NOT required here: the admin sets the university's account in
@@ -58,8 +59,9 @@ app.use((req, res, next) => (AUDIO_ROUTES.has(req.path) ? next() : defaultJson(r
 app.use(express.urlencoded({ limit: "100kb", extended: true }));
 
 // Uploaded files: random UUID names with an extension derived from an
-// allow-listed MIME type (PDF / images only), served with nosniff.
-app.use(`/${UPLOAD_ROOT}`, express.static(UPLOAD_ROOT));
+// allow-listed MIME type (PDF / images only), served with nosniff. A file
+// that isn't on this disk (fresh container) is read from R2 when configured.
+app.use(`/${UPLOAD_ROOT}`, express.static(UPLOAD_ROOT), serveUploadFromRemote);
 
 // Routes
 app.get("/", (req, res) => res.send("UniAssist Server is Live"));

@@ -2,6 +2,7 @@ import crypto from "crypto";
 import mongoose from "mongoose";
 import User from "../models/User.js";
 import Notification from "../models/Notification.js";
+import { runScheduledJobs } from "../services/scheduler.js";
 
 const requireInternal = (req) => {
   const provided = req.headers["x-internal-secret"];
@@ -25,6 +26,15 @@ export const verifyAdmin = async (req, res) => {
     success: true,
     user: { id: req.user._id, email: req.user.email, role: req.user.role },
   });
+};
+
+// POST /api/admin/internal/run-jobs — background jobs (SLA escalation), for
+// a scheduler outside the process (the Cloudflare Worker's Cron Trigger).
+export const runJobs = async (req, res) => {
+  if (!requireInternal(req)) {
+    return res.status(403).json({ success: false, message: "Internal secret missing or invalid" });
+  }
+  res.json({ success: true, ...(await runScheduledJobs()) });
 };
 
 export const flagUser = async (req, res) => {

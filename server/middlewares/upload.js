@@ -1,6 +1,7 @@
 import multer from "multer";
 import fs from "fs";
 import { v4 as uuidv4 } from "uuid";
+import { putUpload, deleteUpload } from "../services/fileStore.js";
 
 // Paths are fixed (not env-configurable): the stored URLs and the static
 // route in server.js both assume uploads/issues, uploads/avatars and
@@ -34,11 +35,32 @@ const MAX_ISSUE_FILE_MB = 5;
 const MAX_AVATAR_FILE_MB = 2;
 const MAX_POSTER_FILE_MB = 3;
 
-const storageFor = (dir, types) =>
-  multer.diskStorage({
+// Disk storage that also copies each file to R2 when it is configured (see
+// services/fileStore.js) — a container's disk doesn't survive a restart.
+const storageFor = (dir, types) => {
+  const disk = multer.diskStorage({
     destination: (req, file, cb) => cb(null, dir),
     filename: (req, file, cb) => cb(null, `${uuidv4()}${types[file.mimetype]}`),
   });
+  return {
+    _handleFile(req, file, cb) {
+      disk._handleFile(req, file, (err, info) => {
+        if (err) return cb(err);
+        putUpload(info.path, file.mimetype).then(
+          () => cb(null, info),
+          (error) => {
+            fs.unlink(info.path, () => {});
+            cb(error);
+          }
+        );
+      });
+    },
+    _removeFile(req, file, cb) {
+      deleteUpload(file.path);
+      cb(null);
+    },
+  };
+};
 
 const filterFor = (types, message) => (req, file, cb) => {
   if (types[file.mimetype]) cb(null, true);

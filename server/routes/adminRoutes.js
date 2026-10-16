@@ -18,7 +18,7 @@ import {
   getStaffPerformance,
 } from "../controllers/adminIssueController.js";
 import { getSystemHealth } from "../controllers/adminHealthController.js";
-import { verifyAdmin, flagUser } from "../controllers/internalController.js";
+import { verifyAdmin, flagUser, runJobs } from "../controllers/internalController.js";
 import {
   listAuditLogs,
   listLoginEvents,
@@ -58,6 +58,7 @@ const router = express.Router();
 // Internal Python<->Node bridge. flag-user uses INTERNAL_SECRET only (no JWT).
 // verify-admin requires the JWT to be valid AND role=admin AND internal secret.
 router.post("/internal/flag-user", flagUser);
+router.post("/internal/run-jobs", runJobs);
 router.get("/internal/verify-admin", protect, verifyAdmin);
 
 router.use(protect, requireRole("admin"));

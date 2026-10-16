@@ -1,10 +1,9 @@
-import fs from "fs";
-import path from "path";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
 import User, { EMAIL_REGEX } from "../models/User.js";
 import LoginEvent from "../models/LoginEvent.js";
+import { deleteUpload } from "../services/fileStore.js";
 import {
   transporter,
   escapeHtml,
@@ -813,7 +812,7 @@ export const getUser = async (req, res) => {
 };
 
 const removeUploadedFile = (file) => {
-  if (file?.path) fs.unlink(file.path, () => {});
+  if (file?.path) deleteUpload(file.path);
 };
 
 // ---------------------------------------------------------------------------
@@ -843,11 +842,10 @@ export const updateProfile = async (req, res) => {
     }
 
     if (req.file) {
-      // Delete the old avatar file if it was stored locally. Resolve against
-      // process.cwd() so this works regardless of how the server was started.
+      // Delete the old avatar if it was one of our uploads (disk + R2,
+      // best-effort).
       if (user.profilePicture && user.profilePicture.startsWith("/uploads/avatars/")) {
-        const oldPath = path.join(process.cwd(), user.profilePicture.replace(/^\//, ""));
-        fs.unlink(oldPath, () => {}); // best-effort; ignore ENOENT
+        deleteUpload(user.profilePicture);
       }
       user.profilePicture = `/uploads/avatars/${req.file.filename}`;
     }

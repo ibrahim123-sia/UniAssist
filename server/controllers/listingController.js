@@ -1,4 +1,3 @@
-import fs from "fs";
 import path from "path";
 import mongoose from "mongoose";
 import Listing, {
@@ -11,6 +10,7 @@ import Listing, {
   isLocalPosterPath,
 } from "../models/Listing.js";
 import { LISTING_UPLOAD_DIR } from "../middlewares/upload.js";
+import { deleteUpload } from "../services/fileStore.js";
 import { extractListing, startExtractJob, getExtractJob } from "../services/pythonClient.js";
 import { escapeRegex } from "../utils/regex.js";
 import { withKeyLock } from "../utils/keyedLock.js";
@@ -141,8 +141,7 @@ const duplicateResponse = (res, listing) =>
 // Remove an uploaded poster file (never anything outside uploads/listings).
 const removeLocalPoster = (posterUrl) => {
   if (!isLocalPosterPath(posterUrl)) return;
-  const file = path.join(LISTING_UPLOAD_DIR, path.basename(posterUrl.slice(POSTER_UPLOAD_PREFIX.length)));
-  fs.unlink(file, () => {});
+  deleteUpload(path.join(LISTING_UPLOAD_DIR, path.basename(posterUrl.slice(POSTER_UPLOAD_PREFIX.length))));
 };
 
 const validationMessage = (error) =>

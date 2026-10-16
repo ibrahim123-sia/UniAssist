@@ -111,17 +111,24 @@ export async function runSlaCheck(now = new Date(), { limit = MAX_ESCALATIONS_PE
 let started = false;
 let slaRunning = false;
 
+// Returns the number escalated (0 when a run is already in progress).
 const safeSlaCheck = async () => {
-  if (slaRunning) return;
+  if (slaRunning) return 0;
   slaRunning = true;
   try {
-    await runSlaCheck();
+    return await runSlaCheck();
   } catch (error) {
     console.error("SLA check failed:", error.message);
+    return 0;
   } finally {
     slaRunning = false;
   }
 };
+
+// The same jobs, run once on demand. On Cloudflare the container sleeps when
+// idle (its timers stop), so a Worker Cron Trigger calls this through
+// POST /api/admin/internal/run-jobs instead.
+export const runScheduledJobs = async () => ({ escalated: await safeSlaCheck() });
 
 // Called from server.js once the database is connected. Off under tests
 // (NODE_ENV=test) or with DISABLE_SCHEDULERS=true.
