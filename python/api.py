@@ -308,8 +308,10 @@ class LanguageBody(BaseModel):
 @app.get("/health")
 def health():
     """Cheap liveness probe for Node. Deliberately does not load models or
-    call the LLM — it only proves the process is up and serving."""
-    return {"status": "ok"}
+    call the LLM — it only proves the process is up and serving. `busy` is
+    true while a website import runs, so the Cloudflare Worker keeps the
+    container awake until it finishes (no requests arrive meanwhile)."""
+    return {"status": "ok", "busy": kb_ingest.active_job_count() > 0}
 
 
 @app.get("/health/details", dependencies=[Depends(require_internal_secret)])

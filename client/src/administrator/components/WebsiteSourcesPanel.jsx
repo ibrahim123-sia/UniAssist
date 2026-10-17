@@ -29,7 +29,7 @@ import { ProgressLine } from "../../components/ProgressSteps";
 import { formatElapsed } from "../../utils/useElapsed";
 
 const POLL_MS = 2000;
-const MAX_PAGES_LIMIT = 500;
+const MAX_PAGES_LIMIT = 2500;
 const ACTIVE = new Set(["queued", "running"]);
 // Consecutive network failures (AI service unreachable) before polling stops.
 const MAX_NETWORK_FAILURES = 5;

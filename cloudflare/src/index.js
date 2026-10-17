@@ -78,6 +78,22 @@ export class AiService extends Container {
     return super.fetch(request);
   }
 
+  // A website import runs in the background with no requests coming in, so
+  // sleepAfter alone would stop the container half-way through. While
+  // /health reports busy, skip the stop; the library checks again after
+  // another sleepAfter.
+  async onActivityExpired() {
+    if (this.ctx.container.running) {
+      try {
+        const res = await this.containerFetch("http://localhost/health");
+        if (res.ok && (await res.json()).busy) return;
+      } catch {
+        // Unreachable or not JSON: treat as idle.
+      }
+    }
+    await super.onActivityExpired();
+  }
+
   constructor(ctx, env) {
     super(ctx, env);
     this.envVars = {

@@ -287,7 +287,7 @@ LISTING_JOB_TTL = 15 * 60            # seconds a finished extract job stays poll
 LISTING_JOB_MAX = 200                # extract jobs kept in memory (oldest finished dropped first)
 
 KB_INGEST_DEFAULT_PAGES = 50         # /kb/ingest-url maxPages default
-KB_INGEST_MAX_PAGES = 500            # hard ceiling for one site crawl
+KB_INGEST_MAX_PAGES = 2500           # hard ceiling for one site crawl (jinnah.edu lists ~2,100 pages)
 KB_CRAWL_DELAY = float(os.getenv("KB_CRAWL_DELAY", "0.5"))  # polite pause between page fetches (s)
 KB_MAX_RUNNING_JOBS = 5              # queued+running ingest jobs at once (only 1 may be a site crawl)
 
