@@ -61,7 +61,22 @@ export class ApiServer extends Container {
 export class AiService extends Container {
   defaultPort = 8000;
   sleepAfter = "30m";
-  pingEndpoint = "health";
+  // Host "localhost", path "/health" (a bare "health" would be the host).
+  pingEndpoint = "localhost/health";
+
+  // Before it listens, the service imports torch, sentence-transformers and
+  // ChromaDB and restores the knowledge base from R2. On half a vCPU that can
+  // outlast the library's 20 s start-up wait, which would fail the first
+  // request after a wake-up, so allow up to 2 minutes.
+  async fetch(request) {
+    // The same check containerFetch() makes before its own (20 s) start.
+    if (!this.ctx.container.running || (await this.getState()).status !== "healthy") {
+      await this.startAndWaitForPorts({
+        cancellationOptions: { portReadyTimeoutMS: 120_000, abort: request.signal },
+      });
+    }
+    return super.fetch(request);
+  }
 
   constructor(ctx, env) {
     super(ctx, env);
