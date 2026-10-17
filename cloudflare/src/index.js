@@ -85,7 +85,10 @@ export class AiService extends Container {
   async onActivityExpired() {
     if (this.ctx.container.running) {
       try {
-        const res = await this.containerFetch("http://localhost/health");
+        // Bounded: a hung service must not keep the container up forever.
+        const res = await this.containerFetch(
+          new Request("http://localhost/health", { signal: AbortSignal.timeout(10_000) })
+        );
         if (res.ok && (await res.json()).busy) return;
       } catch {
         // Unreachable or not JSON: treat as idle.
