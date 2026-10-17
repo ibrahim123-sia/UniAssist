@@ -35,6 +35,7 @@ from bs4 import BeautifulSoup  # For sitemap XML and link extraction
 
 import config         # KB_* limits
 import database       # Chroma client/collection + keyword cache
+import kb_snapshot    # R2 copy of the knowledge base (Cloudflare)
 import rag            # Shared embedding model
 import scraper        # Shared extraction / chunking / URL filters
 import url_safety     # SSRF-safe fetching
@@ -136,6 +137,9 @@ def replace_url_chunks(source_url, page_title, chunks):
         # admin edits and this filter still finds them.
         col.delete(where={"$and": [{"source": source_url}, {"origin": ORIGIN_URL}]})
         col.add(ids=ids, documents=docs, metadatas=metas, embeddings=embeddings)
+    # Background import writes aren't requests, so api.py's middleware
+    # doesn't see them.
+    kb_snapshot.mark_dirty()
     database.clear_keyword_cache()
     return len(ids)
 

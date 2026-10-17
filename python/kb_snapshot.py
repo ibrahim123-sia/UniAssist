@@ -9,7 +9,10 @@ knowledge base the admin builds from the panel. With R2 configured:
                when chroma_db/ is missing or empty, so local data wins);
   - mark_dirty() is called after every successful knowledge-base write;
   - a background thread uploads a new snapshot once writes have been quiet
-    for QUIET_SECONDS and no website import is still running;
+    for QUIET_SECONDS and no website import is still running, and every
+    IMPORT_SNAPSHOT_EVERY seconds while an import runs, so a restart
+    mid-import loses at most that much (the import, started again, skips
+    the pages already saved);
   - flush()    on shutdown uploads any change not saved yet (the container
                gets SIGTERM before it sleeps).
 
@@ -31,6 +34,8 @@ import config
 
 SNAPSHOT_KEY = os.getenv("KB_SNAPSHOT_KEY", "kb/chroma_db.tar.gz")
 QUIET_SECONDS = 30      # wait this long after the last write before uploading
+IMPORT_SNAPSHOT_EVERY = 600  # during a website import: save progress this often (seconds)
+RETRY_AFTER = 60        # after a failed upload, wait this long before trying again
 CHECK_EVERY = 10        # background thread poll interval (seconds)
 
 _R2 = {name: os.getenv(name) for name in ("R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET")}
@@ -41,6 +46,8 @@ _ENDPOINT = (os.getenv("R2_ENDPOINT") or (
 _lock = threading.Lock()          # one snapshot at a time
 _dirty_since = None               # monotonic time of the oldest unsaved write
 _last_write = 0.0
+_writes = 0                       # count of writes, to tell whether one missed a copy
+_next_try = 0.0                   # no upload before this (backoff after a failure)
 _thread = None
 
 
@@ -68,6 +75,13 @@ def _ingest_busy():
         return kb_ingest.active_job_count() > 0
     except Exception:
         return False
+
+
+def _ingest_write_lock():
+    """kb_ingest's write lock: holding it during the copy keeps a running
+    import from writing half a page into the snapshot."""
+    import kb_ingest
+    return kb_ingest._write_lock
 
 
 def restore():
@@ -118,34 +132,38 @@ def _copy_consistent(src, dst):
 
 def snapshot():
     """Upload chroma_db/ to R2 now. Returns True on success. Never raises."""
-    global _dirty_since
+    global _dirty_since, _next_try
     if not enabled() or not os.path.isdir(config.CHROMA_DB_PATH):
         return False
     with _lock:
-        started_dirty = _dirty_since
         try:
             with tempfile.TemporaryDirectory() as tmp:
                 copy = os.path.join(tmp, "chroma_db")
-                _copy_consistent(config.CHROMA_DB_PATH, copy)
+                # Only the copy pauses imports; compressing and uploading
+                # happen while they carry on.
+                with _ingest_write_lock():
+                    copied_at, copied_writes = time.monotonic(), _writes
+                    _copy_consistent(config.CHROMA_DB_PATH, copy)
                 archive = os.path.join(tmp, "snapshot.tar.gz")
                 with tarfile.open(archive, "w:gz") as tar:
                     tar.add(copy, arcname=".")
                 _client().upload_file(archive, _R2["R2_BUCKET"], SNAPSHOT_KEY)
-            # A write that arrived during the upload keeps the flag set.
-            if _dirty_since == started_dirty:
-                _dirty_since = None
+            # Writes after the copy aren't in this snapshot: still unsaved.
+            _dirty_since = None if _writes == copied_writes else copied_at
             print("KB snapshot: saved to R2")
             return True
         except Exception as exc:
+            _next_try = time.monotonic() + RETRY_AFTER
             print(f"KB snapshot: upload failed ({exc}); will retry")
             return False
 
 
 def mark_dirty():
-    global _dirty_since, _last_write
+    global _dirty_since, _last_write, _writes
     if not enabled():
         return
     now = time.monotonic()
+    _writes += 1
     _last_write = now
     if _dirty_since is None:
         _dirty_since = now
@@ -154,9 +172,13 @@ def mark_dirty():
 def _loop():
     while True:
         time.sleep(CHECK_EVERY)
-        if _dirty_since is None or _ingest_busy():
+        now = time.monotonic()
+        if _dirty_since is None or now < _next_try:
             continue
-        if time.monotonic() - _last_write >= QUIET_SECONDS:
+        if _ingest_busy():
+            if now - _dirty_since >= IMPORT_SNAPSHOT_EVERY:
+                snapshot()
+        elif now - _last_write >= QUIET_SECONDS:
             snapshot()
 
 
