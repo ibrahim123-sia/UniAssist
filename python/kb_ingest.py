@@ -291,6 +291,7 @@ def start_ingest(url, mode, max_pages):
             "pagesDone": 0,
             "pagesTotal": 1 if mode == "page" else None,
             "pagesSucceeded": 0,
+            "pagesSkipped": 0,
             "chunksAdded": 0,
             "errors": [],
             "startedAt": _now(),
@@ -328,16 +329,34 @@ def _run_job(job_id):
         final = get_job(job_id)
         _update(
             job_id,
-            status="done" if final["chunksAdded"] > 0 else "failed",
+            status="done" if final["chunksAdded"] > 0 or final["pagesSkipped"] > 0 else "failed",
             finishedAt=_now(),
         )
         print(f"  KB ingest job {job_id[:8]} finished: {final['pagesSucceeded']}/{final['pagesDone']} pages, "
-              f"{final['chunksAdded']} chunks, {len(final['errors'])} errors")
+              f"{final['pagesSkipped']} already imported, {final['chunksAdded']} chunks, {len(final['errors'])} errors")
 
 
 # =============================================================
 # PAGE INGESTION
 # =============================================================
+
+def _recently_imported(url):
+    """True when a site import already stored `url` within KB_RESUME_HOURS:
+    an import cut off by a restart or redeploy, started again, carries on
+    instead of redoing every page. A single-page import never skips."""
+    if config.KB_RESUME_HOURS <= 0:
+        return False
+    try:
+        got = _collection().get(
+            where={"$and": [{"source": url}, {"origin": ORIGIN_URL}]},
+            limit=1,
+            include=["metadatas"],
+        )
+        added = datetime.fromisoformat(got["metadatas"][0]["added_at"].replace("Z", "+00:00"))
+    except Exception:  # not stored, or no readable timestamp
+        return False
+    return (datetime.now(timezone.utc) - added).total_seconds() < config.KB_RESUME_HOURS * 3600
+
 
 def _same_host(a, b):
     a = (a or "").lower()
@@ -360,6 +379,11 @@ def _ingest_one(job_id, url, session, site_host, collect_links=False):
         return []
 
     links = _extract_links(page.content, page.encoding, final_url, site_host) if collect_links else []
+    # Link crawl: the page had to be fetched for its links, but its chunks
+    # are fresh, so skip the (slow) embedding.
+    if collect_links and _recently_imported(final_url):
+        _bump(job_id, pagesSkipped=1)
+        return links
 
     title, elements = scraper.extract_structured_from_html(page.content, page.encoding)
     if not elements:
@@ -521,9 +545,14 @@ def _crawl_site(job_id, start_url, max_pages, session):
         ordered = [start] + sorted((u for u in candidates if u != start), key=_depth_key)
         plan = ordered[:max_pages]
         _update(job_id, pagesTotal=len(plan))
-        for i, url in enumerate(plan):
-            if i:
+        fetched = False
+        for url in plan:
+            if _recently_imported(url):
+                _bump(job_id, pagesDone=1, pagesSkipped=1)
+                continue
+            if fetched:
                 time.sleep(config.KB_CRAWL_DELAY)
+            fetched = True
             _ingest_one(job_id, url, session, site_host)
         return
 

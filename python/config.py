@@ -290,6 +290,10 @@ KB_INGEST_DEFAULT_PAGES = 50         # /kb/ingest-url maxPages default
 KB_INGEST_MAX_PAGES = 2500           # hard ceiling for one site crawl (jinnah.edu lists ~2,100 pages)
 KB_CRAWL_DELAY = float(os.getenv("KB_CRAWL_DELAY", "0.5"))  # polite pause between page fetches (s)
 KB_MAX_RUNNING_JOBS = 5              # queued+running ingest jobs at once (only 1 may be a site crawl)
+# A site import skips pages it already stored within this many hours, so an
+# import cut off by a restart/redeploy just continues when started again.
+# 0 = always re-import every page.
+KB_RESUME_HOURS = float(os.getenv("KB_RESUME_HOURS", "24"))
 
 
 # =============================================================

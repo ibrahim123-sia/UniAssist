@@ -139,7 +139,9 @@ const WebsiteSourcesPanel = ({ onImported }) => {
         if (!ACTIVE.has(res.job.status)) {
           if (res.job.status === "done") {
             toast.success(
-              `Website import finished: ${res.job.pagesDone ?? 0} page(s), ${res.job.chunksAdded ?? 0} chunk(s) added`
+              `Website import finished: ${res.job.pagesDone ?? 0} page(s), ${res.job.chunksAdded ?? 0} chunk(s) added${
+                res.job.pagesSkipped ? `, ${res.job.pagesSkipped} already imported` : ""
+              }`
             );
           } else {
             const first = res.job.errors?.[0]?.error;
@@ -337,12 +339,14 @@ const WebsiteSourcesPanel = ({ onImported }) => {
                 : running
                 ? `${job.pagesDone ?? 0}${job.pagesTotal ? ` / ${job.pagesTotal}` : ""} page(s) done · ${
                     job.chunksAdded ?? 0
-                  } chunk(s) added so far`
+                  } chunk(s) added so far${job.pagesSkipped ? ` · ${job.pagesSkipped} already imported` : ""}`
                 : `${
                     typeof job.pagesSucceeded === "number"
                       ? `${job.pagesSucceeded} of ${job.pagesDone ?? 0} page(s) imported`
                       : `${job.pagesDone ?? 0} page(s) processed`
                   } · ${job.chunksAdded ?? 0} chunk(s) added${
+                    job.pagesSkipped ? ` · ${job.pagesSkipped} already imported (skipped)` : ""
+                  }${
                     errors.length ? ` · ${errors.length} error(s)` : ""
                   }${durationSec(job) !== null ? ` · took ${formatElapsed(durationSec(job))}` : ""}${
                     job.finishedAt ? ` · ${moment(job.finishedAt).fromNow()}` : ""
