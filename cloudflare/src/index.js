@@ -29,7 +29,9 @@ const trimSlash = (url) => String(url || "").replace(/\/+$/, "");
 
 export class ApiServer extends Container {
   defaultPort = 3000;
-  sleepAfter = "30m";
+  // Short, because the hourly cron wakes it: ~10 min awake per hour instead
+  // of never sleeping. Memory is billed for every minute it is awake.
+  sleepAfter = "10m";
 
   constructor(ctx, env) {
     super(ctx, env);

@@ -45,8 +45,11 @@
   // snapshot (kb/chroma_db.tar.gz). Create it first: npx wrangler r2 bucket create uniassist-uploads
   "r2_buckets": [{ "binding": "UPLOADS", "bucket_name": "uniassist-uploads" }],
 
-  // SLA escalation check (was a 30-minute in-process timer).
-  "triggers": { "crons": ["*/30 * * * *"] },
+  // SLA escalation check (was a 30-minute in-process timer). Hourly, not
+  // every 30 minutes: each run wakes the API server, which then stays up for
+  // its sleepAfter (src/index.js) — a 30-minute cron would keep it running
+  // (and billed) around the clock.
+  "triggers": { "crons": ["0 * * * *"] },
 
   // Non-secret settings. Secrets (MONGODB_URI, JWT_SECRET, INTERNAL_SECRET,
   // R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, GROQ_API_KEY, GEMINI_API_KEY, ...)

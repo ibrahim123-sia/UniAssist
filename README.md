@@ -316,7 +316,7 @@ Everything runs on Cloudflare; MongoDB stays on Atlas.
 | AI service (`python/`) | Cloudflare Container `AiService` — `standard-1`, 4 GiB, models baked into the image | `python/Dockerfile` |
 | Front door | Worker `uniassist-api`: `/uploads/*` → R2, `/ai/*` → AI service, everything else → API server | `cloudflare/` |
 | Files | R2 bucket `uniassist-uploads`: uploads + the knowledge-base snapshot | — |
-| Background jobs | Cron Trigger every 30 min → SLA escalation | `cloudflare/wrangler.jsonc` |
+| Background jobs | Cron Trigger every hour → SLA escalation | `cloudflare/wrangler.jsonc` |
 
 Container disks are wiped whenever a container sleeps or is redeployed, so:
 
