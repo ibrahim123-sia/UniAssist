@@ -1228,8 +1228,12 @@ def _run_extract_job(job_id, url, kind):
         result = extract_listing(url, kind, progress=progress)
     except url_safety.UnsafeURLError as exc:
         error = {"status": 400, "message": str(exc)}
+        print(f"  /listings/extract-jobs {job_id[:8]}: rejected {ascii(url)}: {ascii(str(exc))}")
     except url_safety.FetchError as exc:
+        # The job still reports 200 to the poller, so without this a blocked
+        # site (HTTP 403 from a job board) leaves no trace in the log.
         error = {"status": 502, "message": str(exc)}
+        print(f"  /listings/extract-jobs {job_id[:8]}: fetch failed for {ascii(url)}: {ascii(str(exc))}")
     except Exception as exc:  # never leave a job stuck in "running"
         print(f"  /listings/extract-jobs {job_id[:8]}: internal error {type(exc).__name__}: {ascii(str(exc))}")
         error = {"status": 500, "message": "Internal error while extracting the listing"}

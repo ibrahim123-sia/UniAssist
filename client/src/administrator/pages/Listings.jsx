@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   Search,
@@ -257,6 +257,7 @@ const EXTRACTED_BY = {
 const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted }) => {
   const dispatch = useDispatch();
   const isNew = !listing?._id;
+  const fieldId = useId();
   const fields = LISTING_FIELDS[kind];
   const [form, setForm] = useState(() => toForm(listing, kind));
   const [error, setError] = useState("");
@@ -285,7 +286,19 @@ const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted 
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
+  // A fast double click can land before `submitting` disables the buttons.
+  const savingRef = useRef(false);
   const save = async (nextStatus) => {
+    if (savingRef.current) return;
+    savingRef.current = true;
+    try {
+      await saveOnce(nextStatus);
+    } finally {
+      savingRef.current = false;
+    }
+  };
+
+  const saveOnce = async (nextStatus) => {
     const publishing = nextStatus === "published" || (!nextStatus && status === "published");
     const problem = validate(form, kind, isNew, publishing);
     if (problem) {
@@ -387,7 +400,7 @@ const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted 
               <X className="w-5 h-5" />
             </button>
           </header>
-  
+
           <div className="p-5 space-y-3 flex-1 overflow-y-auto">
             {!isNew && listing.extractedBy && (
               <p
@@ -404,13 +417,14 @@ const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted 
                 {EXTRACTED_BY[listing.extractedBy] || ""}
               </p>
             )}
-  
+
             <div>
-              <label className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
+              <label htmlFor={`${fieldId}-sourceUrl`} className="block text-xs font-semibold mb-1" style={{ color: C.label }}>
                 Source link{isNew && " *"}
               </label>
               {isNew ? (
                 <input
+                  id={`${fieldId}-sourceUrl`}
                   type="url"
                   value={form.sourceUrl}
                   onChange={set("sourceUrl")}
@@ -430,14 +444,18 @@ const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted 
                 </a>
               )}
             </div>
-  
+
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {fields.map((f) => {
                 const value = form[f.key] || "";
                 const wide = f.long || f.key === "title" || f.type === "url" || f.type === "poster";
                 return (
                   <div key={f.key} className={wide ? "sm:col-span-2" : ""}>
-                    <label className="flex items-baseline justify-between text-xs font-medium mb-1" style={{ color: C.muted }}>
+                    <label
+                      htmlFor={f.type === "poster" ? undefined : `${fieldId}-${f.key}`}
+                      className="flex items-baseline justify-between text-xs font-medium mb-1"
+                      style={{ color: C.muted }}
+                    >
                       <span>
                         {f.label}
                         {f.required && " *"}
@@ -458,6 +476,7 @@ const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted 
                       />
                     ) : f.long ? (
                       <textarea
+                        id={`${fieldId}-${f.key}`}
                         value={value}
                         onChange={set(f.key)}
                         rows={f.rows}
@@ -465,6 +484,7 @@ const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted 
                       />
                     ) : (
                       <input
+                        id={`${fieldId}-${f.key}`}
                         type={f.type || "text"}
                         value={value}
                         onChange={set(f.key)}
@@ -477,7 +497,7 @@ const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted 
                 );
               })}
             </div>
-  
+
             {error && (
               <p
                 className="text-sm px-3 py-2 rounded-control border"
@@ -488,7 +508,7 @@ const ListingEditor = ({ listing, kind, submitting, onClose, onSaved, onDeleted 
               </p>
             )}
           </div>
-  
+
           <footer
             className="px-5 py-3 border-t flex flex-wrap items-center justify-end gap-2"
             style={{ borderColor: C.border }}
@@ -592,17 +612,29 @@ const SCRAPE_POLL_MS = 1000;
 const SCRAPE_MAX_MISSES = 5;
 const FALLBACK_NOTE = "AI unavailable — reading the page structure…";
 
-const jobErrorMessage = (job) => {
+const rawJobError = (job) => {
   const err = job?.error;
   if (err && typeof err === "object" && err.message) return err.message;
   if (typeof err === "string" && err) return err;
-  return "Could not scrape that link.";
+  return "";
+};
+
+// 401/403/429 from the page itself: the site turns away automated requests
+// (job boards like Indeed do), so retrying can't help.
+const blockedStatus = (job) => rawJobError(job).match(/\bHTTP (401|403|429)\b/)?.[1] || null;
+
+const jobErrorMessage = (job) => {
+  const status = blockedStatus(job);
+  if (status) {
+    return `This site blocks automated access (HTTP ${status}), so its details can't be read from the link. Add it manually instead.`;
+  }
+  return rawJobError(job) || "Could not scrape that link.";
 };
 
 // "Add from link": starts a server-side scrape job, polls it every second and
 // shows its stages. Polling stops on unmount; the job itself keeps running on
 // the server, so the draft is still created if the admin leaves the page.
-const ScrapePanel = ({ kind, onDraft, onOpen }) => {
+const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
   const dispatch = useDispatch();
   const [url, setUrl] = useState("");
   const [starting, setStarting] = useState(false);
@@ -668,7 +700,7 @@ const ScrapePanel = ({ kind, onDraft, onOpen }) => {
               listing: job.duplicate,
             });
           } else {
-            finish({ failure: jobErrorMessage(job) });
+            finish({ failure: jobErrorMessage(job), blocked: !!blockedStatus(job) });
           }
           return;
         }
@@ -806,7 +838,16 @@ const ScrapePanel = ({ kind, onDraft, onOpen }) => {
           />
           {(failed || succeeded) && (
             <div className="flex flex-wrap items-center gap-2 mt-2">
-              {failed && (
+              {failed && run.blocked && (
+                <button
+                  type="button"
+                  onClick={() => onManual(run.url, run.kind)}
+                  className="px-3 py-1 text-xs rounded-control font-bold text-on-primary inline-flex items-center gap-1.5 bg-primary hover:bg-primary-hover transition-colors focus-ring"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Add manually
+                </button>
+              )}
+              {failed && !run.blocked && (
                 <button
                   type="button"
                   onClick={() => start(run.url, run.kind)}
@@ -975,7 +1016,12 @@ const Listings = () => {
         </button>
       </div>
 
-      <ScrapePanel kind={kind} onDraft={onDraft} onOpen={openListing} />
+      <ScrapePanel
+        kind={kind}
+        onDraft={onDraft}
+        onOpen={openListing}
+        onManual={(sourceUrl, listingKind) => openEditor({ sourceUrl }, listingKind)}
+      />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
@@ -1123,7 +1169,7 @@ const Listings = () => {
           key={editing.session}
           listing={editing.listing}
           kind={editing.kind}
-         
+
           submitting={submitting}
           onClose={() => setEditing(null)}
           onSaved={onSaved}
