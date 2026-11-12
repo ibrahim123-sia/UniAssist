@@ -120,8 +120,9 @@ export async function extractListing(url, kind) {
 
 // Background variant for the admin's progress UI: start the extraction and
 // poll it. Same validation/messages as extractListing. → jobId (string)
-export async function startExtractJob(url, kind) {
-  const response = await postInternal("/listings/extract-jobs", { url, kind }, EXTRACT_JOB_TIMEOUT_MS);
+export async function startExtractJob(url, kind, text) {
+  const body = text ? { url, kind, text } : { url, kind };
+  const response = await postInternal("/listings/extract-jobs", body, EXTRACT_JOB_TIMEOUT_MS);
   if (!response.ok) {
     const detail = await readDetail(response);
     if (response.status === 400) throw new PythonServiceError(400, detail || "Invalid or unsupported URL");

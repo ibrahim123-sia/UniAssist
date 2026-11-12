@@ -31,11 +31,11 @@ export const fetchAdminListings = createAsyncThunk(
 // the link was already added and carries that listing so the UI can open it.
 export const startScrapeJob = createAsyncThunk(
   "adminListing/startScrapeJob",
-  async ({ url, kind }, { getState }) => {
+  async ({ url, kind, text }, { getState }) => {
     try {
       const { data } = await axios.post(
         "/api/admin/listings/scrape-jobs",
-        { url, kind },
+        text ? { url, kind, text } : { url, kind },
         authHeader(getState)
       );
       return data;

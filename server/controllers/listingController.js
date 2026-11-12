@@ -166,15 +166,27 @@ const removePosterIfUnused = async (posterUrl) => {
 };
 
 // Validate a scrape request body → { url, kind } or { error }.
+// Pasted listing text (sites that block scraping): same limits as Python.
+const PASTED_TEXT_MIN = 50;
+const PASTED_TEXT_MAX = 20000;
+
 function parseScrapeRequest(body) {
-  const { url, kind } = body ?? {};
+  const { url, kind, text } = body ?? {};
   if (typeof url !== "string" || !url.trim()) return { error: "url is required" };
   const requestedUrl = url.trim();
   if (requestedUrl.length > LISTING_LIMITS.sourceUrl || !isHttpUrl(requestedUrl)) {
     return { error: "url must be an http(s) URL" };
   }
   if (!LISTING_KINDS.includes(kind)) return { error: KIND_ERROR };
-  return { url: requestedUrl, kind };
+  if (text === undefined || text === null) return { url: requestedUrl, kind };
+  const pasted = typeof text === "string" ? text.trim() : "";
+  if (pasted.length < PASTED_TEXT_MIN) {
+    return { error: `Paste at least ${PASTED_TEXT_MIN} characters of the listing` };
+  }
+  if (pasted.length > PASTED_TEXT_MAX) {
+    return { error: `Pasted text is too long (max ${PASTED_TEXT_MAX} characters)` };
+  }
+  return { url: requestedUrl, kind, text: pasted };
 }
 
 // Python's extraction result → a new draft listing. Shared by the sync scrape
@@ -361,10 +373,11 @@ const saveJobResult = (job, result) => {
   return job.saving;
 };
 
-// POST /api/admin/listings/scrape-jobs { url, kind } → 202 { jobId }
+// POST /api/admin/listings/scrape-jobs { url, kind, text? } → 202 { jobId }
+// With `text` (the listing pasted by the admin) the page isn't fetched.
 export const startScrapeJob = async (req, res) => {
   try {
-    const { url, kind, error: inputError } = parseScrapeRequest(req.body);
+    const { url, kind, text, error: inputError } = parseScrapeRequest(req.body);
     if (inputError) return res.status(400).json({ success: false, message: inputError });
 
     const preExisting = await findDuplicate(kind, url);
@@ -372,7 +385,7 @@ export const startScrapeJob = async (req, res) => {
 
     let jobId;
     try {
-      jobId = await startExtractJob(url, kind);
+      jobId = await startExtractJob(url, kind, text);
     } catch (error) {
       const status = error.status || 502;
       if (status >= 500) console.error("startScrapeJob: could not start extraction:", error.message);

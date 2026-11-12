@@ -21,6 +21,8 @@ import {
   RotateCcw,
   CheckCircle2,
   RefreshCw,
+  ClipboardPaste,
+  Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import moment from "moment";
@@ -608,6 +610,9 @@ const STAGE_STEP = {
   saved: "save",
 };
 const SCRAPE_POLL_MS = 1000;
+// Pasted listing text (sites that block scraping): same limits as the server.
+const PASTED_TEXT_MIN = 50;
+const PASTED_TEXT_MAX = 20000;
 // Consecutive failed polls (network blips, 5xx) tolerated before giving up.
 const SCRAPE_MAX_MISSES = 5;
 const FALLBACK_NOTE = "AI unavailable — reading the page structure…";
@@ -626,7 +631,7 @@ const blockedStatus = (job) => rawJobError(job).match(/\bHTTP (401|403|429)\b/)?
 const jobErrorMessage = (job) => {
   const status = blockedStatus(job);
   if (status) {
-    return `This site blocks automated access (HTTP ${status}), so its details can't be read from the link. Add it manually instead.`;
+    return `This site blocks automated access (HTTP ${status}), so its details can't be read from the link. Paste the text from the page instead, or add it manually.`;
   }
   return rawJobError(job) || "Could not scrape that link.";
 };
@@ -643,6 +648,8 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
   // The tracked job:
   // { jobId, kind, url, startedAt, endedAt, synced, job, fallback, failure, duplicate }
   const [run, setRun] = useState(null);
+  // Blocked site: the listing text the admin copies from the page.
+  const [paste, setPaste] = useState(null); // null | string
   const mountedRef = useRef(true);
   const onDraftRef = useRef(onDraft);
   useEffect(() => {
@@ -727,11 +734,13 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
     };
   }, [dispatch, jobId]);
 
-  const start = async (target, scrapeKind) => {
+  // `text`: the listing pasted by the admin (nothing is fetched then).
+  const start = async (target, scrapeKind, text) => {
     setNotice(null);
     setRun(null);
+    setPaste(null);
     setStarting(true);
-    const res = await dispatch(startScrapeJob({ url: target, kind: scrapeKind })).unwrap();
+    const res = await dispatch(startScrapeJob({ url: target, kind: scrapeKind, text })).unwrap();
     if (!mountedRef.current) return;
     setStarting(false);
     if (res.success && res.jobId) {
@@ -739,6 +748,7 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
         jobId: res.jobId,
         kind: scrapeKind,
         url: target,
+        text,
         startedAt: Date.now(),
         endedAt: null,
         job: { status: "running", stage: "queued", stageLabel: "Starting…" },
@@ -838,11 +848,20 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
           />
           {(failed || succeeded) && (
             <div className="flex flex-wrap items-center gap-2 mt-2">
+              {failed && run.blocked && paste === null && (
+                <button
+                  type="button"
+                  onClick={() => setPaste("")}
+                  className="px-3 py-1 text-xs rounded-control font-bold text-on-primary inline-flex items-center gap-1.5 bg-primary hover:bg-primary-hover transition-colors focus-ring"
+                >
+                  <ClipboardPaste className="w-3.5 h-3.5" /> Paste text
+                </button>
+              )}
               {failed && run.blocked && (
                 <button
                   type="button"
                   onClick={() => onManual(run.url, run.kind)}
-                  className="px-3 py-1 text-xs rounded-control font-bold text-on-primary inline-flex items-center gap-1.5 bg-primary hover:bg-primary-hover transition-colors focus-ring"
+                  className="px-3 py-1 text-xs rounded-control border inline-flex items-center gap-1.5 bg-surface border-border-strong text-label hover:bg-nav-hover transition-colors focus-ring"
                 >
                   <Plus className="w-3.5 h-3.5" /> Add manually
                 </button>
@@ -850,7 +869,7 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
               {failed && !run.blocked && (
                 <button
                   type="button"
-                  onClick={() => start(run.url, run.kind)}
+                  onClick={() => start(run.url, run.kind, run.text)}
                   className="px-3 py-1 text-xs rounded-control font-bold text-on-primary inline-flex items-center gap-1.5 bg-primary hover:bg-primary-hover transition-colors focus-ring"
                 >
                   <RotateCcw className="w-3.5 h-3.5" /> Retry
@@ -872,6 +891,37 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
               >
                 Dismiss
               </button>
+            </div>
+          )}
+          {failed && run.blocked && paste !== null && (
+            <div className="mt-3 space-y-2">
+              <label htmlFor="scrape-paste" className="block text-xs font-semibold" style={{ color: C.label }}>
+                Open the link in your browser, copy the whole {runKindLabel} description and paste it here
+              </label>
+              <textarea
+                id="scrape-paste"
+                value={paste}
+                onChange={(e) => setPaste(e.target.value)}
+                rows={8}
+                maxLength={PASTED_TEXT_MAX}
+                placeholder="Title, organisation, location, requirements, deadline, how to apply…"
+                className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring"
+              />
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={paste.trim().length < PASTED_TEXT_MIN}
+                  onClick={() => start(run.url, run.kind, paste.trim())}
+                  className="px-3 py-1 text-xs rounded-control font-bold text-on-primary inline-flex items-center gap-1.5 disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
+                >
+                  <Sparkles className="w-3.5 h-3.5" /> Extract from text
+                </button>
+                <span className="text-xs" style={{ color: C.muted }}>
+                  {paste.trim().length < PASTED_TEXT_MIN
+                    ? `At least ${PASTED_TEXT_MIN} characters`
+                    : `${paste.length.toLocaleString()} / ${PASTED_TEXT_MAX.toLocaleString()}`}
+                </span>
+              </div>
             </div>
           )}
         </div>

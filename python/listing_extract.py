@@ -29,6 +29,7 @@ ever comes from the heuristic — image URLs are not in the text the LLM sees.
 """
 
 import concurrent.futures  # Future objects for the LLM call / background jobs
+import html as html_lib  # For escaping pasted listing text into a page
 import json           # For parsing the LLM's JSON reply and JSON-LD blocks
 import queue          # Work queue of the daemon worker pools
 import re             # For date / keyword / cleanup patterns
@@ -1093,8 +1094,37 @@ KIND_ERROR = "kind must be 'job', 'scholarship' or 'event'"
 STAGES = ("fetching", "reading", "extracting", "fallback", "done")
 
 
-def extract_listing(url, kind, progress=None):
+PASTED_TEXT_MIN = 50       # characters: less can't describe a listing
+PASTED_TEXT_MAX = 20000
+
+
+def _pasted_text_page(text):
+    """Pasted listing text as a minimal HTML page for heuristic_extract: the
+    first line (usually the title) becomes <title>, every block a <p>."""
+    lines = [line.strip() for line in text.strip().splitlines()]
+    title = next((line for line in lines if line), "")[:150]
+    blocks = [b.strip() for b in re.split(r"\n\s*\n", text.strip()) if b.strip()]
+    body = "".join(f"<p>{html_lib.escape(b)}</p>" for b in blocks)
+    return f"<html><head><title>{html_lib.escape(title)}</title></head><body>{body}</body></html>".encode("utf-8")
+
+
+def check_pasted_text(text):
+    """None (no text) or the stripped text. Raises UnsafeURLError (-> 400)."""
+    if text is None:
+        return None
+    text = str(text).strip()
+    if len(text) < PASTED_TEXT_MIN:
+        raise url_safety.UnsafeURLError(f"Paste at least {PASTED_TEXT_MIN} characters of the listing")
+    if len(text) > PASTED_TEXT_MAX:
+        raise url_safety.UnsafeURLError(f"Pasted text is too long (max {PASTED_TEXT_MAX} characters)")
+    return text
+
+
+def extract_listing(url, kind, progress=None, text=None):
     """Fetch `url` and extract a `kind` ("job" | "scholarship" | "event") listing.
+
+    With `text` (the listing copied from a site that blocks automated
+    requests) nothing is fetched: `url` is only recorded as the source.
 
     `progress(stage)` (optional) is called at the real boundaries — see
     STAGES. A failing callback never breaks the extraction.
@@ -1110,12 +1140,15 @@ def extract_listing(url, kind, progress=None):
     if kind not in LISTING_KINDS:
         raise url_safety.UnsafeURLError(KIND_ERROR)
     started = time.monotonic()
-    report("fetching")
-    page = url_safety.fetch_public_url(url)
-    source_url = page.url
+    if text is not None:
+        source_url, content, encoding = url, _pasted_text_page(text), "utf-8"
+    else:
+        report("fetching")
+        page = url_safety.fetch_public_url(url)
+        source_url, content, encoding = page.url, page.content, page.encoding
 
     report("reading")
-    heuristic, page_text = heuristic_extract(page.content, page.encoding, source_url, kind)
+    heuristic, page_text = heuristic_extract(content, encoding, source_url, kind)
 
     remaining = config.LISTING_TOTAL_BUDGET - (time.monotonic() - started)
     timeout = min(config.LISTING_LLM_TIMEOUT, remaining)
@@ -1177,7 +1210,7 @@ def _prune_jobs_locked():
                 break
 
 
-def start_extract_job(url, kind):
+def start_extract_job(url, kind, text=None):
     """Validate, register and queue an extraction. Returns the job id.
 
     Validation happens now, with the same messages as the sync endpoint, so
@@ -1187,6 +1220,7 @@ def start_extract_job(url, kind):
     if kind not in LISTING_KINDS:
         raise url_safety.UnsafeURLError(KIND_ERROR)
     url_safety.validate_public_url(url)
+    text = check_pasted_text(text)
     job_id = uuid.uuid4().hex
     now = _iso_now()
     with _jobs_lock:
@@ -1198,7 +1232,7 @@ def start_extract_job(url, kind):
             "startedAt": now, "updatedAt": now, "result": None, "error": None,
             "_finished": None,
         }
-    _job_pool.submit(_run_extract_job, job_id, url, kind)
+    _job_pool.submit(_run_extract_job, job_id, url, kind, text)
     return job_id
 
 
@@ -1220,12 +1254,12 @@ def _update_job(job_id, **changes):
         job.update(changes, updatedAt=_iso_now())
 
 
-def _run_extract_job(job_id, url, kind):
+def _run_extract_job(job_id, url, kind, text=None):
     def progress(stage):
         _update_job(job_id, stage=stage)
 
     try:
-        result = extract_listing(url, kind, progress=progress)
+        result = extract_listing(url, kind, progress=progress, text=text)
     except url_safety.UnsafeURLError as exc:
         error = {"status": 400, "message": str(exc)}
         print(f"  /listings/extract-jobs {job_id[:8]}: rejected {ascii(url)}: {ascii(str(exc))}")

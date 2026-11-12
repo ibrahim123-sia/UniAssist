@@ -794,15 +794,20 @@ def listings_extract(body: ListingExtractBody):
         raise HTTPException(status_code=502, detail=str(exc))
 
 
+class ListingExtractJobBody(ListingExtractBody):
+    # The listing's text, pasted by the admin when the site blocks scraping.
+    text: Optional[str] = Field(None, max_length=listing_extract.PASTED_TEXT_MAX + 1000)
+
+
 @app.post("/listings/extract-jobs", status_code=202, dependencies=[Depends(require_internal_secret)])
-def listings_extract_job(body: ListingExtractBody):
+def listings_extract_job(body: ListingExtractJobBody):
     """Start the same extraction as /listings/extract in the background.
 
     Validates kind + URL now (400, same messages as the sync endpoint) and
     answers 202 {"jobId"}; poll GET /listings/extract-jobs/{jobId}.
     """
     try:
-        job_id = listing_extract.start_extract_job(body.url, body.kind)
+        job_id = listing_extract.start_extract_job(body.url, body.kind, body.text)
     except url_safety.UnsafeURLError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except listing_extract.ExtractJobsBusy as exc:
