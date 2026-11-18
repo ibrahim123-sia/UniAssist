@@ -624,14 +624,20 @@ const rawJobError = (job) => {
   return "";
 };
 
-// 401/403/429 from the page itself: the site turns away automated requests
-// (job boards like Indeed do), so retrying can't help.
-const blockedStatus = (job) => rawJobError(job).match(/\bHTTP (401|403|429)\b/)?.[1] || null;
+// 401/403/429 (999 is LinkedIn's) from the page itself: the site turns away
+// automated requests (job boards like Indeed do), so retrying can't help.
+const blockedStatus = (job) => rawJobError(job).match(/\bHTTP (401|403|429|999)\b/)?.[1] || null;
+// The site answered with its sign-in page instead of the listing.
+const signInWall = (job) => /\bsign-in page\b/.test(rawJobError(job));
+const isBlocked = (job) => !!blockedStatus(job) || signInWall(job);
 
 const jobErrorMessage = (job) => {
   const status = blockedStatus(job);
   if (status) {
     return `This site blocks automated access (HTTP ${status}), so its details can't be read from the link. Paste the text from the page instead, or add it manually.`;
+  }
+  if (signInWall(job)) {
+    return "This site only shows the listing after you sign in, so its details can't be read from the link. Paste the text from the page instead, or add it manually.";
   }
   return rawJobError(job) || "Could not scrape that link.";
 };
@@ -707,7 +713,7 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
               listing: job.duplicate,
             });
           } else {
-            finish({ failure: jobErrorMessage(job), blocked: !!blockedStatus(job) });
+            finish({ failure: jobErrorMessage(job), blocked: isBlocked(job) });
           }
           return;
         }
@@ -777,6 +783,7 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
   // Switching tabs clears a stale notice, but never a job that is running.
   useEffect(() => {
     setNotice(null);
+    setPaste(null);
     setRun((cur) => (cur && !cur.endedAt ? cur : null));
   }, [kind]);
 
@@ -787,6 +794,11 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
   const succeeded = !!run?.endedAt && !failed && !run?.duplicate;
   const stepStatus = failed ? "failed" : succeeded ? "done" : "running";
   const runKindLabel = run ? KIND_LABELS[run.kind].one.toLowerCase() : "";
+  // Pasted text goes with the link that just failed, or with the one typed.
+  const pasteUrl = failed ? run.url : url.trim();
+  const pasteKind = failed ? run.kind : kind;
+  const pasteKindLabel = KIND_LABELS[pasteKind].one.toLowerCase();
+  const pasteReady = paste !== null && isHttpUrl(pasteUrl) && paste.trim().length >= PASTED_TEXT_MIN;
 
   return (
     <form
@@ -826,6 +838,18 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
           {starting ? "Starting..." : running ? "Scraping..." : "Scrape"}
         </button>
       </div>
+      {!busy && paste === null && !(failed && run.blocked) && (
+        <p className="text-xs" style={{ color: C.muted }}>
+          Indeed or another site blocks scraping?{" "}
+          <button
+            type="button"
+            onClick={() => setPaste("")}
+            className="font-semibold underline underline-offset-2 text-primary hover:text-primary-hover focus-ring rounded-sm"
+          >
+            Paste the text instead
+          </button>
+        </p>
+      )}
 
       {run && !run.duplicate && (
         <div className="rounded-control border px-3 py-2.5" style={{ borderColor: C.border, backgroundColor: C.surfaceMuted }}>
@@ -893,37 +917,47 @@ const ScrapePanel = ({ kind, onDraft, onOpen, onManual }) => {
               </button>
             </div>
           )}
-          {failed && run.blocked && paste !== null && (
-            <div className="mt-3 space-y-2">
-              <label htmlFor="scrape-paste" className="block text-xs font-semibold" style={{ color: C.label }}>
-                Open the link in your browser, copy the whole {runKindLabel} description and paste it here
-              </label>
-              <textarea
-                id="scrape-paste"
-                value={paste}
-                onChange={(e) => setPaste(e.target.value)}
-                rows={8}
-                maxLength={PASTED_TEXT_MAX}
-                placeholder="Title, organisation, location, requirements, deadline, how to apply…"
-                className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring"
-              />
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={paste.trim().length < PASTED_TEXT_MIN}
-                  onClick={() => start(run.url, run.kind, paste.trim())}
-                  className="px-3 py-1 text-xs rounded-control font-bold text-on-primary inline-flex items-center gap-1.5 disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
-                >
-                  <Sparkles className="w-3.5 h-3.5" /> Extract from text
-                </button>
-                <span className="text-xs" style={{ color: C.muted }}>
-                  {paste.trim().length < PASTED_TEXT_MIN
-                    ? `At least ${PASTED_TEXT_MIN} characters`
-                    : `${paste.length.toLocaleString()} / ${PASTED_TEXT_MAX.toLocaleString()}`}
-                </span>
-              </div>
-            </div>
-          )}
+        </div>
+      )}
+
+      {paste !== null && (
+        <div className="rounded-control border px-3 py-2.5 space-y-2" style={{ borderColor: C.border, backgroundColor: C.surfaceMuted }}>
+          <label htmlFor="scrape-paste" className="block text-xs font-semibold" style={{ color: C.label }}>
+            Open the link in your browser, copy the whole {pasteKindLabel} description and paste it here
+          </label>
+          <textarea
+            id="scrape-paste"
+            value={paste}
+            onChange={(e) => setPaste(e.target.value)}
+            rows={8}
+            maxLength={PASTED_TEXT_MAX}
+            placeholder="Title, organisation, location, requirements, deadline, how to apply…"
+            className="w-full px-3 py-2 text-sm rounded-control border focus:outline-none bg-input-bg border-input-border text-text focus:border-primary focus-ring"
+          />
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled={!pasteReady}
+              onClick={() => start(pasteUrl, pasteKind, paste.trim())}
+              className="px-3 py-1 text-xs rounded-control font-bold text-on-primary inline-flex items-center gap-1.5 disabled:opacity-50 bg-primary hover:bg-primary-hover transition-colors focus-ring"
+            >
+              <Sparkles className="w-3.5 h-3.5" /> Extract from text
+            </button>
+            <button
+              type="button"
+              onClick={() => setPaste(null)}
+              className="px-3 py-1 text-xs rounded-control border bg-surface border-border-strong text-muted hover:bg-nav-hover transition-colors focus-ring"
+            >
+              Cancel
+            </button>
+            <span className="text-xs" style={{ color: C.muted }}>
+              {!isHttpUrl(pasteUrl)
+                ? "Enter the link above too — it is saved as the source"
+                : paste.trim().length < PASTED_TEXT_MIN
+                ? `At least ${PASTED_TEXT_MIN} characters`
+                : `${paste.length.toLocaleString()} / ${PASTED_TEXT_MAX.toLocaleString()}`}
+            </span>
+          </div>
         </div>
       )}
 

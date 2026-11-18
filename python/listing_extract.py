@@ -37,7 +37,7 @@ import threading      # Daemon workers + the extract-job registry lock
 import time           # For the overall request time budget
 import uuid           # For extract-job ids
 from datetime import date, datetime, timezone, time as dt_time  # For deadline / event-date normalisation
-from urllib.parse import urljoin, urlsplit  # For resolving apply links and deriving an organisation name
+from urllib.parse import parse_qs, urljoin, urlsplit  # For resolving apply links and deriving an organisation name
 
 from bs4 import BeautifulSoup  # For reading meta tags, JSON-LD and links
 
@@ -1098,6 +1098,47 @@ PASTED_TEXT_MIN = 50       # characters: less can't describe a listing
 PASTED_TEXT_MAX = 20000
 
 
+# A job id in a LinkedIn job link: /jobs/view/<id> or /jobs/view/<title-slug>-<id>.
+_LINKEDIN_VIEW_RE = re.compile(r"^/jobs/view/(?:[^/]*-)?(\d{6,})(?:/|$)")
+# Where a site sends a guest instead of the listing.
+_SIGN_IN_PATH_RE = re.compile(
+    r"/(?:uas/login|login|authwall|signin|sign-in|signup|sign-up|checkpoint|account/login|auth)(?:[/?.]|$)",
+    re.IGNORECASE,
+)
+
+
+def canonical_listing_url(url):
+    """The public page for a job board link copied from a signed-in browser.
+
+    LinkedIn's address bar shows /jobs/collections/…?currentJobId=<id> or
+    /jobs/search/?currentJobId=<id>, which a guest gets as a sign-in page or a
+    list of search results; /jobs/view/<id>/ is the job itself. Indeed's
+    search links carry the job as ?vjk=<id>. Anything else is returned as is.
+    """
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return url
+    host = (parts.hostname or "").lower()
+    query = parse_qs(parts.query)
+    if host == "linkedin.com" or host.endswith(".linkedin.com"):
+        job_id = (query.get("currentJobId") or [""])[0]
+        match = _LINKEDIN_VIEW_RE.match(parts.path)
+        if match:
+            job_id = match.group(1)
+        if job_id.isdigit():
+            return f"https://www.linkedin.com/jobs/view/{job_id}/"
+    elif re.search(r"(?:^|\.)indeed\.", host):
+        job_id = (query.get("jk") or query.get("vjk") or [""])[0]
+        if re.fullmatch(r"[0-9a-f]{8,32}", job_id):
+            return f"https://{host}/viewjob?jk={job_id}"
+    return url
+
+
+def _is_sign_in_page(url):
+    return bool(_SIGN_IN_PATH_RE.search(urlsplit(url).path or "/"))
+
+
 def _pasted_text_page(text):
     """Pasted listing text as a minimal HTML page for heuristic_extract: the
     first line (usually the title) becomes <title>, every block a <p>."""
@@ -1140,11 +1181,15 @@ def extract_listing(url, kind, progress=None, text=None):
     if kind not in LISTING_KINDS:
         raise url_safety.UnsafeURLError(KIND_ERROR)
     started = time.monotonic()
+    url = canonical_listing_url(url)
     if text is not None:
         source_url, content, encoding = url, _pasted_text_page(text), "utf-8"
     else:
         report("fetching")
         page = url_safety.fetch_public_url(url)
+        if _is_sign_in_page(page.url) and not _is_sign_in_page(url):
+            # Extracting would only produce a "Sign in | LinkedIn" draft.
+            raise url_safety.FetchError("The site sent a sign-in page instead of the listing")
         source_url, content, encoding = page.url, page.content, page.encoding
 
     report("reading")
