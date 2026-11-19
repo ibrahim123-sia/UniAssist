@@ -21,7 +21,7 @@ import {
 } from "recharts";
 import moment from "moment";
 import { fetchDeptStats } from "../../redux/slices/issueSlice";
-import { statusStyle } from "../../utils/issues";
+import { formatHours, statusStyle } from "../../utils/issues";
 import { C, useChartColors } from "../../theme/palette";
 
 const POLL_MS = 20000;
@@ -110,7 +110,7 @@ const StaffDashboard = () => {
           <Card
             icon={TrendingUp}
             label="Avg response"
-            value={s.avgResponseHours != null ? `${s.avgResponseHours}h` : "—"}
+            value={formatHours(s.avgResponseHours)}
             hint="time to first staff reply"
             accent="bg-primary-50 text-primary dark:bg-nav-active-bg dark:text-nav-active-text"
           />

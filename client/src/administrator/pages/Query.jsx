@@ -36,6 +36,7 @@ import { C, useChartColors } from "../../theme/palette";
 import { useDebouncedSearch } from "../utils/useDebouncedSearch";
 import OverdueBadge from "../../components/OverdueBadge";
 import StarRating from "../../components/StarRating";
+import { formatHours } from "../../utils/issues";
 
 const PAGE_SIZE = 25;
 const STATUSES = ["Pending", "In Progress", "Resolved", "Closed"];
@@ -131,13 +132,13 @@ const Query = () => {
           icon={TrendingUp}
           label="Most asked"
           value={topCategory ? topCategory.category : "—"}
-          hint={topCategory ? `${topCategory.count} times` : ""}
+          hint={topCategory ? `${topCategory.count} ${topCategory.count === 1 ? "time" : "times"}` : ""}
           accent={C.accentStrong}
         />
         <StatCard
           icon={Clock}
           label="Avg resolution"
-          value={analytics?.avgResolutionHours != null ? `${analytics.avgResolutionHours}h` : "—"}
+          value={formatHours(analytics?.avgResolutionHours)}
           hint={analytics?.resolvedCount ? `${analytics.resolvedCount} resolved` : ""}
           accent={C.success}
         />
