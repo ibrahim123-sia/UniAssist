@@ -228,6 +228,57 @@ def extract_structured(url):
         return None, []
 
 
+# A cell longer than this means the table lays out the page rather than
+# holding data; such tables keep the plain per-cell extraction.
+_DATA_CELL_MAX = 400
+
+
+def _cell_text(cell):
+    return " ".join(cell.get_text(" ", strip=True).split())
+
+
+def _is_data_table(table):
+    if table.find("table") is not None:
+        return False
+    cells = table.find_all(["td", "th"])
+    return len(table.find_all("tr")) >= 2 and all(len(_cell_text(c)) <= _DATA_CELL_MAX for c in cells)
+
+
+def _in_tables(el, table_ids):
+    return any(id(parent) in table_ids for parent in el.find_parents("table"))
+
+
+def _table_elements(table):
+    """One element per row, each value labelled with its column header.
+
+    Cells alone lose their meaning: a fee table became "BS (Computer
+    Science)" followed by a bare "10,000", and the LLM then guessed "per
+    semester" for what the page calls "Tuition Fee/Credit Hour (PKR)".
+    """
+    out = []
+    headers = None
+    for tr in table.find_all("tr"):
+        cells = tr.find_all(["th", "td"], recursive=False)
+        texts = [_cell_text(c) for c in cells]
+        filled = [t for t in texts if t]
+        if not filled:
+            continue
+        if len(filled) == 1:
+            # Caption or group row ("One-Time Charges (PKR)", "Undergraduate Programs").
+            out.append({"tag": "td", "text": filled[0]})
+            continue
+        if all(c.name == "th" for c in cells):
+            headers = texts
+            continue
+        if headers and len(headers) == len(texts):
+            pairs = [f"{h}: {v}" if h else v for h, v in zip(headers[1:], texts[1:]) if v]
+            text = f"{texts[0]} — {'; '.join(pairs)}" if texts[0] else "; ".join(pairs)
+        else:
+            text = " | ".join(filled)
+        out.append({"tag": "td", "text": text})
+    return out
+
+
 def parse_html(html, encoding=None):
     """BeautifulSoup (lxml) for a str or bytes document.
 
@@ -265,7 +316,15 @@ def extract_structured_from_html(html, encoding=None):
 
     keep_tags = ("h1", "h2", "h3", "h4", "p", "li", "td", "dt", "dd")
     elements = []
-    for el in main.find_all(keep_tags):
+    data_tables = set()
+    for el in main.find_all(keep_tags + ("table",)):
+        if el.name == "table":
+            if _is_data_table(el) and not _in_tables(el, data_tables):
+                data_tables.add(id(el))
+                elements.extend(_table_elements(el))
+            continue
+        if _in_tables(el, data_tables):
+            continue
         text = el.get_text(" ", strip=True)
         text = " ".join(text.split())
         if not text:
