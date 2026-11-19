@@ -281,7 +281,9 @@ LISTING_TOTAL_BUDGET = int(os.getenv("LISTING_TOTAL_BUDGET", "50"))        # sec
 LISTING_LLM_TIMEOUT = int(os.getenv("LISTING_LLM_TIMEOUT", "40"))          # seconds
 LISTING_LLM_MAX_CHARS = 12000        # page text sent to a cloud LLM
 LISTING_LLM_MAX_CHARS_LOCAL = 6000   # Ollama's default 2k-4k token context can't take 12k chars
-LISTING_LLM_MAX_TOKENS = 1500
+# gpt-oss spends hidden reasoning tokens from this budget too; at 1500 a long
+# job description was cut off mid-JSON (finish_reason "length") 2 times in 3.
+LISTING_LLM_MAX_TOKENS = 3000
 LISTING_JOB_WORKERS = 4              # background /listings/extract-jobs running at once
 LISTING_JOB_TTL = 15 * 60            # seconds a finished extract job stays pollable
 LISTING_JOB_MAX = 200                # extract jobs kept in memory (oldest finished dropped first)

@@ -1213,8 +1213,25 @@ def extract_listing(url, kind, progress=None, text=None):
         report("fallback")
         fields, extracted_by = _finalize(heuristic, kind, source_url, {}), "heuristic"
 
+    if not _has_listing_details(fields, kind):
+        # A home page or list page (jinnah.edu/events/ redirects to the home
+        # page) otherwise became a "MAJU" draft with nothing else in it.
+        noun = KIND_NOUN[kind]
+        raise url_safety.FetchError(
+            f"No {noun} details were found on this page. Use the link of the {noun} itself, or paste its text."
+        )
+
     report("done")
     return {"kind": kind, "sourceUrl": source_url, "extractedBy": extracted_by, "fields": fields}
+
+
+def _has_listing_details(fields, kind):
+    """Anything beyond the title / organisation / link that _finalize fills in."""
+    if fields.get("description") or fields.get("requirements") or fields.get("eligibility"):
+        return True
+    if kind == "event":
+        return bool(fields.get("eventDate"))
+    return bool(fields.get("deadline") or fields.get("salary") or fields.get("amount"))
 
 
 # =============================================================
