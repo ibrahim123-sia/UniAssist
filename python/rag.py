@@ -932,6 +932,58 @@ def small_talk_reply(question, language="en"):
     return replies["roman_urdu"] if roman else replies["en"]
 
 
+# Contact details the model may only repeat, never make up. A phone needs 9+
+# digits (MAJU's UAN 111-87-87-87 has 9) so fees and ISO dates don't match.
+_ANSWER_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
+_ANSWER_PHONE_RE = re.compile(r"\+?\(?\d[\d\s()\-]{7,}\d")
+_SENTENCE_SPLIT_RE = re.compile(r"(?<=[.!?])\s+")
+
+
+def _phone_digits(text):
+    digits = re.sub(r"\D", "", text)
+    return digits if len(digits) >= 9 else None
+
+
+def _drop_unverified_contacts(answer, chunks, history):
+    """Remove sentences giving an email or phone number found in neither the
+    retrieved chunks nor the chat history.
+
+    The prompt forbids inventing contacts, yet the model still filled in
+    "admissions@maju.edu.pk" / "+92 21 111 222 333" for MAJU (real: the
+    jinnah.edu address and 111-87-87-87). A student calling a made-up number
+    is worse than no number, so this check is done in code.
+    """
+    known = "\n".join(list(chunks) + [m.get("content", "") for m in _sanitize_history(history)])
+    known_lower = known.lower()
+    # Last 9 digits: "+92 21 111-87-87-87" and "021-111-878787" are one number.
+    known_phones = {d[-9:] for d in filter(None, map(_phone_digits, _ANSWER_PHONE_RE.findall(known)))}
+
+    def unverified(sentence):
+        for email in _ANSWER_EMAIL_RE.findall(sentence):
+            if email.lower().rstrip(".") not in known_lower:
+                return email
+        for phone in _ANSWER_PHONE_RE.findall(sentence):
+            digits = _phone_digits(phone)
+            if digits and digits[-9:] not in known_phones:
+                return phone
+        return None
+
+    kept_lines, dropped = [], []
+    for line in answer.split("\n"):
+        kept = []
+        for sentence in _SENTENCE_SPLIT_RE.split(line):
+            bad = unverified(sentence)
+            if bad:
+                dropped.append(bad)
+            else:
+                kept.append(sentence)
+        if kept or not line.strip():
+            kept_lines.append(" ".join(kept))
+    if dropped:
+        print(f"  Dropped unverified contact details from the answer: {dropped}")
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept_lines)).strip()
+
+
 def ask(question, language="en", history=None, guest=False):
     """Run the RAG pipeline and return just the answer text (CLI / legacy callers)."""
     answer, _answered = ask_detailed(question, language=language, history=history, guest=guest)
@@ -1006,5 +1058,9 @@ def ask_detailed(question, language="en", history=None, guest=False):
     # than another retry round.
     if language in ("roman_urdu", "mixed"):
         cleaned = _replace_hindi_words(cleaned)
+
+    cleaned = _drop_unverified_contacts(cleaned, chunks, history)
+    if not cleaned:
+        return NO_INFO_FALLBACK.get(language, NO_INFO_FALLBACK["en"]), False
 
     return cleaned, not is_no_info_answer(cleaned)
